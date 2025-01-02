@@ -10,7 +10,9 @@ node -v
 ```
 
 
-#### Build
+#### Build Web
+
+Build web bundles in *html/js*
 
 ```sh
 # Web (Production)
@@ -18,6 +20,11 @@ npm run build:web
 # Web (Development)
 npm run build:web:dev
 ```
+
+
+
+
+
 
 #### Test
 

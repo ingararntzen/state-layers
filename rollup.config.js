@@ -1,19 +1,16 @@
 // rollup.config.js
 
 // minifying code
-import {terser} from '@rollup-plugin-terser';
+import terser from '@rollup/plugin-terser';
 
 // needed if src includes non-ES6 modules
-/*
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-*/
 
-const isProduction = process.env.NODE_ENV === 'production';
-const isWeb = process.env.BUILD_ENV === 'web';
+const isProduction = process.env.BUILD_ENV === 'production';
 
 // target directory for build
-const target = "dist";
+const target = "html/js";
 // name of bundle
 const bundle = "layers";
 // file extension
@@ -26,7 +23,7 @@ export default {
       file: `${target}/${bundle}.iife.${ext}`,
       format: 'iife',
       sourcemap: "inline",
-      name: `${bundle.toLocaleLowerCase()}`,
+      name: `${bundle.toLocaleUpperCase()}`,
       plugins: [isProduction && terser()],
     },
     {
@@ -37,8 +34,8 @@ export default {
   ],
   external: [],
   plugins: [
-    // resolve(),
-    // commonjs(),
+    resolve(),
+    commonjs(),
   ],
 }
 

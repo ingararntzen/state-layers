@@ -4,14 +4,20 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./js/layers.iife.js"></script>
     <script type="module">
-        import { sum } from './js/index.js';
+        // Test ES6 module import
+        import { sum } from './js/layers.es.js';
         console.log(sum(2, 3));
-        document.getElementById('sum-result').textContent = sum(2, 3);
+        document.getElementById('es-result').textContent = sum(2, 3);
+        // Test classic namespace import
+        document.getElementById('iife-result').textContent = LAYERS.sum(2, 3);
     </script>
+    <script src="./js/layers.iife.js"></script>
 </head>
 <body>
     <h1>Hello, Layers!</h1>
-    <p>The sum of 2 and 3 is <span id="sum-result"></span>.</p>
+    <p>Module import (es) <span id="es-result"></span>.</p>    
+    <p>Classic namespace import (iife) <span id="iife-result"></span>.</p>
 </body>
 </html>
