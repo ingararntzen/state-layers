@@ -9,22 +9,25 @@ sudo apt-get install -y nodejs
 node -v
 ```
 
-
 #### Build Web
 
-Build web bundles in *html/js*
+Start dev server.
+
+On start, the server will build web bundles in *html/js* and open a browser at index.html. Afterwards, it will watch for source code changes, re-build web bundles and trigger browser reloads. Start server in a separate terminal.
 
 ```sh
-# Web (Production)
-npm run build:web
-# Web (Development)
-npm run build:web:dev
+npm run start
 ```
 
+Alternatively, it is possible to trigger a manual build. Builds with a
+dist option will be minified.
 
-
-
-
+```sh
+# Web (Development)
+npm run build
+# Web (Distribution)
+npm run build:dist
+```
 
 #### Test
 
