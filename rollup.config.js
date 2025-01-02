@@ -3,18 +3,25 @@
 // minifying code
 import terser from '@rollup/plugin-terser';
 
+// plugins for different module types
 // needed if src includes non-ES6 modules
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 
-const isProduction = process.env.BUILD_ENV === 'production';
+// dev support
+import serve from 'rollup-plugin-serve';
+import livereload from 'rollup-plugin-livereload';
+
+// distribution
+const isDist = process.env.DIST == 'true';
+const isServe = process.env.SERVE == 'true';
 
 // target directory for build
 const target = "html/js";
 // name of bundle
 const bundle = "layers";
 // file extension
-const ext = isProduction ? "min.js" : "js"; 
+const ext = isDist ? "min.js" : "js"; 
 
 export default {
   input: 'src/index.js',
@@ -24,18 +31,25 @@ export default {
       format: 'iife',
       sourcemap: "inline",
       name: `${bundle.toLocaleUpperCase()}`,
-      plugins: [isProduction && terser()],
     },
     {
       file: `${target}/${bundle}.es.${ext}`,
       format: 'es',
-      plugins: [isProduction && terser()],
     },
   ],
   external: [],
   plugins: [
     resolve(),
     commonjs(),
+    isDist && terser(),
+    // start dev server and open browser
+    !isDist && isServe && serve({
+      open: true, // Opens the browser automatically
+      contentBase: 'html',
+      port: 8000,
+    }),
+    // dev server livereload browser
+    !isDist && isServe && livereload({watch : 'html'}),
   ],
 }
 
