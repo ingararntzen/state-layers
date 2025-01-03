@@ -1,0 +1,67 @@
+/* global describe, test, expect */
+
+import {StaticSegment, MotionSegment, TransitionSegment} from '../src/segments.js';
+
+describe('StaticSegment class', () => {
+    test('should return correct value for offset within interval', () => {
+
+        const intervals = [
+            [1, 5, true, true], 
+            [1, 5, false, true], 
+            [1, 5, true, false], 
+            [1, 5, false, false]
+        ];
+        const offsets = [0, 1, 2, 3, 4, 5, 6];
+        
+        const results = intervals.map(interval => {
+            const segment = new StaticSegment(interval, 8);
+            return offsets.map(offset => segment.query(offset).value);
+        });
+
+        const expected = [
+            [undefined, 8, 8, 8, 8, 8, undefined],
+            [undefined, undefined, 8, 8, 8, 8, undefined],
+            [undefined, 8, 8, 8, 8, undefined, undefined],
+            [undefined, undefined, 8, 8, 8, undefined, undefined]
+        ];
+
+        expect(results).toEqual(expected);        
+    });
+
+    test('should return undefined for offset outside interval', () => {
+        const interval = [1, 5, true, true];
+        const staticValue = 'static value';
+        const segment = new StaticSegment(interval, staticValue);
+        const result = segment.query(6);
+        expect(result.value).toBeUndefined();
+        expect(result.dynamic).toBe(false);
+    });
+});
+
+
+describe('MotionSegment class', () => {
+    test('should return correct value for offset within interval', () => {
+        const interval = [1, 5, true, true];
+        const vector = [0, 1, 0, 0];
+        const segment = new MotionSegment(interval, vector);
+        const offsets = [0, 1, 2, 3, 4, 5, 6];
+        const results = offsets.map(offset => segment.query(offset).value);
+        const expected = [undefined, 1, 2, 3, 4, 5, undefined];
+        expect(results).toEqual(expected);
+    });
+});
+
+
+describe('TransitionSegment class', () => {
+    test('should return correct value for offset within interval', () => {
+        const interval = [1, 5, true, true];
+        const v0 = 9, v1 = 5
+        const easing = 'linear';
+        const segment = new TransitionSegment(interval, v0, v1, easing);
+        const offsets = [0, 1, 2, 3, 4, 5, 6];
+        const results = offsets.map(offset => segment.query(offset).value);
+        const expected = [undefined, 9, 8, 7, 6, 5, undefined];
+        expect(results).toEqual(expected);
+    });
+});
+

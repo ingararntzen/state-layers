@@ -1,3 +1,4 @@
 import { sum } from './sum.js';
+import segments from './segments.js'
 
-export { sum }
+export { sum, segments }
