@@ -57,7 +57,7 @@ export class BaseSegment {
      * implemented by subclass
      * returns value or undefined
     */
-    value(offset) {
+    value() {
     	throw new Error("not implemented");
     }
 
@@ -88,7 +88,7 @@ export class StaticSegment extends BaseSegment {
 		this._value = value;
 	}
 
-	value(offset) {
+	value() {
 		return this._value;
 	}
 }
@@ -159,7 +159,7 @@ export class TransitionSegment extends BaseSegment {
         this.v0 = v0;
         this.v1 = v1;
         this.easing = easing;
-        let [t0, t1, ...rest] = this.interval;
+        let [t0, t1] = this.interval.slice(0,2);
 
         // create the transition function
         this._dynamic = v1-v0 != 0;
@@ -192,3 +192,73 @@ export class TransitionSegment extends BaseSegment {
         return this._trans(offset);
 	}
 }
+
+
+
+/********************************************************************
+    INTERPOLATION SEGMENT
+*********************************************************************/
+
+/**
+ * Function to create an interpolator for nearest neighbor interpolation with extrapolation support.
+ * 
+ * @param {Array} tuples - An array of [value, offset] pairs, where value is the point's value and offset is the corresponding offset.
+ * @returns {Function} - A function that takes an offset and returns the interpolated or extrapolated value.
+ */
+
+function interpolate(tuples) {
+
+    if (tuples.length < 1) {
+        return function interpolator () {return undefined;}
+    } else if (tuples.length == 1) {
+        return function interpolator () {return tuples[0][0];}
+    }
+
+    // Sort the tuples by their offsets
+    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
+  
+    return function interpolator(offset) {
+      // Handle extrapolation before the first point
+      if (offset <= sortedTuples[0][1]) {
+        const [value1, offset1] = sortedTuples[0];
+        const [value2, offset2] = sortedTuples[1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+      
+      // Handle extrapolation after the last point
+      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
+        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
+        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+  
+      // Find the nearest points to the left and right
+      for (let i = 0; i < sortedTuples.length - 1; i++) {
+        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
+          const [value1, offset1] = sortedTuples[i];
+          const [value2, offset2] = sortedTuples[i + 1];
+          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
+          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+        }
+      }
+  
+      // In case the offset does not fall within any range (should be covered by the previous conditions)
+      return undefined;
+    };
+}
+  
+
+export class InterpolationSegment extends BaseSegment {
+
+    constructor(interval, tuples) {
+        super(interval);
+        // setup interpolation function
+        this._trans = interpolate(tuples);
+    }
+
+    get dynamic() {return true;}
+
+    value(offset) {return this._trans(offset);}
+}
+
+

@@ -1,6 +1,9 @@
 /* global describe, test, expect */
 
-import {StaticSegment, MotionSegment, TransitionSegment} from '../src/segments.js';
+import {
+    StaticSegment, MotionSegment,
+    TransitionSegment, InterpolationSegment
+} from '../src/segments.js';
 
 describe('StaticSegment class', () => {
     test('should return correct value for offset within interval', () => {
@@ -65,3 +68,18 @@ describe('TransitionSegment class', () => {
     });
 });
 
+describe('InterpolationSegment class', () => {
+    test('should return correct value for offset within interval', () => {
+        const interval = [1, 5, true, true];
+        const tuples = [[1, 0.5], [2, 1.5], [3, 2.5], [4, 3.5], [5, 4.5]];
+
+        const segment = new InterpolationSegment(interval, tuples);
+        const offsets = [0, 1, 2, 3, 4, 5, 6];
+        const results = offsets.map(offset => segment.query(offset).value);
+        const expected = [undefined, 1.5, 2.5, 3.5, 4.5, 5.5, undefined];
+
+        console.log(results);
+        console.log(expected)
+        expect(results).toEqual(expected);
+    });
+});
