@@ -1,3 +1,4 @@
+/* global test, expect */
 
 import { sum } from '../src/index.js';
 
