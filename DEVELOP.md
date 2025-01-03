@@ -16,7 +16,7 @@ Start dev server.
 On start, the server will build web bundles in *html/js* and open a browser at index.html. Afterwards, it will watch for source code changes, re-build web bundles and trigger browser reloads. Start server in a separate terminal.
 
 ```sh
-npm run start
+npm start
 ```
 
 Alternatively, it is possible to trigger a manual build. Builds with a
