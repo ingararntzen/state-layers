@@ -1,25 +1,4 @@
-
-/**
- * Returns true if the point is covered by the interval
- * 
- * @param {*} interval 
- * @param {*} point 
- * @returns 
- */
-
-function covers(interval, point) {
-    let [low, high, lowClosed, highClosed] = interval;
-    if (lowClosed && highClosed) {
-        return low <= point && point <= high;
-    } else if (lowClosed && !highClosed) {
-        return low <= point && point < high;
-    } else if (!lowClosed && highClosed) {
-        return low < point && point <= high;
-    } else {
-        return low < point && point < high;
-    }
-}
-
+import {intervals} from "./intervals.js";
 
 /********************************************************************
 BASE SEGMENT
@@ -68,7 +47,7 @@ export class BaseSegment {
      */
     query(offset) {
         let value = undefined, dynamic = false;
-        if (covers(this._itv, offset)) {
+        if (intervals.covers_point(this._itv, offset)) {
             value = this.value(offset);
             dynamic = this.dynamic;
         }
