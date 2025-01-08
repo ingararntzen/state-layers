@@ -138,7 +138,7 @@ export class TransitionSegment extends BaseSegment {
         this.v0 = v0;
         this.v1 = v1;
         this.easing = easing;
-        let [t0, t1] = this.itv.slice(0,2);
+        let [t0, t1] = this._itv.slice(0,2);
 
         // create the transition function
         this._dynamic = v1-v0 != 0;
