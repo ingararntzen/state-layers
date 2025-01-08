@@ -1,4 +1,4 @@
-import {intervals} from "./intervals.js";
+import {interval} from "./intervals.js";
 
 /********************************************************************
 BASE SEGMENT
@@ -16,8 +16,8 @@ BASE SEGMENT
 
 export class BaseSegment {
 
-	constructor(interval, options={}) {
-		this._itv = interval;
+	constructor(itv, options={}) {
+		this._itv = itv;
         this._options = options;
 	}
 
@@ -47,7 +47,7 @@ export class BaseSegment {
      */
     query(offset) {
         let value = undefined, dynamic = false;
-        if (intervals.covers_point(this._itv, offset)) {
+        if (interval.covers_point(this._itv, offset)) {
             value = this.value(offset);
             dynamic = this.dynamic;
         }
@@ -62,8 +62,8 @@ export class BaseSegment {
 
 export class StaticSegment extends BaseSegment {
 
-	constructor(interval, value) {
-        super(interval);
+	constructor(itv, value) {
+        super(itv);
 		this._value = value;
 	}
 
@@ -83,8 +83,8 @@ export class StaticSegment extends BaseSegment {
 
 export class MotionSegment extends BaseSegment {
     
-    constructor(interval, vector) {
-        super(interval);
+    constructor(itv, vector) {
+        super(itv);
         this.vector = vector;
         let [p0, v0, a0, t0] = this.vector;
 
@@ -133,12 +133,12 @@ function easeinout (ts) {
 
 export class TransitionSegment extends BaseSegment {
 
-	constructor(interval, v0, v1, easing) {
-		super(interval);
+	constructor(itv, v0, v1, easing) {
+		super(itv);
         this.v0 = v0;
         this.v1 = v1;
         this.easing = easing;
-        let [t0, t1] = this.interval.slice(0,2);
+        let [t0, t1] = this.itv.slice(0,2);
 
         // create the transition function
         this._dynamic = v1-v0 != 0;
@@ -229,8 +229,8 @@ function interpolate(tuples) {
 
 export class InterpolationSegment extends BaseSegment {
 
-    constructor(interval, tuples) {
-        super(interval);
+    constructor(itv, tuples) {
+        super(itv);
         // setup interpolation function
         this._trans = interpolate(tuples);
     }
