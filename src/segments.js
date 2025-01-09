@@ -1,12 +1,35 @@
 import {interval} from "./intervals.js";
 
+
+/*********************************************************************
+    CREATE SEGMENT
+*********************************************************************/
+
+export function create_segment(state) {
+    let {interval, type, ...args} = state;
+    let segment;
+    if (type == "static") {
+        segment = new StaticSegment(interval, args);
+    } else if (type == "trans") {
+        segment = new TransitionSegment(interval, args);
+    } else if (type == "interpolation") {
+        segment = new InterpolationSegment(interval, args);
+    } else if (type == "motion") {
+        segment = new MotionSegment(interval, args);
+    } else {
+        console.log("unrecognized segment type", type);
+    }
+    return segment;
+}
+
+
 /********************************************************************
 BASE SEGMENT
 *********************************************************************/
 /*
 	Abstract Base Class for Segments
 
-    constructor(interval, options={})
+    constructor(interval)
 
     - interval: interval of validity of segment
     - dynamic: true if segment is dynamic
@@ -16,12 +39,10 @@ BASE SEGMENT
 
 export class BaseSegment {
 
-	constructor(itv, options={}) {
+	constructor(itv) {
 		this._itv = itv;
-        this._options = options;
 	}
 
-    get options() {return this._options;}
 	get interval() {return this._itv;}
 
     /* 
@@ -62,9 +83,9 @@ export class BaseSegment {
 
 export class StaticSegment extends BaseSegment {
 
-	constructor(itv, value) {
+	constructor(itv, args) {
         super(itv);
-		this._value = value;
+		this._value = args.value;
 	}
 
 	value() {
@@ -83,10 +104,9 @@ export class StaticSegment extends BaseSegment {
 
 export class MotionSegment extends BaseSegment {
     
-    constructor(itv, vector) {
+    constructor(itv, args) {
         super(itv);
-        this.vector = vector;
-        let [p0, v0, a0, t0] = this.vector;
+        let [p0, v0, a0, t0] = args.vector;
 
         // create motion transition
         this._dynamic = (v0 != 0 || a0 != 0);
@@ -133,11 +153,9 @@ function easeinout (ts) {
 
 export class TransitionSegment extends BaseSegment {
 
-	constructor(itv, v0, v1, easing) {
+	constructor(itv, args) {
 		super(itv);
-        this.v0 = v0;
-        this.v1 = v1;
-        this.easing = easing;
+        let {start:v0, end:v1, easing} = args;
         let [t0, t1] = this._itv.slice(0,2);
 
         // create the transition function
@@ -179,10 +197,13 @@ export class TransitionSegment extends BaseSegment {
 *********************************************************************/
 
 /**
- * Function to create an interpolator for nearest neighbor interpolation with extrapolation support.
- * 
- * @param {Array} tuples - An array of [value, offset] pairs, where value is the point's value and offset is the corresponding offset.
- * @returns {Function} - A function that takes an offset and returns the interpolated or extrapolated value.
+ * Function to create an interpolator for nearest neighbor interpolation with
+ * extrapolation support.
+ *
+ * @param {Array} tuples - An array of [value, offset] pairs, where value is the
+ * point's value and offset is the corresponding offset.
+ * @returns {Function} - A function that takes an offset and returns the
+ * interpolated or extrapolated value.
  */
 
 function interpolate(tuples) {
@@ -229,15 +250,19 @@ function interpolate(tuples) {
 
 export class InterpolationSegment extends BaseSegment {
 
-    constructor(itv, tuples) {
+    constructor(itv, args) {
         super(itv);
         // setup interpolation function
-        this._trans = interpolate(tuples);
+        this._trans = interpolate(args.tuples);
     }
 
-    get dynamic() {return true;}
+    get dynamic() {
+        return true;
+    }
 
-    value(offset) {return this._trans(offset);}
+    value(offset) {
+        return this._trans(offset);
+    }
 }
 
 
