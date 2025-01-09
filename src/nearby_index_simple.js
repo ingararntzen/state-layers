@@ -1,15 +1,14 @@
-import {BaseLinearIndex} from "./linear_index_base.js";
+import {NearbyIndexBase} from "./nearby_index_base.js";
 import {interval, endpoint} from "./intervals.js";
 
 /**
  * 
- * Simple Linear Index
+ * Nearby Index Simple
  * 
- * - items are assumed to be non-overlapping, implying that any entry will 
- *   include at most one item
- * - exception will be raised if overlapping entries are found
- * - items is assumbed to be immutable array.
- * - change by replacing array
+ * - items are assumed to be non-overlapping on the timeline, 
+ * - implying that nearby.center will be a list of at most one ITEM. 
+ * - exception will be raised if overlapping ITEMS are found
+ * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
  */
 
 
@@ -29,7 +28,7 @@ function get_high_endpoint(item) {
 }
 
 
-export class SimpleLinearIndex extends BaseLinearIndex {
+export class NearbyIndexSimple extends NearbyIndexBase {
 
     constructor() {
         super();
@@ -65,7 +64,7 @@ export class SimpleLinearIndex extends BaseLinearIndex {
         }
         let offset = endpoint[0];
         let items = this._items;
-        let result = {left:undefined, center:undefined, right:undefined};
+        let result = {left:undefined, center:[], right:undefined};
         let indexes, item;
         const size = items.length;
         if (size == 0) {
@@ -100,7 +99,7 @@ export class SimpleLinearIndex extends BaseLinearIndex {
         }
         // center
         if (0 <= indexes.center && indexes.center < size) {
-            result.center =  items[indexes.center];
+            result.center =  [items[indexes.center]];
         }
         // right
         if (0 <= indexes.right && indexes.right < size) {
