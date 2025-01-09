@@ -94,10 +94,7 @@ export class NearbyCache {
         Query
     ***************************************************/
 
-    /*
-        resolve
-    */
-    resolve(offset, options={}) {
+    query(offset) {
         this.refresh(offset);
         let entry = undefined;
         if (this._nearby.center != undefined) {

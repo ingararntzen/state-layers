@@ -125,13 +125,22 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             result.next =  get_low_endpoint(items[indexes.right]);
         }        
         // left/right
-        result.left = result.prev;
-        result.right = result.next;
+        let low, high;
         if (result.center) {
             let itv = result.center[0].interval;
-            let [low, high] = endpoint.from_interval(itv);
+            [low, high] = endpoint.from_interval(itv);
             result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
             result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+            result.interval = result.center[0].interval;
+        } else {
+            result.left = result.prev;
+            result.right = result.next;
+            // interval
+            let left = result.left;
+            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
+            let right = result.right;
+            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
+            result.interval = interval.from_endpoints(low, high);
         }
         return result;
     }

@@ -31,7 +31,7 @@ describe('NearbyIndexSimple', () => {
         expect(nearby.center[0]).toBe(items[0]);
 
         // interval
-        expect(nearby.interval).toStrictEqual(intervals[0].interval);
+        expect(nearby.interval).toStrictEqual(intervals[0]);
         // prev/next
         expect(nearby.prev).toBe(undefined);
         expect(nearby.next).toStrictEqual([0, 0]);
@@ -50,7 +50,7 @@ describe('NearbyIndexSimple', () => {
         expect(nearby.center[0]).toBe(items[1]);
 
         // interval
-        expect(nearby.interval).toStrictEqual(intervals[1].interval);
+        expect(nearby.interval).toStrictEqual(intervals[1]);
         // prev/next
         expect(nearby.prev).toStrictEqual([0, -1]);
         expect(nearby.next).toStrictEqual([2, 1]);
@@ -69,13 +69,27 @@ describe('NearbyIndexSimple', () => {
         expect(nearby.center[0]).toBe(items[2]);
 
         // interval
-        expect(nearby.interval).toStrictEqual(intervals[0].interval);
+        expect(nearby.interval).toStrictEqual(intervals[2]);
         // prev/next
         expect(nearby.prev).toStrictEqual([1, 0]);
         expect(nearby.next).toStrictEqual(undefined);
         // left/right
         expect(nearby.left).toStrictEqual([2, 0]);
         expect(nearby.right).toBe(undefined);
+
+        // GAP
+        // endpoint within gap
+        nearby = index.nearby(1.5);
+        expect(nearby.center).toBe(undefined);
+        expect(nearby.interval).toStrictEqual([1, 2, false, true]);
+
+        // prev/next
+        expect(nearby.prev).toStrictEqual([1, 0]);
+        expect(nearby.next).toStrictEqual([2, 1]);
+        // left/right
+        expect(nearby.left).toStrictEqual([1, 0]);
+        expect(nearby.right).toStrictEqual([2, 1]);
+
     });
 
     // Add more test cases as needed
