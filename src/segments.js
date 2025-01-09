@@ -5,7 +5,7 @@ import {interval} from "./intervals.js";
     CREATE SEGMENT
 *********************************************************************/
 
-export function create_segment(state) {
+export function create_segment(items) {
     let {interval, type, ...args} = state;
     let segment;
     if (type == "static") {
@@ -45,19 +45,11 @@ export class BaseSegment {
 
 	get interval() {return this._itv;}
 
-    /* 
-    implemented by subclass
-    - returns true or false 
-    */
-    get dynamic() {
-        return false;
-    }
-
     /** 
      * implemented by subclass
-     * returns value or undefined
+     * returns {value, dynamic};
     */
-    value() {
+    state(offset) {
     	throw new Error("not implemented");
     }
 
@@ -67,13 +59,34 @@ export class BaseSegment {
      * @returns 
      */
     query(offset) {
-        let value = undefined, dynamic = false;
         if (interval.covers_point(this._itv, offset)) {
-            value = this.value(offset);
-            dynamic = this.dynamic;
-        }
-        return {value, dynamic, offset};
+            return {...this.state(offset), offset};
+        } 
+        return {value: undefined, dynamic:false, offset};
     }
+}
+
+
+
+/********************************************************************
+    LAYERS SEGMENT
+*********************************************************************/
+
+export class LayersSegment extends BaseSegment {
+
+	constructor(itv, args) {
+        super(itv);
+		this._layers = args.layers;
+        this._value_func = args.value_func
+
+        // TODO - figure out dynamic here?
+    }
+
+	state(offset) {
+        // TODO - use value func
+        // for now - just use first layer
+        return {...this._layers[0].query(offset), offset};
+	}
 }
 
 
@@ -88,8 +101,8 @@ export class StaticSegment extends BaseSegment {
 		this._value = args.value;
 	}
 
-	value() {
-		return this._value;
+	state() {
+        return {value: this._value, dynamic:false}
 	}
 }
 
@@ -116,12 +129,8 @@ export class MotionSegment extends BaseSegment {
         };   
     }
 
-    get dynamic() {
-        return this._dynamic;
-    }
-
-    value(offset) {
-        return this._trans(offset);
+    state(offset) {
+        return {value: this._trans(offset), dynamic:this._dynamic}
     }
 }
 
@@ -181,12 +190,8 @@ export class TransitionSegment extends BaseSegment {
         }
 	}
 
-	get dynamic() {
-        return this._dynamic;
-    }
-
-	value(offset) {
-        return this._trans(offset);
+	state(offset) {
+        return {value: this._trans(offset), dynamic:this._dynamic}
 	}
 }
 
@@ -256,12 +261,8 @@ export class InterpolationSegment extends BaseSegment {
         this._trans = interpolate(args.tuples);
     }
 
-    get dynamic() {
-        return true;
-    }
-
-    value(offset) {
-        return this._trans(offset);
+    state(offset) {
+        return {value: this._trans(offset), dynamic:true};
     }
 }
 

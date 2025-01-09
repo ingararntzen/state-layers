@@ -17,14 +17,36 @@
  * Each ITEM must be associated with an interval on the timeline 
  * 
  * NEARBY
- * The nearby method returns information about the neighborhood around offset. 
+ * The nearby method returns information about the neighborhood around endpoint. 
+ * 
+ * Primary use is for iteration 
  * 
  * Returns {
- *      left - high interval endpoint of the first ITEM to the left which does not cover offset, else undefined
- *      center - list of ITEMS covering offset, else []
- *      right - low interval endpoint of the first ITEM to the right which does not cover offset, else undefined
+ *      center: list of ITEMS covering endpoint,
+ *      interval: interval where nearby returns identical {center}
+ *      left:
+ *          first interval endpoint to the left 
+ *          which will produce different {center}
+ *          always a high-endpoint or undefined
+ *      right:
+ *          first interval endpoint to the right
+ *          which will produce different {center}
+ *          always a low-endpoint or undefined         
+ *      prev:
+ *          first interval endpoint to the left 
+ *          which will produce different && non-empty {center}
+ *          always a high-endpoint or undefined if no more intervals to the left
+ *      next:
+ *          first interval endpoint to the right
+ *          which will produce different && non-empty {center}
+ *          always a low-endpoint or undefined if not more intervals to the right         
  * }
  * 
+ * 
+ * NOTE left/right and prev/next are mostly the same. The only difference is 
+ * that prev/next will skip over regions where there are no intervals. This
+ * ensures practical iteration of items as prev/next will only be undefined  
+ * at the end of iteration.
  * 
  * INTERVALS
  * 

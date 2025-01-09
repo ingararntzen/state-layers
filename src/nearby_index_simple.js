@@ -9,6 +9,17 @@ import {interval, endpoint} from "./intervals.js";
  * - implying that nearby.center will be a list of at most one ITEM. 
  * - exception will be raised if overlapping ITEMS are found
  * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
+ * 
+ * 
+ * NEARBY
+ * The nearby method returns information about the neighborhood around offset. 
+ * 
+ * Returns {
+ *      left - high interval endpoint of the first ITEM to the left which does not cover offset, else undefined
+ *      center - list of ITEMS covering offset, else []
+ *      right - low interval endpoint of the first ITEM to the right which does not cover offset, else undefined
+ * }
+ * 
  */
 
 
@@ -55,27 +66,33 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             in this case - idx gives the index where an item
             should be inserted - if it had low == offset
     */
-    nearby(endpoint) {
-        if (typeof endpoint === 'number') {
-            endpoint = [endpoint, 0];
+    nearby(point) {
+        if (typeof point === 'number') {
+            point = [point, 0];
         }
-        if (!Array.isArray(endpoint)) {
+        if (!Array.isArray(point)) {
             throw new Error("Endpoint must be an array");
         }
-        let offset = endpoint[0];
+        let offset = point[0];
         let items = this._items;
-        let result = {left:undefined, center:[], right:undefined};
         let indexes, item;
         const size = items.length;
         if (size == 0) {
-            return result;
+            return {
+                items: [],
+                interval: [-Infinity, Infinity, true, true],
+                left: undefined,
+                right: undefined,
+                prev: undefined,
+                next: undefined
+            }
         }
         let [found, idx] = find_index(offset, items, get_low_value);
         if (found) {
             // search offset matches item low exactly
             // check that it indeed covered by item interval
             item = items[idx]
-            if (interval.covers_endpoint(item.interval, endpoint)) {
+            if (interval.covers_endpoint(item.interval, point)) {
                 indexes = {left:idx-1, center:idx, right:idx+1};
             }
         }
@@ -84,7 +101,7 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             item = items[idx-1];
             if (item != undefined) {
                 // check if search offset is covered by item interval
-                if (interval.covers_endpoint(item.interval, endpoint)) {
+                if (interval.covers_endpoint(item.interval, point)) {
                     indexes = {left:idx-2, center:idx-1, right:idx};
                 } 
             }
@@ -93,21 +110,31 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             // prev item either does not exist or is not relevant
             indexes = {left:idx-1, center:-1, right:idx};
         }
-        // left
-        if (0 <= indexes.left && indexes.left < size) {
-            result.left =  get_high_endpoint(items[indexes.left]);
-        }
+        // result
+        const result = {};
+
         // center
         if (0 <= indexes.center && indexes.center < size) {
             result.center =  [items[indexes.center]];
         }
-        // right
+        // prev/next
+        if (0 <= indexes.left && indexes.left < size) {
+            result.prev =  get_high_endpoint(items[indexes.left]);
+        }
         if (0 <= indexes.right && indexes.right < size) {
-            result.right =  get_low_endpoint(items[indexes.right]);
+            result.next =  get_low_endpoint(items[indexes.right]);
         }        
+        // left/right
+        result.left = result.prev;
+        result.right = result.next;
+        if (result.center) {
+            let itv = result.center[0].interval;
+            let [low, high] = endpoint.from_interval(itv);
+            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
+            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+        }
         return result;
     }
-     
 }
 
 

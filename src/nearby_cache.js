@@ -20,7 +20,7 @@ import { create_segment } from "./segments.js";
 
 export class NearbyCache {
 
-    constructor (nearbyIndex, options={}) {
+    constructor (nearbyIndex) {
         // nearby index
         this._index = nearbyIndex;
         // cached nearby object

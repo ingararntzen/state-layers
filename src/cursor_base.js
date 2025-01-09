@@ -15,7 +15,6 @@ export class BaseCursor {
 
     // Convenience
     get dynamic () {return this.query().dynamic;}
-    get deterministic () {this.query().deterministic;}
     get value () {return this.query().value;}
     
     /*

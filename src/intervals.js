@@ -59,6 +59,36 @@ function endpoint_max(p1, p2) {
     return (endpoint_ge(p1, p2)) ? p1 : p2;
 }
 
+/**
+ * flip endpoint to the other side
+ * 
+ * useful for making back-to-back intervals 
+ * 
+ * high) <-> [low
+ * high] <-> (low
+ */
+
+function endpoint_flip(p, target) {
+    let [v,s] = p;
+    if (target == "low") {
+    	// assume point is high: sign must be -1 or 0
+    	if (s > 0) {
+			throw new Error("endpoint is already low");    		
+    	}
+        p = [v, s+1];
+    } else if (target == "high") {
+		// assume point is low: sign is 0 or 1
+    	if (s < 0) {
+			throw new Error("endpoint is already high");    		
+    	}
+        p = [v, s-1];
+    } else {
+    	throw new Error("illegal type", target);
+    }
+    return p;
+}
+
+
 /*
     returns low and high endpoints from interval
 */
@@ -129,6 +159,7 @@ export const endpoint = {
     eq: endpoint_eq,
     min: endpoint_min,
     max: endpoint_max,
+    flip: endpoint_flip,
     from_interval: endpoints_from_interval
 }
 export const interval = {
