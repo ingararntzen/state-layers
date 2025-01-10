@@ -1,8 +1,1549 @@
 
 (function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
-// Use export keyword to export functions or variables
-function sum(a, b) {
-    return a + b;
+/*
+    
+    INTERVAL ENDPOINTS
+
+    * interval endpoints are defined by [value, sign], for example
+    * 
+    * 4) -> [4,-1] - endpoint is on the left of 4
+    * [4, 4, 4] -> [4, 0] - endpoint is at 4 
+    * (4 -> [4, 1] - endpoint is on the right of 4)
+    * 
+    * This representation ensures that the interval endpoints are ordered and allows
+    * intervals to be exclusive or inclusive, yet cover the entire real line 
+    * 
+    * [a,b], (a,b), [a,b), [a, b) are all valid intervals
+
+*/
+
+/*
+    Endpoint comparison
+    returns 
+        - negative : correct order
+        - 0 : equal
+        - positive : wrong order
+
+
+    NOTE 
+    - cmp(4],[4 ) == 0 - since these are the same with respect to sorting
+    - but if you want to see if two intervals are overlapping in the endpoints
+    cmp(high_a, low_b) > 0 this will not be good
+    
+*/ 
+
+function endpoint_cmp (p1, p2) {
+    let [v1, s1] = p1;
+    let [v2, s2] = p2;
+    let diff = v1 - v2;
+    return (diff != 0) ? diff : s1 - s2;
 }
 
-export { sum };
+function endpoint_lt (p1, p2) {
+    return endpoint_cmp(p1, p2) < 0
+}
+function endpoint_le (p1, p2) {
+    return endpoint_cmp(p1, p2) <= 0
+}
+function endpoint_gt (p1, p2) {
+    return endpoint_cmp(p1, p2) > 0
+}
+function endpoint_ge (p1, p2) {
+    return endpoint_cmp(p1, p2) >= 0
+}
+function endpoint_eq (p1, p2) {
+    return endpoint_cmp(p1, p2) == 0
+}
+function endpoint_min(p1, p2) {
+    return (endpoint_le(p1, p2)) ? p1 : p2;
+}
+function endpoint_max(p1, p2) {
+    return (endpoint_ge(p1, p2)) ? p1 : p2;
+}
+
+/**
+ * flip endpoint to the other side
+ * 
+ * useful for making back-to-back intervals 
+ * 
+ * high) <-> [low
+ * high] <-> (low
+ */
+
+function endpoint_flip(p, target) {
+    let [v,s] = p;
+    if (target == "low") {
+    	// assume point is high: sign must be -1 or 0
+    	if (s > 0) {
+			throw new Error("endpoint is already low");    		
+    	}
+        p = [v, s+1];
+    } else if (target == "high") {
+		// assume point is low: sign is 0 or 1
+    	if (s < 0) {
+			throw new Error("endpoint is already high");    		
+    	}
+        p = [v, s-1];
+    } else {
+    	throw new Error("illegal type", target);
+    }
+    return p;
+}
+
+
+/*
+    returns low and high endpoints from interval
+*/
+function endpoints_from_interval(itv) {
+    let [low, high, lowClosed, highClosed] = itv;
+    let low_p = (lowClosed) ? [low, 0] : [low, 1]; 
+    let high_p = (highClosed) ? [high, 0] : [high, -1];
+    return [low_p, high_p];
+}
+
+
+/*
+    INTERVALS
+
+    Intervals are [low, high, lowClosed, highClosed]
+
+*/ 
+
+/*
+    return true if point p is covered by interval itv
+    point p can be number p or a point [p,s]
+
+    implemented by comparing points
+    exception if interval is not defined
+*/
+function interval_covers_endpoint(itv, p) {
+    let [low_p, high_p] = endpoints_from_interval(itv);
+    // covers: low <= p <= high
+    return endpoint_le(low_p, p) && endpoint_le(p, high_p);
+}
+// convenience
+function interval_covers_point(itv, p) {
+    return interval_covers_endpoint(itv, [p, 0]);
+}
+
+
+
+/*
+    Return true if interval has length 0
+*/
+function interval_is_singular(interval) {
+    return interval[0] == interval[1]
+}
+
+/*
+    Create interval from endpoints
+*/
+function interval_from_endpoints(p1, p2) {
+    let [v1, s1] = p1;
+    let [v2, s2] = p2;
+    // p1 must be a low point
+    if (s1 == -1) {
+        throw new Error("illegal low point", p1);
+    }
+    if (s2 == 1) {
+        throw new Error("illegeal high point", p2);   
+    }
+    return [v1, v2, (s1==0), (s2==0)]
+}
+
+
+const endpoint = {
+    le: endpoint_le,
+    lt: endpoint_lt,
+    ge: endpoint_ge,
+    gt: endpoint_gt,
+    cmp: endpoint_cmp,
+    eq: endpoint_eq,
+    min: endpoint_min,
+    max: endpoint_max,
+    flip: endpoint_flip,
+    from_interval: endpoints_from_interval
+};
+const interval = {
+    covers_endpoint: interval_covers_endpoint,
+    covers_point: interval_covers_point, 
+    is_singular: interval_is_singular,
+    from_endpoints: interval_from_endpoints
+};
+
+/********************************************************************
+BASE SEGMENT
+*********************************************************************/
+/*
+	Abstract Base Class for Segments
+
+    constructor(interval)
+
+    - interval: interval of validity of segment
+    - dynamic: true if segment is dynamic
+    - value(offset): value of segment at offset
+    - query(offset): state of segment at offset
+*/
+
+class BaseSegment {
+
+	constructor(itv) {
+		this._itv = itv;
+	}
+
+	get interval() {return this._itv;}
+
+    /** 
+     * implemented by subclass
+     * returns {value, dynamic};
+    */
+    state(offset) {
+    	throw new Error("not implemented");
+    }
+
+    /**
+     * convenience function returning the state of the segment
+     * @param {*} offset 
+     * @returns 
+     */
+    query(offset) {
+        if (interval.covers_point(this._itv, offset)) {
+            return {...this.state(offset), offset};
+        } 
+        return {value: undefined, dynamic:false, offset};
+    }
+}
+
+
+
+/********************************************************************
+    LAYERS SEGMENT
+*********************************************************************/
+
+class LayersSegment extends BaseSegment {
+
+	constructor(itv, args) {
+        super(itv);
+		this._layers = args.layers;
+        this._value_func = args.value_func;
+
+        // TODO - figure out dynamic here?
+    }
+
+	state(offset) {
+        // TODO - use value func
+        // for now - just use first layer
+        return {...this._layers[0].query(offset), offset};
+	}
+}
+
+
+/********************************************************************
+    STATIC SEGMENT
+*********************************************************************/
+
+class StaticSegment extends BaseSegment {
+
+	constructor(itv, args) {
+        super(itv);
+		this._value = args.value;
+	}
+
+	state() {
+        return {value: this._value, dynamic:false}
+	}
+}
+
+
+/********************************************************************
+    MOTION SEGMENT
+*********************************************************************/
+/*
+    Implements deterministic projection based on initial conditions 
+    - motion vector describes motion under constant acceleration
+*/
+
+class MotionSegment extends BaseSegment {
+    
+    constructor(itv, args) {
+        super(itv);
+        let [p0, v0, a0, t0] = args.vector;
+        // create motion transition
+        this._dynamic = (v0 != 0 || a0 != 0);
+        this._trans = function (ts) {
+            let d = ts - t0;
+            return p0 + v0*d + 0.5*a0*d*d;
+        };   
+    }
+
+    state(offset) {
+        return {value: this._trans(offset), dynamic:this._dynamic}
+    }
+}
+
+
+/********************************************************************
+    TRANSITION SEGMENT
+*********************************************************************/
+
+/*
+    Supported easing functions
+    "ease-in":
+    "ease-out":
+    "ease-in-out"
+*/
+
+function easein (ts) {
+    return Math.pow(ts,2);  
+}
+function easeout (ts) {
+    return 1 - easein(1 - ts);
+}
+function easeinout (ts) {
+    if (ts < .5) {
+        return easein(2 * ts) / 2;
+    } else {
+        return (2 - easein(2 * (1 - ts))) / 2;
+    }
+}
+
+class TransitionSegment extends BaseSegment {
+
+	constructor(itv, args) {
+		super(itv);
+        let {v0, v1, easing} = args;
+        let [t0, t1] = this._itv.slice(0,2);
+
+        // create the transition function
+        this._dynamic = v1-v0 != 0;
+        this._trans = function (ts) {
+            // convert ts to [t0,t1]-space
+            // - shift from [t0,t1]-space to [0,(t1-t0)]-space
+            // - scale from [0,(t1-t0)]-space to [0,1]-space
+            ts = ts - t0;
+            ts = ts/parseFloat(t1-t0);
+            // easing functions stretches or compresses the time scale 
+            if (easing == "ease-in") {
+                ts = easein(ts);
+            } else if (easing == "ease-out") {
+                ts = easeout(ts);
+            } else if (easing == "ease-in-out") {
+                ts = easeinout(ts);
+            }
+            // linear transition from v0 to v1, for time values [0,1]
+            ts = Math.max(ts, 0);
+            ts = Math.min(ts, 1);
+            return v0 + (v1-v0)*ts;
+        };
+	}
+
+	state(offset) {
+        return {value: this._trans(offset), dynamic:this._dynamic}
+	}
+}
+
+
+
+/********************************************************************
+    INTERPOLATION SEGMENT
+*********************************************************************/
+
+/**
+ * Function to create an interpolator for nearest neighbor interpolation with
+ * extrapolation support.
+ *
+ * @param {Array} tuples - An array of [value, offset] pairs, where value is the
+ * point's value and offset is the corresponding offset.
+ * @returns {Function} - A function that takes an offset and returns the
+ * interpolated or extrapolated value.
+ */
+
+function interpolate(tuples) {
+
+    if (tuples.length < 1) {
+        return function interpolator () {return undefined;}
+    } else if (tuples.length == 1) {
+        return function interpolator () {return tuples[0][0];}
+    }
+
+    // Sort the tuples by their offsets
+    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
+  
+    return function interpolator(offset) {
+      // Handle extrapolation before the first point
+      if (offset <= sortedTuples[0][1]) {
+        const [value1, offset1] = sortedTuples[0];
+        const [value2, offset2] = sortedTuples[1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+      
+      // Handle extrapolation after the last point
+      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
+        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
+        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+  
+      // Find the nearest points to the left and right
+      for (let i = 0; i < sortedTuples.length - 1; i++) {
+        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
+          const [value1, offset1] = sortedTuples[i];
+          const [value2, offset2] = sortedTuples[i + 1];
+          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
+          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+        }
+      }
+  
+      // In case the offset does not fall within any range (should be covered by the previous conditions)
+      return undefined;
+    };
+}
+  
+
+class InterpolationSegment extends BaseSegment {
+
+    constructor(itv, args) {
+        super(itv);
+        // setup interpolation function
+        this._trans = interpolate(args.tuples);
+    }
+
+    state(offset) {
+        return {value: this._trans(offset), dynamic:true};
+    }
+}
+
+var segments = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    BaseSegment: BaseSegment,
+    InterpolationSegment: InterpolationSegment,
+    LayersSegment: LayersSegment,
+    MotionSegment: MotionSegment,
+    StaticSegment: StaticSegment,
+    TransitionSegment: TransitionSegment
+});
+
+/*
+	Copyright 2020
+	Author : Ingar Arntzen
+
+	This file is part of the Timingsrc module.
+
+	Timingsrc is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Lesser General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Timingsrc is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Lesser General Public License for more details.
+
+	You should have received a copy of the GNU Lesser General Public License
+	along with Timingsrc.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
+
+/*
+	Event
+	- name: event name
+	- publisher: the object which defined the event
+	- init: true if the event suppports init events
+	- subscriptions: subscriptins to this event
+
+*/
+
+class Event {
+
+	constructor (publisher, name, options) {
+		options = options || {};
+		this.publisher = publisher;
+		this.name = name;
+		this.init = (options.init === undefined) ? false : options.init;
+		this.subscriptions = [];
+	}
+
+	/*
+		subscribe to event
+		- subscriber: subscribing object
+		- callback: callback function to invoke
+		- options:
+			init: if true subscriber wants init events
+	*/
+	subscribe (callback, options) {
+		if (!callback || typeof callback !== "function") {
+			throw new Error("Callback not a function", callback);
+		}
+		const sub = new Subscription(this, callback, options);
+		this.subscriptions.push(sub);
+	    // Initiate init callback for this subscription
+	    if (this.init && sub.init) {
+	    	sub.init_pending = true;
+	    	let self = this;
+	    	Promise.resolve().then(function () {
+	    		const eArgs = self.publisher.eventifyInitEventArgs(self.name) || [];
+	    		sub.init_pending = false;
+	    		for (let eArg of eArgs) {
+	    			self.trigger(eArg, [sub], true);
+	    		}
+	    	});
+	    }
+		return sub
+	}
+
+	/*
+		trigger event
+
+		- if sub is undefined - publish to all subscriptions
+		- if sub is defined - publish only to given subscription
+	*/
+	trigger (eArg, subs, init) {
+		let eInfo, ctx;
+		for (const sub of subs) {
+			// ignore terminated subscriptions
+			if (sub.terminated) {
+				continue;
+			}
+			eInfo = {
+				src: this.publisher,
+				name: this.name,
+				sub: sub,
+				init: init
+			};
+			ctx = sub.ctx || this.publisher;
+			try {
+				sub.callback.call(ctx, eArg, eInfo);
+			} catch (err) {
+				console.log(`Error in ${this.name}: ${sub.callback} ${err}`);
+			}
+		}
+	}
+
+	/*
+	unsubscribe from event
+	- use subscription returned by previous subscribe
+	*/
+	unsubscribe(sub) {
+		let idx = this.subscriptions.indexOf(sub);
+		if (idx > -1) {
+			this.subscriptions.splice(idx, 1);
+			sub.terminate();
+		}
+	}
+}
+
+
+/*
+	Subscription class
+*/
+
+class Subscription {
+
+	constructor(event, callback, options) {
+		options = options || {};
+		this.event = event;
+		this.name = event.name;
+		this.callback = callback;
+		this.init = (options.init === undefined) ? this.event.init : options.init;
+		this.init_pending = false;
+		this.terminated = false;
+		this.ctx = options.ctx;
+	}
+
+	terminate() {
+		this.terminated = true;
+		this.callback = undefined;
+		this.event.unsubscribe(this);
+	}
+}
+
+
+/*
+
+	EVENTIFY INSTANCE
+
+	Eventify brings eventing capabilities to any object.
+
+	In particular, eventify supports the initial-event pattern.
+	Opt-in for initial events per event type.
+
+	eventifyInitEventArgs(name) {
+		if (name == "change") {
+			return [this._value];
+		}
+	}
+
+*/
+
+function eventifyInstance (object) {
+	object.__eventify_eventMap = new Map();
+	object.__eventify_buffer = [];
+	return object;
+}
+
+/*
+	EVENTIFY PROTOTYPE
+
+	Add eventify functionality to prototype object
+*/
+
+function eventifyPrototype(_prototype) {
+
+	function eventifyGetEvent(object, name) {
+		const event = object.__eventify_eventMap.get(name);
+		if (event == undefined) {
+			throw new Error("Event undefined", name);
+		}
+		return event;
+	}
+
+	/*
+		DEFINE EVENT
+		- used only by event source
+		- name: name of event
+		- options: {init:true} specifies init-event semantics for event
+	*/
+	function eventifyDefine(name, options) {
+		// check that event does not already exist
+		if (this.__eventify_eventMap.has(name)) {
+			throw new Error("Event already defined", name);
+		}
+		this.__eventify_eventMap.set(name, new Event(this, name, options));
+	}
+	/*
+		ON
+		- used by subscriber
+		register callback on event.
+	*/
+	function on(name, callback, options) {
+		return eventifyGetEvent(this, name).subscribe(callback, options);
+	}
+	/*
+		OFF
+		- used by subscriber
+		Un-register a handler from a specfic event type
+	*/
+	function off(sub) {
+		return eventifyGetEvent(this, sub.name).unsubscribe(sub);
+	}
+
+	function eventifySubscriptions(name) {
+		return eventifyGetEvent(this, name).subscriptions;
+	}
+
+
+
+	/*
+		Trigger list of eventItems on object
+
+		eventItem:  {name:.., eArg:..}
+
+		copy all eventItems into buffer.
+		request emptying the buffer, i.e. actually triggering events,
+		every time the buffer goes from empty to non-empty
+	*/
+	function eventifyTriggerAll(eventItems) {
+		if (eventItems.length == 0) {
+			return;
+		}
+
+		// make trigger items
+		// resolve non-pending subscriptions now
+		// else subscriptions may change from pending to non-pending
+		// between here and actual triggering
+		// make list of [ev, eArg, subs] tuples
+		let triggerItems = eventItems.map((item) => {
+			let {name, eArg} = item;
+			let ev = eventifyGetEvent(this, name);
+			let subs = ev.subscriptions.filter(sub => sub.init_pending == false);
+			return [ev, eArg, subs];
+		}, this);
+
+		// append trigger Items to buffer
+		const len = triggerItems.length;
+		const buf = this.__eventify_buffer;
+		const buf_len = this.__eventify_buffer.length;
+		// reserve memory - set new length
+		this.__eventify_buffer.length = buf_len + len;
+		// copy triggerItems to buffer
+		for (let i=0; i<len; i++) {
+			buf[buf_len+i] = triggerItems[i];
+		}
+		// request emptying of the buffer
+		if (buf_len == 0) {
+			let self = this;
+			Promise.resolve().then(function() {
+				for (let [ev, eArg, subs] of self.__eventify_buffer) {
+					// actual event triggering
+					ev.trigger(eArg, subs, false);
+				}
+				self.__eventify_buffer = [];
+			});
+		}
+	}
+
+	/*
+		Trigger multiple events of same type (name)
+	*/
+	function eventifyTriggerAlike(name, eArgs) {
+		return this.eventifyTriggerAll(eArgs.map(eArg => {
+			return {name, eArg};
+		}));
+	}
+
+	/*
+		Trigger single event
+	*/
+	function eventifyTrigger(name, eArg) {
+		return this.eventifyTriggerAll([{name, eArg}]);
+	}
+
+	_prototype.eventifyDefine = eventifyDefine;
+	_prototype.eventifyTrigger = eventifyTrigger;
+	_prototype.eventifyTriggerAlike = eventifyTriggerAlike;
+	_prototype.eventifyTriggerAll = eventifyTriggerAll;
+	_prototype.eventifySubscriptions = eventifySubscriptions;
+	_prototype.on = on;
+	_prototype.off = off;
+}
+
+const eventify = function () {
+	return {
+		theInstance: eventifyInstance,
+		thePrototype: eventifyPrototype
+	}
+}();
+
+/*
+	Event Variable
+
+	Objects with a single "change" event
+*/
+
+class EventVariable {
+
+	constructor (value) {
+		eventifyInstance(this);
+		this._value = value;
+		this.eventifyDefine("change", {init:true});
+	}
+
+	eventifyInitEventArgs(name) {
+		if (name == "change") {
+			return [this._value];
+		}
+	}
+
+	get value () {return this._value};
+	set value (value) {
+		if (value != this._value) {
+			this._value = value;
+			this.eventifyTrigger("change", value);
+		}
+	}
+}
+eventifyPrototype(EventVariable.prototype);
+
+/*********************************************************************
+    NEARBY CACHE
+*********************************************************************/
+
+/*
+    This implements a cache in front of a NearbyIndex.
+    
+    The purpose of caching is to optimize for repeated
+    queries to a NearbyIndex to nearby offsets.
+
+    The cache state includes the nearby state from the 
+    index, and also the cached segments corresponding
+    to that state. This way, on a cache hit, the 
+    query may be satisfied directly from the cache.
+
+    The cache is marked as dirty when the Nearby indexes changes.
+*/
+
+class NearbyCache {
+
+    constructor (nearbyIndex) {
+        // nearby index
+        this._index = nearbyIndex;
+        // cached nearby object
+        this._nearby = undefined;
+        // cached segment
+        this._segment = undefined;
+        // dirty flag
+        this._dirty = false;
+    }
+
+    /**************************************************
+        Accessors for Cache state
+    ***************************************************/
+    
+    get nearby () {
+        return this._nearby;
+    }
+
+    load_segment () {
+        // lazy load segment
+        if (this._nearby && !this._segment) {
+            this._segment = load_segment(this._nearby);
+        }
+        return this._segment
+    }
+
+    /**************************************************
+        Dirty Cache
+    ***************************************************/
+
+    dirty() {
+        this._dirty = true;
+    }
+
+    /**************************************************
+        Refresh Cache
+    ***************************************************/
+
+    /*
+        refresh if necessary - else NOOP
+        - if nearby is not defined
+        - if offset is outside nearby.interval
+        - if cache is dirty
+    */
+    refresh (offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
+        }
+        if (this._nearby == undefined || this._dirty) {
+            return this._refresh(offset);
+        }
+        if (!interval.covers(this._nearby.interval, offset)) {
+            return this._refresh(offset)
+        }
+        return false;
+    }
+
+    _refresh (offset) {
+        this._nearby = this._index.nearby(offset);
+        this._segment = undefined;
+        this._dirty = false;
+        return true;
+    }
+
+    /**************************************************
+        Query Cache
+    ***************************************************/
+
+    query(offset) {
+        this.refresh(offset);
+        if (!this._segment) {
+            this._segment = load_segment(this._nearby);
+        }
+        return this._segment.query();
+    }
+}
+
+
+
+/*********************************************************************
+    LOAD SEGMENT
+*********************************************************************/
+
+function create_segment(interval, type, args) {
+    if (type == "static") {
+        return new StaticSegment(interval, args);
+    } else if (type == "transition") {
+        return new TransitionSegment(interval, args);
+    } else if (type == "interpolation") {
+        return new InterpolationSegment(interval, args);
+    } else if (type == "motion") {
+        return new MotionSegment(interval, args);
+    } else {
+        console.log("unrecognized segment type", type);
+    }
+}
+
+function load_segment(nearby) {
+    let item;
+    let {interval:itv, center} = nearby;
+    if (center.length == 0) {
+        return create_segment(itv, "static", {value:undefined});
+    }
+    if (center.length == 1) {
+        item = center[0];
+        return create_segment(itv, item.type, item.args);
+    }
+    if (center.length > 1) {
+        throw new Error("ListSegments not yet supported");
+    }
+}
+
+/*
+    This adds basic eventing support to an object.
+    Eventing is implemented by synchronous callbacks.
+*/
+
+const eventing = function () {
+
+    function add_callback (handler) {
+        let handle = {
+            handler: handler
+        };
+        this._callbacks.push(handle);
+        return handle;
+    }
+    function remove_callback (handle) {
+        let index = this._callbacks.indexof(handle);
+        if (index > -1) {
+            this._callbacks.splice(index, 1);
+        }
+    }
+    function notify_callbacks (eArg) {
+        this._callbacks.forEach(function(handle) {
+            handle.handler(eArg);
+        });
+    }
+    const api = {
+        add_callback, remove_callback, notify_callbacks
+    };
+
+    return {
+        theInstance: (_instance) => {
+            _instance._callbacks = [];
+        },
+        thePrototype: (_prototype) => {
+            Object.assign(_prototype, api);
+        }
+    }
+}();
+
+/*********************************************************************
+    NEARBY INDEX BASE
+*********************************************************************/
+
+/**
+ * Abstract superclass for NearbyIndexe.
+ * 
+ * Superclass used to check that a class implements the nearby() method, 
+ * and provide some convenience methods.
+ * 
+ * NEARBY INDEX
+ * 
+ * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
+ * given that
+ * (i) each entriy is associated with an interval and,
+ * (ii) entries are non-overlapping.
+ * Each ITEM must be associated with an interval on the timeline 
+ * 
+ * NEARBY
+ * The nearby method returns information about the neighborhood around endpoint. 
+ * 
+ * Primary use is for iteration 
+ * 
+ * Returns {
+ *      center: list of ITEMS covering endpoint,
+ *      interval: interval where nearby returns identical {center}
+ *      left:
+ *          first interval endpoint to the left 
+ *          which will produce different {center}
+ *          always a high-endpoint or undefined
+ *      right:
+ *          first interval endpoint to the right
+ *          which will produce different {center}
+ *          always a low-endpoint or undefined         
+ *      prev:
+ *          first interval endpoint to the left 
+ *          which will produce different && non-empty {center}
+ *          always a high-endpoint or undefined if no more intervals to the left
+ *      next:
+ *          first interval endpoint to the right
+ *          which will produce different && non-empty {center}
+ *          always a low-endpoint or undefined if no more intervals to the right
+ * }
+ * 
+ * 
+ * The nearby state is well-defined for every timeline position.
+ * 
+ * 
+ * NOTE left/right and prev/next are mostly the same. The only difference is 
+ * that prev/next will skip over regions where there are no intervals. This
+ * ensures practical iteration of items as prev/next will only be undefined  
+ * at the end of iteration.
+ * 
+ * INTERVALS
+ * 
+ * [low, high, lowInclusive, highInclusive]
+ * 
+ * This representation ensures that the interval endpoints are ordered and allows
+ * intervals to be exclusive or inclusive, yet cover the entire real line 
+ * 
+ * [a,b], (a,b), [a,b), [a, b) are all valid intervals
+ * 
+ * 
+ * INTERVAL ENDPOINTS
+ * 
+ * interval endpoints are defined by [value, sign], for example
+ * 
+ * 4) -> [4,-1] - endpoint is on the left of 4
+ * [4, 4, 4] -> [4, 0] - endpoint is at 4 
+ * (4 -> [4, 1] - endpoint is on the right of 4)
+ * 
+ * / */
+
+class NearbyIndexBase {
+
+    constructor() {
+        eventing.theInstance(this);
+    }
+
+    /* 
+        Nearby method
+    */
+    nearby(offset) {
+        throw new Error("Not implemented");
+    }
+}
+eventing.thePrototype(NearbyIndexBase.prototype);
+
+/**
+ * 
+ * Nearby Index Simple
+ * 
+ * - items are assumed to be non-overlapping on the timeline, 
+ * - implying that nearby.center will be a list of at most one ITEM. 
+ * - exception will be raised if overlapping ITEMS are found
+ * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
+ * 
+ * 
+ * NEARBY
+ * The nearby method returns information about the neighborhood around offset. 
+ * 
+ * Returns {
+ *      left - high interval endpoint of the first ITEM to the left which does not cover offset, else undefined
+ *      center - list of ITEMS covering offset, else []
+ *      right - low interval endpoint of the first ITEM to the right which does not cover offset, else undefined
+ * }
+ * 
+ */
+
+
+// get interval low point
+function get_low_value(item) {
+    return item.interval[0];
+}
+
+// get interval low endpoint
+function get_low_endpoint(item) {
+    return endpoint.from_interval(item.interval)[0]
+}
+
+// get interval high endpoint
+function get_high_endpoint(item) {
+    return endpoint.from_interval(item.interval)[1]
+}
+
+
+class NearbyIndexSimple extends NearbyIndexBase {
+
+    constructor(items) {
+        super();
+        this._items = check_input$1(items);
+    }
+
+    /*
+        nearby by offset
+        
+        returns {left, center, right}
+
+        binary search based on offset
+        1) found, idx
+            offset matches value of interval.low of an item
+            idx gives the index of this item in the array
+        2) not found, idx
+            offset is either covered by item at (idx-1),
+            or it is not => between entries
+            in this case - idx gives the index where an item
+            should be inserted - if it had low == offset
+    */
+    nearby(offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
+        }
+        if (!Array.isArray(offset)) {
+            throw new Error("Endpoint must be an array");
+        }
+        let items = this._items;
+        let indexes, item;
+        const size = items.length;
+        if (size == 0) {
+            return {
+                center: [],
+                interval: [-Infinity, Infinity, true, true],
+                left: undefined,
+                right: undefined,
+                prev: undefined,
+                next: undefined
+            }
+        }
+        let [found, idx] = find_index(offset[0], items, get_low_value);
+        if (found) {
+            // search offset matches item low exactly
+            // check that it indeed covered by item interval
+            item = items[idx];
+            if (interval.covers_endpoint(item.interval, offset)) {
+                indexes = {left:idx-1, center:idx, right:idx+1};
+            }
+        }
+        if (indexes == undefined) {
+            // check prev item
+            item = items[idx-1];
+            if (item != undefined) {
+                // check if search offset is covered by item interval
+                if (interval.covers_endpoint(item.interval, offset)) {
+                    indexes = {left:idx-2, center:idx-1, right:idx};
+                } 
+            }
+        }	
+        if (indexes == undefined) {
+            // prev item either does not exist or is not relevant
+            indexes = {left:idx-1, center:-1, right:idx};
+        }
+        // result
+        const result = {};
+
+        // center
+        if (0 <= indexes.center && indexes.center < size) {
+            result.center =  [items[indexes.center]];
+        }
+        // prev/next
+        if (0 <= indexes.left && indexes.left < size) {
+            result.prev =  get_high_endpoint(items[indexes.left]);
+        }
+        if (0 <= indexes.right && indexes.right < size) {
+            result.next =  get_low_endpoint(items[indexes.right]);
+        }        
+        // left/right
+        let low, high;
+        if (result.center) {
+            let itv = result.center[0].interval;
+            [low, high] = endpoint.from_interval(itv);
+            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
+            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+            result.interval = result.center[0].interval;
+        } else {
+            result.left = result.prev;
+            result.right = result.next;
+            // interval
+            let left = result.left;
+            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
+            let right = result.right;
+            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
+            result.interval = interval.from_endpoints(low, high);
+        }
+        return result;
+    }
+}
+
+
+/*********************************************************************
+	UTILS
+*********************************************************************/
+
+
+// check input
+function check_input$1(items) {
+
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.interval)[0];
+        let b_low = endpoint.from_interval(b.interval)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].interval)[1];
+        let curr_low = endpoint.from_interval(items[i].interval)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
+}
+
+
+/*
+	binary search for finding the correct insertion index into
+	the sorted array (ascending) of items
+	
+	array contains objects, and value func retreaves a value
+	from each object.
+
+	return [found, index]
+*/
+
+function find_index(target, arr, value_func) {
+
+    function default_value_func(el) {
+        return el;
+    }
+    
+    let left = 0;
+	let right = arr.length - 1;
+	value_func = value_func || default_value_func;
+	while (left <= right) {
+		const mid = Math.floor((left + right) / 2);
+		let mid_value = value_func(arr[mid]);
+		if (mid_value === target) {
+			return [true, mid]; // Target already exists in the array
+		} else if (mid_value < target) {
+			  left = mid + 1; // Move search range to the right
+		} else {
+			  right = mid - 1; // Move search range to the left
+		}
+	}
+  	return [false, left]; // Return the index where target should be inserted
+}
+
+/***************************************************************
+    STATE PROVIDER BASE
+***************************************************************/
+
+/*
+
+    STATE PROVIDER
+
+    - object with collection of items
+    - could be local - or proxy to online source
+
+    Abstract base class for all state providers
+
+    represents a dynamic collection of items (i.e. cues)
+    {interval, ...data}
+*/
+
+const DEAULT_OPTIONS = {};
+
+class StateProviderBase {
+    constructor(options={}) {
+        this._options = {...DEAULT_OPTIONS, ...options};
+        eventing.theInstance(this);
+    }
+    update(items) {
+        throw new Error("not implemented");
+    }
+
+    get items() {
+        throw new Error("not implemented");
+    }
+    get size() {
+        throw new Error("not implemented");
+    }
+    get type () {
+        throw new Error("not implemented");
+    }
+}
+eventing.thePrototype(StateProviderBase.prototype);
+
+/***************************************************************
+    SIMPLE STATE PROVIDER (LOCAL)
+***************************************************************/
+
+/**
+ * Local Array with non overlapping items.
+ */
+
+class SimpleStateProvider extends StateProviderBase {
+
+    constructor(options={}) {
+        super(options);
+        this._items = [];
+    }
+
+    update (items) {
+        this._items = check_input(items);
+        this.notify_callbacks();
+    }
+
+    get items () {
+        return this._items;
+    }
+
+    get size () {
+        return this._items.length;
+    }
+
+    get type () {
+        return {dynamic: true, overlapping: false, local:true};
+    }
+
+    /**
+     * Convenience update methods
+     */
+
+    set value (value) {
+        if (value == undefined) {
+            this._update([]);
+        } else {
+            let item = {
+                interval: [-Infinity, Infinity, true, true],
+                type: "static",
+                args: {value}                 
+            };
+            this._update([item]);
+        }
+    }
+
+    move(vector) {
+        let item = {
+            interval: [-Infinity, Infinity, true, true],
+            type: "motion",
+            args: {vector}                 
+        };
+        this._update([item]);    
+    }
+
+    transition(v0, v1, t0, t1, easing) {
+        let items = [
+            {
+                interval: [-Inifinity, t0, true, false],
+                type: "static",
+                args: {value:v0}
+            },
+            {
+                interval: [t0, t1, true, false],
+                type: "transition",
+                args: {v0, v1, t0, t1, easing}
+            },
+            {
+                interval: [t1, Infinity, true, true],
+                type: "static",
+                args: {value: v1}
+            }
+        ];
+        this._update(items);
+    }
+
+    interpolate(tuples) {
+        let items = [
+            {
+                interval: [-Inifinity, t0, true, false],
+                type: "static",
+                args: {value:v0}
+            },
+            {
+                interval: [t0, t1, true, false],
+                type: "interpolation",
+                args: {tuples}
+            },
+            {
+                interval: [t1, Infinity, true, true],
+                type: "static",
+                args: {value: v1}
+            }
+        ];
+        this._update(items);
+    }
+}
+
+
+function check_input(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.interval)[0];
+        let b_low = endpoint.from_interval(b.interval)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].interval)[1];
+        let curr_low = endpoint.from_interval(items[i].interval)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
+}
+
+class CursorBase {
+
+    constructor () {
+        // define cursor events
+        eventify.theInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+
+    query () {
+        throw new Error("Not implemented");
+    }
+
+    // Convenience
+    get dynamic () {return this.query().dynamic;}
+    get value () {return this.query().value;}
+
+    /*
+        Eventify: immediate events
+    */
+    eventifyInitEventArgs(name) {
+        if (name == "change") {
+            return [this.query()];
+        }
+    }
+}
+eventify.thePrototype(CursorBase.prototype);
+
+
+/**
+ * CLOCK (counting seconds since page load)
+ */
+
+
+class Clock extends CursorBase {
+
+    query () {
+        let offset = performance.now()/1000.0;
+        return {value:offset, dynamic:true, offset};
+    }
+}
+
+// global clock cursor
+const clock = new Clock();
+
+
+
+/** 
+ * Cursor
+ * 
+ * - src (state provider)
+ * - ctrlsrc (control provider)
+ * 
+ * Implementation uses a NearbyIndex and a NearbyCache 
+*/
+
+class Cursor extends CursorBase {
+
+    constructor(options={}) {
+        super();
+        // ctrl
+        this._ctrlsrc;
+        // src - state provider
+        this._src;
+        // nearby index
+        this._index;
+        // nearby cache
+        this._cache; 
+
+
+        // initialise with stateprovider
+        let {
+            src = new SimpleStateProvider(),
+            ctrlsrc = clock
+        } = options;
+        this.ctrlsrc = ctrlsrc;
+        this.src = src;
+    }
+
+    /**********************************************************
+     * STATE PROVIDER
+     **********************************************************/
+
+    _switch_stateprovider(stateprovider) {
+        // remove callback from current state provider
+        if (this._src) {
+            this._src.remove_callback();
+        }
+        // switch state provider
+        this._src = stateprovider;
+        // add callbacks from state provider
+        this._src.add_callback(this._onchange_stateprovider.bind(this));
+    }
+
+    // state change in state provider
+    _onchange_stateprovider() {
+        this._cache.dirty();
+    }
+
+    // src accessors - state provider
+    get src () {return this._src};
+    set src (stateprovider) {
+        // TODO - check state provider
+        if (stateprovider != this._src) {
+            this._switch_stateprovider(stateprovider);
+            // refresh index
+            let {dynamic, overlapping} = this._src.type;
+            if (overlapping) {
+                    throw new Error("overlapping not supported yet")
+            } else {
+                this._index = new NearbyIndexSimple(stateprovider.items);
+            }
+            // refresh cache
+            if (this._cache) {
+                this._cache.dirty();
+            } else {
+                this._cache = new NearbyCache(this._index);
+            }
+            // trigger change event for cursor
+            this.eventifyTrigger("change", this.query());
+        }
+    }
+
+    /**********************************************************
+     * CTRL PROVIDER
+     **********************************************************/
+
+    _switch_ctrlprovider(ctrlprovider) {
+        // remove callback from current ctrlprovider
+        if (this._ctrlsrc) {
+            this._ctrlsrc.off("change");
+        }
+        // switch ctrlprovider
+        this._ctrlsrc = ctrlprovider;
+        // add callbacks from state provider
+        this._ctrlsrc.on("change", this._onchange_ctrlprovider.bind(this));
+    }
+
+    _onchange_ctrlprovider() {
+        // TODO - set timeouts based on index
+
+
+
+        // trigger change event for cursor
+        this.eventifyTrigger("change", this.query());
+    }
+
+    // ctrl
+    get ctrlsrc () {return this._ctrlsrc;}
+    set ctrlsrc (ctrlprovider) {
+        // check ctrlprovider
+        if (ctrlprovider != this._ctrlsrc) {
+            this._switch_ctrlprovider(ctrlprovider);
+            // refresh cache
+            if (this._cache) {
+                this._cache.dirty();
+            }
+        }
+    } 
+
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+
+    query () {
+        let {value:offset} = this._ctrlsrc.query();
+        return this._cache.query(offset);
+    }
+}
+
+export { Cursor, segments };

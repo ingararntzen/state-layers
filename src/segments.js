@@ -1,28 +1,6 @@
 import {interval} from "./intervals.js";
 
 
-/*********************************************************************
-    CREATE SEGMENT
-*********************************************************************/
-
-export function create_segment(items) {
-    let {interval, type, ...args} = state;
-    let segment;
-    if (type == "static") {
-        segment = new StaticSegment(interval, args);
-    } else if (type == "trans") {
-        segment = new TransitionSegment(interval, args);
-    } else if (type == "interpolation") {
-        segment = new InterpolationSegment(interval, args);
-    } else if (type == "motion") {
-        segment = new MotionSegment(interval, args);
-    } else {
-        console.log("unrecognized segment type", type);
-    }
-    return segment;
-}
-
-
 /********************************************************************
 BASE SEGMENT
 *********************************************************************/
@@ -120,7 +98,6 @@ export class MotionSegment extends BaseSegment {
     constructor(itv, args) {
         super(itv);
         let [p0, v0, a0, t0] = args.vector;
-
         // create motion transition
         this._dynamic = (v0 != 0 || a0 != 0);
         this._trans = function (ts) {
@@ -164,7 +141,7 @@ export class TransitionSegment extends BaseSegment {
 
 	constructor(itv, args) {
 		super(itv);
-        let {start:v0, end:v1, easing} = args;
+        let {v0, v1, easing} = args;
         let [t0, t1] = this._itv.slice(0,2);
 
         // create the transition function

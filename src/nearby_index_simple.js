@@ -41,14 +41,9 @@ function get_high_endpoint(item) {
 
 export class NearbyIndexSimple extends NearbyIndexBase {
 
-    constructor() {
+    constructor(items) {
         super();
-        this._items = [];
-    }
-
-    set(items) {
-        check_input(items);
-        this._items = items;
+        this._items = check_input(items);
     }
 
     /*
@@ -66,20 +61,19 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             in this case - idx gives the index where an item
             should be inserted - if it had low == offset
     */
-    nearby(point) {
-        if (typeof point === 'number') {
-            point = [point, 0];
+    nearby(offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
         }
-        if (!Array.isArray(point)) {
+        if (!Array.isArray(offset)) {
             throw new Error("Endpoint must be an array");
         }
-        let offset = point[0];
         let items = this._items;
         let indexes, item;
         const size = items.length;
         if (size == 0) {
             return {
-                items: [],
+                center: [],
                 interval: [-Infinity, Infinity, true, true],
                 left: undefined,
                 right: undefined,
@@ -87,12 +81,12 @@ export class NearbyIndexSimple extends NearbyIndexBase {
                 next: undefined
             }
         }
-        let [found, idx] = find_index(offset, items, get_low_value);
+        let [found, idx] = find_index(offset[0], items, get_low_value);
         if (found) {
             // search offset matches item low exactly
             // check that it indeed covered by item interval
             item = items[idx]
-            if (interval.covers_endpoint(item.interval, point)) {
+            if (interval.covers_endpoint(item.interval, offset)) {
                 indexes = {left:idx-1, center:idx, right:idx+1};
             }
         }
@@ -101,7 +95,7 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             item = items[idx-1];
             if (item != undefined) {
                 // check if search offset is covered by item interval
-                if (interval.covers_endpoint(item.interval, point)) {
+                if (interval.covers_endpoint(item.interval, offset)) {
                     indexes = {left:idx-2, center:idx-1, right:idx};
                 } 
             }
@@ -175,6 +169,7 @@ function check_input(items) {
             throw new Error("Overlapping intervals found");
         }
     }
+    return items;
 }
 
 

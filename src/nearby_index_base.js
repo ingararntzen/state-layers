@@ -1,3 +1,5 @@
+import {eventing} from "./eventing.js";
+
 /*********************************************************************
     NEARBY INDEX BASE
 *********************************************************************/
@@ -39,8 +41,11 @@
  *      next:
  *          first interval endpoint to the right
  *          which will produce different && non-empty {center}
- *          always a low-endpoint or undefined if not more intervals to the right         
+ *          always a low-endpoint or undefined if no more intervals to the right
  * }
+ * 
+ * 
+ * The nearby state is well-defined for every timeline position.
  * 
  * 
  * NOTE left/right and prev/next are mostly the same. The only difference is 
@@ -70,13 +75,17 @@
 
 export class NearbyIndexBase {
 
+    constructor() {
+        eventing.theInstance(this);
+    }
+
     /* 
         Nearby method
     */
-
     nearby(offset) {
         throw new Error("Not implemented");
     }
 }
+eventing.thePrototype(NearbyIndexBase.prototype);
 
 
