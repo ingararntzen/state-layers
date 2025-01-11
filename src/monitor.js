@@ -1,4 +1,4 @@
-import {divmod} from "../util/util.js";
+import {divmod} from "./util.js";
 
 /*
     Timeout Monitor
