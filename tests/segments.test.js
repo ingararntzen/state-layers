@@ -60,7 +60,7 @@ describe('TransitionSegment class', () => {
     test('should return correct value for offset within interval', () => {
         const interval = [1, 5, true, true];
         const args = {
-            start: 9, end: 5, easing: "linear"
+            v0: 9, v1: 5, easing: "linear"
         }
         const segment = new TransitionSegment(interval, args);
         const offsets = [0, 1, 2, 3, 4, 5, 6];
