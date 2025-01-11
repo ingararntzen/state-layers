@@ -40,14 +40,14 @@ export class SimpleStateProvider extends StateProviderBase {
 
     set value (value) {
         if (value == undefined) {
-            this._update([]);
+            this.update([]);
         } else {
             let item = {
                 interval: [-Infinity, Infinity, true, true],
                 type: "static",
                 args: {value}                 
             }
-            this._update([item])
+            this.update([item])
         }
     }
 
@@ -57,7 +57,7 @@ export class SimpleStateProvider extends StateProviderBase {
             type: "motion",
             args: {vector}                 
         }
-        this._update([item])    
+        this.update([item])    
     }
 
     transition(v0, v1, t0, t1, easing) {
@@ -78,7 +78,7 @@ export class SimpleStateProvider extends StateProviderBase {
                 args: {value: v1}
             }
         ]
-        this._update(items);
+        this.update(items);
     }
 
     interpolate(tuples) {
@@ -99,7 +99,7 @@ export class SimpleStateProvider extends StateProviderBase {
                 args: {value: v1}
             }
         ]
-        this._update(items);
+        this.update(items);
     }
 }
 
