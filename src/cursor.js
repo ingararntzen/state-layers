@@ -1,8 +1,9 @@
 import { eventify } from "./eventify.js";
-import { NearbyCache } from "./nearby_cache.js";
-import { NearbyIndexSimple } from "./nearby_index_simple.js";
+import { NearbyCache } from "./nearbycache.js";
+import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
-
+import {bind, release} from "./monitor.js";
+import { StateProviderBase } from "./stateprovider_base.js";
 
 export class CursorBase {
 
@@ -31,6 +32,7 @@ export class CursorBase {
             return [this.query()];
         }
     }
+
 }
 eventify.thePrototype(CursorBase.prototype);
 
@@ -40,7 +42,7 @@ eventify.thePrototype(CursorBase.prototype);
  */
 
 
-class Clock extends CursorBase {
+export class Clock extends CursorBase {
 
     query () {
         let offset = performance.now()/1000.0;
@@ -49,15 +51,26 @@ class Clock extends CursorBase {
 }
 
 // global clock cursor
-export const clock = new Clock();
+export const wallclock = new Clock();
 
+
+
+
+/**
+ * Motion/Timing Object
+ * 
+ */
+
+export class Motion extends CursorBase {
+
+}
 
 
 /** 
  * Cursor
  * 
  * - src (state provider)
- * - ctrlsrc (control provider)
+ * - ctrl (control provider)
  * 
  * Implementation uses a NearbyIndex and a NearbyCache 
 */
@@ -66,8 +79,9 @@ export class Cursor extends CursorBase {
 
     constructor(options={}) {
         super();
+
         // ctrl
-        this._ctrlsrc;
+        this._ctrl;
         // src - state provider
         this._src;
         // nearby index
@@ -75,14 +89,32 @@ export class Cursor extends CursorBase {
         // nearby cache
         this._cache 
 
-
+        // initialise with  ctrlprovider
+        let {ctrl, offset} = options;
+        if (ctrl == undefined) {
+            if (offset == undefined) {
+                ctrl = wallclock;
+            } else {
+                // TODO - Motion
+                throw new Error("Motion not implemented yet")
+            }
+        }
+        if (!(ctrl instanceof CursorBase)) {
+            throw new Error("ctrl must be CursorBase")
+        }
+        this.ctrl = ctrl;
+        
         // initialise with stateprovider
-        let {
-            src = new SimpleStateProvider(),
-            ctrlsrc = clock
-        } = options;
-        this.ctrlsrc = ctrlsrc;
+        let {src, value} = options;
+        if (src == undefined) {
+            src = new SimpleStateProvider();
+            src.value = value;
+        }
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error("src must be StateproviderBase")
+        }
         this.src = src;
+
     }
 
     /**********************************************************
@@ -116,7 +148,8 @@ export class Cursor extends CursorBase {
             if (overlapping) {
                     throw new Error("overlapping not supported yet")
             } else {
-                this._index = new NearbyIndexSimple(stateprovider.items);
+                this._index = new SimpleNearbyIndex();
+                this._index.update(this.src.items);
             }
             // refresh cache
             if (this._cache) {
@@ -135,13 +168,13 @@ export class Cursor extends CursorBase {
 
     _switch_ctrlprovider(ctrlprovider) {
         // remove callback from current ctrlprovider
-        if (this._ctrlsrc) {
-            this._ctrlsrc.off("change");
+        if (this._ctrl) {
+            this._ctrl.off("change");
         }
         // switch ctrlprovider
-        this._ctrlsrc = ctrlprovider;
+        this._ctrl = ctrlprovider;
         // add callbacks from state provider
-        this._ctrlsrc.on("change", this._onchange_ctrlprovider.bind(this))
+        this._ctrl.on("change", this._onchange_ctrlprovider.bind(this))
     }
 
     _onchange_ctrlprovider() {
@@ -154,10 +187,10 @@ export class Cursor extends CursorBase {
     }
 
     // ctrl
-    get ctrlsrc () {return this._ctrlsrc;}
-    set ctrlsrc (ctrlprovider) {
+    get ctrl () {return this._ctrl;}
+    set ctrl (ctrlprovider) {
         // check ctrlprovider
-        if (ctrlprovider != this._ctrlsrc) {
+        if (ctrlprovider != this._ctrl) {
             this._switch_ctrlprovider(ctrlprovider);
             // refresh cache
             if (this._cache) {
@@ -171,8 +204,20 @@ export class Cursor extends CursorBase {
      **********************************************************/
 
     query () {
-        let {value:offset} = this._ctrlsrc.query()
+        let {value:offset} = this._ctrl.query()
         return this._cache.query(offset);
     }
+
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay, options);
+    }
+    release(handle) {
+        return release(handle);
+    }
+
 }
 

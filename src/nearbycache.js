@@ -98,7 +98,7 @@ export class NearbyCache {
         if (!this._segment) {
             this._segment = load_segment(this._nearby);
         }
-        return this._segment.query();
+        return this._segment.query(offset);
     }
 }
 

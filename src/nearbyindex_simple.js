@@ -41,13 +41,16 @@ function get_high_endpoint(item) {
 
 export class SimpleNearbyIndex extends NearbyIndexBase {
 
-    constructor(options = {}) {
+    constructor(options={}) {
         super();
-        let {items=[]} = options;
-        this.items = items;
+        this._items = [];
+        let {items} = options;
+        if (items) {
+            this.update(items);
+        }
     }
 
-    set items (items) {
+    update (items) {
         this._items = check_input(items)
     }
 

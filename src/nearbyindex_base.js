@@ -79,11 +79,15 @@ export class NearbyIndexBase {
         eventing.theInstance(this);
     }
 
+    update (items) {
+        throw new Error("Not implemented");
+    }
+
     /* 
         Nearby method
     */
     nearby(offset) {
-        throw new Error("Not implemented");
+        
     }
 }
 eventing.thePrototype(NearbyIndexBase.prototype);

@@ -105,14 +105,11 @@ describe('SimpleNearbyIndex', () => {
             interval: [-Infinity, Infinity, true, true], 
             args: {value:1}
         }
-        index.items = [newItem];
+        index.update([newItem]);
 
         // Check nearby.center after update
         nearby = index.nearby(1.5);
-        expect(nearby.center[0]).toBe(newItem);
-
-        console.log(nearby);
-
+        expect(nearby.center[0]).toStrictEqual(newItem);
     });
 
 });
