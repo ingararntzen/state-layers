@@ -73,7 +73,7 @@ export class NearbyCache {
         if (this._nearby == undefined || this._dirty) {
             return this._refresh(offset);
         }
-        if (!interval.covers(this._nearby.interval, offset)) {
+        if (!interval.covers_endpoint(this._nearby.interval, offset)) {
             return this._refresh(offset)
         }
         return false;
@@ -91,6 +91,9 @@ export class NearbyCache {
     ***************************************************/
 
     query(offset) {
+        if (offset == undefined) {
+            throw new Error("cache query offset cannot be undefined")
+        }
         this.refresh(offset);
         if (!this._segment) {
             this._segment = load_segment(this._nearby);
