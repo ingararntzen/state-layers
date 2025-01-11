@@ -1,7 +1,6 @@
 import {StateProviderBase} from "./stateprovider_base.js";
 import {endpoint} from "./intervals.js";
 
-
 /***************************************************************
     SIMPLE STATE PROVIDER (LOCAL)
 ***************************************************************/
@@ -13,11 +12,16 @@ import {endpoint} from "./intervals.js";
 export class SimpleStateProvider extends StateProviderBase {
 
     constructor(options={}) {
-        super(options);
+        super();
         this._items = [];
+        let {items} = options;
+        if (items) {
+            this.handle_update(items);  
+        }
     }
 
-    update (items) {
+    // internal update function
+    handle_update (items) {
         this._items = check_input(items);
         this.notify_callbacks();
     }
@@ -26,80 +30,8 @@ export class SimpleStateProvider extends StateProviderBase {
         return this._items;
     }
 
-    get size () {
-        return this._items.length;
-    }
-
-    get type () {
+    get info () {
         return {dynamic: true, overlapping: false, local:true};
-    }
-
-    /**
-     * Convenience update methods
-     */
-
-    set value (value) {
-        if (value == undefined) {
-            this.update([]);
-        } else {
-            let item = {
-                interval: [-Infinity, Infinity, true, true],
-                type: "static",
-                args: {value}                 
-            }
-            this.update([item])
-        }
-    }
-
-    move(vector) {
-        let item = {
-            interval: [-Infinity, Infinity, true, true],
-            type: "motion",
-            args: {vector}                 
-        }
-        this.update([item])    
-    }
-
-    transition(v0, v1, t0, t1, easing) {
-        let items = [
-            {
-                interval: [-Inifinity, t0, true, false],
-                type: "static",
-                args: {value:v0}
-            },
-            {
-                interval: [t0, t1, true, false],
-                type: "transition",
-                args: {v0, v1, t0, t1, easing}
-            },
-            {
-                interval: [t1, Infinity, true, true],
-                type: "static",
-                args: {value: v1}
-            }
-        ]
-        this.update(items);
-    }
-
-    interpolate(tuples) {
-        let items = [
-            {
-                interval: [-Inifinity, t0, true, false],
-                type: "static",
-                args: {value:v0}
-            },
-            {
-                interval: [t0, t1, true, false],
-                type: "interpolation",
-                args: {tuples}
-            },
-            {
-                interval: [t1, Infinity, true, true],
-                type: "static",
-                args: {value: v1}
-            }
-        ]
-        this.update(items);
     }
 }
 

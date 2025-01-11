@@ -9,3 +9,4 @@ export function divmod(x, base) {
     let r = mod(x, base);
     return [n, r];
 }
+

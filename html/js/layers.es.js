@@ -358,7 +358,7 @@ class TransitionSegment extends BaseSegment {
  * interpolated or extrapolated value.
  */
 
-function interpolate(tuples) {
+function interpolate$1(tuples) {
 
     if (tuples.length < 1) {
         return function interpolator () {return undefined;}
@@ -405,7 +405,7 @@ class InterpolationSegment extends BaseSegment {
     constructor(itv, args) {
         super(itv);
         // setup interpolation function
-        this._trans = interpolate(args.tuples);
+        this._trans = interpolate$1(args.tuples);
     }
 
     state(offset) {
@@ -422,328 +422,6 @@ var segments = /*#__PURE__*/Object.freeze({
     StaticSegment: StaticSegment,
     TransitionSegment: TransitionSegment
 });
-
-/*
-	Copyright 2020
-	Author : Ingar Arntzen
-
-	This file is part of the Timingsrc module.
-
-	Timingsrc is free software: you can redistribute it and/or modify
-	it under the terms of the GNU Lesser General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	Timingsrc is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU Lesser General Public License for more details.
-
-	You should have received a copy of the GNU Lesser General Public License
-	along with Timingsrc.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-
-/*
-	Event
-	- name: event name
-	- publisher: the object which defined the event
-	- init: true if the event suppports init events
-	- subscriptions: subscriptins to this event
-
-*/
-
-class Event {
-
-	constructor (publisher, name, options) {
-		options = options || {};
-		this.publisher = publisher;
-		this.name = name;
-		this.init = (options.init === undefined) ? false : options.init;
-		this.subscriptions = [];
-	}
-
-	/*
-		subscribe to event
-		- subscriber: subscribing object
-		- callback: callback function to invoke
-		- options:
-			init: if true subscriber wants init events
-	*/
-	subscribe (callback, options) {
-		if (!callback || typeof callback !== "function") {
-			throw new Error("Callback not a function", callback);
-		}
-		const sub = new Subscription(this, callback, options);
-		this.subscriptions.push(sub);
-	    // Initiate init callback for this subscription
-	    if (this.init && sub.init) {
-	    	sub.init_pending = true;
-	    	let self = this;
-	    	Promise.resolve().then(function () {
-	    		const eArgs = self.publisher.eventifyInitEventArgs(self.name) || [];
-	    		sub.init_pending = false;
-	    		for (let eArg of eArgs) {
-	    			self.trigger(eArg, [sub], true);
-	    		}
-	    	});
-	    }
-		return sub
-	}
-
-	/*
-		trigger event
-
-		- if sub is undefined - publish to all subscriptions
-		- if sub is defined - publish only to given subscription
-	*/
-	trigger (eArg, subs, init) {
-		let eInfo, ctx;
-		for (const sub of subs) {
-			// ignore terminated subscriptions
-			if (sub.terminated) {
-				continue;
-			}
-			eInfo = {
-				src: this.publisher,
-				name: this.name,
-				sub: sub,
-				init: init
-			};
-			ctx = sub.ctx || this.publisher;
-			try {
-				sub.callback.call(ctx, eArg, eInfo);
-			} catch (err) {
-				console.log(`Error in ${this.name}: ${sub.callback} ${err}`);
-			}
-		}
-	}
-
-	/*
-	unsubscribe from event
-	- use subscription returned by previous subscribe
-	*/
-	unsubscribe(sub) {
-		let idx = this.subscriptions.indexOf(sub);
-		if (idx > -1) {
-			this.subscriptions.splice(idx, 1);
-			sub.terminate();
-		}
-	}
-}
-
-
-/*
-	Subscription class
-*/
-
-class Subscription {
-
-	constructor(event, callback, options) {
-		options = options || {};
-		this.event = event;
-		this.name = event.name;
-		this.callback = callback;
-		this.init = (options.init === undefined) ? this.event.init : options.init;
-		this.init_pending = false;
-		this.terminated = false;
-		this.ctx = options.ctx;
-	}
-
-	terminate() {
-		this.terminated = true;
-		this.callback = undefined;
-		this.event.unsubscribe(this);
-	}
-}
-
-
-/*
-
-	EVENTIFY INSTANCE
-
-	Eventify brings eventing capabilities to any object.
-
-	In particular, eventify supports the initial-event pattern.
-	Opt-in for initial events per event type.
-
-	eventifyInitEventArgs(name) {
-		if (name == "change") {
-			return [this._value];
-		}
-	}
-
-*/
-
-function eventifyInstance (object) {
-	object.__eventify_eventMap = new Map();
-	object.__eventify_buffer = [];
-	return object;
-}
-
-/*
-	EVENTIFY PROTOTYPE
-
-	Add eventify functionality to prototype object
-*/
-
-function eventifyPrototype(_prototype) {
-
-	function eventifyGetEvent(object, name) {
-		const event = object.__eventify_eventMap.get(name);
-		if (event == undefined) {
-			throw new Error("Event undefined", name);
-		}
-		return event;
-	}
-
-	/*
-		DEFINE EVENT
-		- used only by event source
-		- name: name of event
-		- options: {init:true} specifies init-event semantics for event
-	*/
-	function eventifyDefine(name, options) {
-		// check that event does not already exist
-		if (this.__eventify_eventMap.has(name)) {
-			throw new Error("Event already defined", name);
-		}
-		this.__eventify_eventMap.set(name, new Event(this, name, options));
-	}
-	/*
-		ON
-		- used by subscriber
-		register callback on event.
-	*/
-	function on(name, callback, options) {
-		return eventifyGetEvent(this, name).subscribe(callback, options);
-	}
-	/*
-		OFF
-		- used by subscriber
-		Un-register a handler from a specfic event type
-	*/
-	function off(sub) {
-		return eventifyGetEvent(this, sub.name).unsubscribe(sub);
-	}
-
-	function eventifySubscriptions(name) {
-		return eventifyGetEvent(this, name).subscriptions;
-	}
-
-
-
-	/*
-		Trigger list of eventItems on object
-
-		eventItem:  {name:.., eArg:..}
-
-		copy all eventItems into buffer.
-		request emptying the buffer, i.e. actually triggering events,
-		every time the buffer goes from empty to non-empty
-	*/
-	function eventifyTriggerAll(eventItems) {
-		if (eventItems.length == 0) {
-			return;
-		}
-
-		// make trigger items
-		// resolve non-pending subscriptions now
-		// else subscriptions may change from pending to non-pending
-		// between here and actual triggering
-		// make list of [ev, eArg, subs] tuples
-		let triggerItems = eventItems.map((item) => {
-			let {name, eArg} = item;
-			let ev = eventifyGetEvent(this, name);
-			let subs = ev.subscriptions.filter(sub => sub.init_pending == false);
-			return [ev, eArg, subs];
-		}, this);
-
-		// append trigger Items to buffer
-		const len = triggerItems.length;
-		const buf = this.__eventify_buffer;
-		const buf_len = this.__eventify_buffer.length;
-		// reserve memory - set new length
-		this.__eventify_buffer.length = buf_len + len;
-		// copy triggerItems to buffer
-		for (let i=0; i<len; i++) {
-			buf[buf_len+i] = triggerItems[i];
-		}
-		// request emptying of the buffer
-		if (buf_len == 0) {
-			let self = this;
-			Promise.resolve().then(function() {
-				for (let [ev, eArg, subs] of self.__eventify_buffer) {
-					// actual event triggering
-					ev.trigger(eArg, subs, false);
-				}
-				self.__eventify_buffer = [];
-			});
-		}
-	}
-
-	/*
-		Trigger multiple events of same type (name)
-	*/
-	function eventifyTriggerAlike(name, eArgs) {
-		return this.eventifyTriggerAll(eArgs.map(eArg => {
-			return {name, eArg};
-		}));
-	}
-
-	/*
-		Trigger single event
-	*/
-	function eventifyTrigger(name, eArg) {
-		return this.eventifyTriggerAll([{name, eArg}]);
-	}
-
-	_prototype.eventifyDefine = eventifyDefine;
-	_prototype.eventifyTrigger = eventifyTrigger;
-	_prototype.eventifyTriggerAlike = eventifyTriggerAlike;
-	_prototype.eventifyTriggerAll = eventifyTriggerAll;
-	_prototype.eventifySubscriptions = eventifySubscriptions;
-	_prototype.on = on;
-	_prototype.off = off;
-}
-
-const eventify = function () {
-	return {
-		theInstance: eventifyInstance,
-		thePrototype: eventifyPrototype
-	}
-}();
-
-/*
-	Event Variable
-
-	Objects with a single "change" event
-*/
-
-class EventVariable {
-
-	constructor (value) {
-		eventifyInstance(this);
-		this._value = value;
-		this.eventifyDefine("change", {init:true});
-	}
-
-	eventifyInitEventArgs(name) {
-		if (name == "change") {
-			return [this._value];
-		}
-	}
-
-	get value () {return this._value};
-	set value (value) {
-		if (value != this._value) {
-			this._value = value;
-			this.eventifyTrigger("change", value);
-		}
-	}
-}
-eventifyPrototype(EventVariable.prototype);
 
 /*********************************************************************
     NEARBY CACHE
@@ -1246,24 +924,24 @@ function find_index(target, arr, value_func) {
     {interval, ...data}
 */
 
-const DEAULT_OPTIONS = {};
-
 class StateProviderBase {
-    constructor(options={}) {
-        this._options = {...DEAULT_OPTIONS, ...options};
+    constructor() {
         eventing.theInstance(this);
     }
-    update(items) {
+
+    // public update function
+    update(items){
+        return Promise.resolve()
+            .then(() => {
+                return this.handle_update(items);
+            });
+    }
+
+    handle_update(items) {
         throw new Error("not implemented");
     }
 
     get items() {
-        throw new Error("not implemented");
-    }
-    get size() {
-        throw new Error("not implemented");
-    }
-    get type () {
         throw new Error("not implemented");
     }
 }
@@ -1280,11 +958,16 @@ eventing.thePrototype(StateProviderBase.prototype);
 class SimpleStateProvider extends StateProviderBase {
 
     constructor(options={}) {
-        super(options);
+        super();
         this._items = [];
+        let {items} = options;
+        if (items) {
+            this.handle_update(items);  
+        }
     }
 
-    update (items) {
+    // internal update function
+    handle_update (items) {
         this._items = check_input(items);
         this.notify_callbacks();
     }
@@ -1293,80 +976,8 @@ class SimpleStateProvider extends StateProviderBase {
         return this._items;
     }
 
-    get size () {
-        return this._items.length;
-    }
-
-    get type () {
+    get info () {
         return {dynamic: true, overlapping: false, local:true};
-    }
-
-    /**
-     * Convenience update methods
-     */
-
-    set value (value) {
-        if (value == undefined) {
-            this.update([]);
-        } else {
-            let item = {
-                interval: [-Infinity, Infinity, true, true],
-                type: "static",
-                args: {value}                 
-            };
-            this.update([item]);
-        }
-    }
-
-    move(vector) {
-        let item = {
-            interval: [-Infinity, Infinity, true, true],
-            type: "motion",
-            args: {vector}                 
-        };
-        this.update([item]);    
-    }
-
-    transition(v0, v1, t0, t1, easing) {
-        let items = [
-            {
-                interval: [-Inifinity, t0, true, false],
-                type: "static",
-                args: {value:v0}
-            },
-            {
-                interval: [t0, t1, true, false],
-                type: "transition",
-                args: {v0, v1, t0, t1, easing}
-            },
-            {
-                interval: [t1, Infinity, true, true],
-                type: "static",
-                args: {value: v1}
-            }
-        ];
-        this.update(items);
-    }
-
-    interpolate(tuples) {
-        let items = [
-            {
-                interval: [-Inifinity, t0, true, false],
-                type: "static",
-                args: {value:v0}
-            },
-            {
-                interval: [t0, t1, true, false],
-                type: "interpolation",
-                args: {tuples}
-            },
-            {
-                interval: [t1, Infinity, true, true],
-                type: "static",
-                args: {value: v1}
-            }
-        ];
-        this.update(items);
     }
 }
 
@@ -1722,6 +1333,328 @@ function release(handle) {
     }
 }
 
+/*
+	Copyright 2020
+	Author : Ingar Arntzen
+
+	This file is part of the Timingsrc module.
+
+	Timingsrc is free software: you can redistribute it and/or modify
+	it under the terms of the GNU Lesser General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Timingsrc is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU Lesser General Public License for more details.
+
+	You should have received a copy of the GNU Lesser General Public License
+	along with Timingsrc.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
+
+/*
+	Event
+	- name: event name
+	- publisher: the object which defined the event
+	- init: true if the event suppports init events
+	- subscriptions: subscriptins to this event
+
+*/
+
+class Event {
+
+	constructor (publisher, name, options) {
+		options = options || {};
+		this.publisher = publisher;
+		this.name = name;
+		this.init = (options.init === undefined) ? false : options.init;
+		this.subscriptions = [];
+	}
+
+	/*
+		subscribe to event
+		- subscriber: subscribing object
+		- callback: callback function to invoke
+		- options:
+			init: if true subscriber wants init events
+	*/
+	subscribe (callback, options) {
+		if (!callback || typeof callback !== "function") {
+			throw new Error("Callback not a function", callback);
+		}
+		const sub = new Subscription(this, callback, options);
+		this.subscriptions.push(sub);
+	    // Initiate init callback for this subscription
+	    if (this.init && sub.init) {
+	    	sub.init_pending = true;
+	    	let self = this;
+	    	Promise.resolve().then(function () {
+	    		const eArgs = self.publisher.eventifyInitEventArgs(self.name) || [];
+	    		sub.init_pending = false;
+	    		for (let eArg of eArgs) {
+	    			self.trigger(eArg, [sub], true);
+	    		}
+	    	});
+	    }
+		return sub
+	}
+
+	/*
+		trigger event
+
+		- if sub is undefined - publish to all subscriptions
+		- if sub is defined - publish only to given subscription
+	*/
+	trigger (eArg, subs, init) {
+		let eInfo, ctx;
+		for (const sub of subs) {
+			// ignore terminated subscriptions
+			if (sub.terminated) {
+				continue;
+			}
+			eInfo = {
+				src: this.publisher,
+				name: this.name,
+				sub: sub,
+				init: init
+			};
+			ctx = sub.ctx || this.publisher;
+			try {
+				sub.callback.call(ctx, eArg, eInfo);
+			} catch (err) {
+				console.log(`Error in ${this.name}: ${sub.callback} ${err}`);
+			}
+		}
+	}
+
+	/*
+	unsubscribe from event
+	- use subscription returned by previous subscribe
+	*/
+	unsubscribe(sub) {
+		let idx = this.subscriptions.indexOf(sub);
+		if (idx > -1) {
+			this.subscriptions.splice(idx, 1);
+			sub.terminate();
+		}
+	}
+}
+
+
+/*
+	Subscription class
+*/
+
+class Subscription {
+
+	constructor(event, callback, options) {
+		options = options || {};
+		this.event = event;
+		this.name = event.name;
+		this.callback = callback;
+		this.init = (options.init === undefined) ? this.event.init : options.init;
+		this.init_pending = false;
+		this.terminated = false;
+		this.ctx = options.ctx;
+	}
+
+	terminate() {
+		this.terminated = true;
+		this.callback = undefined;
+		this.event.unsubscribe(this);
+	}
+}
+
+
+/*
+
+	EVENTIFY INSTANCE
+
+	Eventify brings eventing capabilities to any object.
+
+	In particular, eventify supports the initial-event pattern.
+	Opt-in for initial events per event type.
+
+	eventifyInitEventArgs(name) {
+		if (name == "change") {
+			return [this._value];
+		}
+	}
+
+*/
+
+function eventifyInstance (object) {
+	object.__eventify_eventMap = new Map();
+	object.__eventify_buffer = [];
+	return object;
+}
+
+/*
+	EVENTIFY PROTOTYPE
+
+	Add eventify functionality to prototype object
+*/
+
+function eventifyPrototype(_prototype) {
+
+	function eventifyGetEvent(object, name) {
+		const event = object.__eventify_eventMap.get(name);
+		if (event == undefined) {
+			throw new Error("Event undefined", name);
+		}
+		return event;
+	}
+
+	/*
+		DEFINE EVENT
+		- used only by event source
+		- name: name of event
+		- options: {init:true} specifies init-event semantics for event
+	*/
+	function eventifyDefine(name, options) {
+		// check that event does not already exist
+		if (this.__eventify_eventMap.has(name)) {
+			throw new Error("Event already defined", name);
+		}
+		this.__eventify_eventMap.set(name, new Event(this, name, options));
+	}
+	/*
+		ON
+		- used by subscriber
+		register callback on event.
+	*/
+	function on(name, callback, options) {
+		return eventifyGetEvent(this, name).subscribe(callback, options);
+	}
+	/*
+		OFF
+		- used by subscriber
+		Un-register a handler from a specfic event type
+	*/
+	function off(sub) {
+		return eventifyGetEvent(this, sub.name).unsubscribe(sub);
+	}
+
+	function eventifySubscriptions(name) {
+		return eventifyGetEvent(this, name).subscriptions;
+	}
+
+
+
+	/*
+		Trigger list of eventItems on object
+
+		eventItem:  {name:.., eArg:..}
+
+		copy all eventItems into buffer.
+		request emptying the buffer, i.e. actually triggering events,
+		every time the buffer goes from empty to non-empty
+	*/
+	function eventifyTriggerAll(eventItems) {
+		if (eventItems.length == 0) {
+			return;
+		}
+
+		// make trigger items
+		// resolve non-pending subscriptions now
+		// else subscriptions may change from pending to non-pending
+		// between here and actual triggering
+		// make list of [ev, eArg, subs] tuples
+		let triggerItems = eventItems.map((item) => {
+			let {name, eArg} = item;
+			let ev = eventifyGetEvent(this, name);
+			let subs = ev.subscriptions.filter(sub => sub.init_pending == false);
+			return [ev, eArg, subs];
+		}, this);
+
+		// append trigger Items to buffer
+		const len = triggerItems.length;
+		const buf = this.__eventify_buffer;
+		const buf_len = this.__eventify_buffer.length;
+		// reserve memory - set new length
+		this.__eventify_buffer.length = buf_len + len;
+		// copy triggerItems to buffer
+		for (let i=0; i<len; i++) {
+			buf[buf_len+i] = triggerItems[i];
+		}
+		// request emptying of the buffer
+		if (buf_len == 0) {
+			let self = this;
+			Promise.resolve().then(function() {
+				for (let [ev, eArg, subs] of self.__eventify_buffer) {
+					// actual event triggering
+					ev.trigger(eArg, subs, false);
+				}
+				self.__eventify_buffer = [];
+			});
+		}
+	}
+
+	/*
+		Trigger multiple events of same type (name)
+	*/
+	function eventifyTriggerAlike(name, eArgs) {
+		return this.eventifyTriggerAll(eArgs.map(eArg => {
+			return {name, eArg};
+		}));
+	}
+
+	/*
+		Trigger single event
+	*/
+	function eventifyTrigger(name, eArg) {
+		return this.eventifyTriggerAll([{name, eArg}]);
+	}
+
+	_prototype.eventifyDefine = eventifyDefine;
+	_prototype.eventifyTrigger = eventifyTrigger;
+	_prototype.eventifyTriggerAlike = eventifyTriggerAlike;
+	_prototype.eventifyTriggerAll = eventifyTriggerAll;
+	_prototype.eventifySubscriptions = eventifySubscriptions;
+	_prototype.on = on;
+	_prototype.off = off;
+}
+
+const eventify = function () {
+	return {
+		theInstance: eventifyInstance,
+		thePrototype: eventifyPrototype
+	}
+}();
+
+/*
+	Event Variable
+
+	Objects with a single "change" event
+*/
+
+class EventVariable {
+
+	constructor (value) {
+		eventifyInstance(this);
+		this._value = value;
+		this.eventifyDefine("change", {init:true});
+	}
+
+	eventifyInitEventArgs(name) {
+		if (name == "change") {
+			return [this._value];
+		}
+	}
+
+	get value () {return this._value};
+	set value (value) {
+		if (value != this._value) {
+			this._value = value;
+			this.eventifyTrigger("change", value);
+		}
+	}
+}
+eventifyPrototype(EventVariable.prototype);
+
 class CursorBase {
 
     constructor () {
@@ -1753,22 +1686,143 @@ class CursorBase {
 }
 eventify.thePrototype(CursorBase.prototype);
 
+function get_target(obj) {
+    if (obj instanceof CursorBase) {
+        return obj.src;
+    } else if (obj instanceof StateProviderBase) {
+        return obj;
+    } else {
+        throw new Error(`do: obj not supported ${obj}`);
+    }
+}
+
+const METHODS = {assign, move, transition, interpolate};
+
+
+function cmd (obj) {
+    let target = get_target(obj);
+    let entries = Object.entries(METHODS)
+        .map(([name, method]) => {
+            return [
+                name,
+                function(...args) { 
+                    let items = method.call(this, ...args);
+                    return target.update(items);  
+                }
+            ]
+        });
+    return Object.fromEntries(entries);
+}
+
+function assign(value) {
+    if (value == undefined) {
+        return [];
+    } else {
+        let item = {
+            interval: [-Infinity, Infinity, true, true],
+            type: "static",
+            args: {value}                 
+        };
+        return [item];
+    }
+}
+
+function move(vector={}, old_vector={}) {
+    let {position=0, velocity=0} = vector;
+    let item = {
+        interval: [-Infinity, Infinity, true, true],
+        type: "motion",
+        args: {vector: [position, velocity, 0, offset]}                 
+    };
+    return [item];
+}
+
+function transition(v0, v1, t0, t1, easing) {
+    let items = [
+        {
+            interval: [-Inifinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            interval: [t0, t1, true, false],
+            type: "transition",
+            args: {v0, v1, t0, t1, easing}
+        },
+        {
+            interval: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];
+    return items;
+}
+
+function interpolate(tuples) {
+    let items = [
+        {
+            interval: [-Inifinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            interval: [t0, t1, true, false],
+            type: "interpolation",
+            args: {tuples}
+        },
+        {
+            interval: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];    
+    return items;
+}
 
 /**
  * CLOCK (counting seconds since page load)
  */
 
+class Clock extends CursorBase {}
 
-class Clock extends CursorBase {
-
+class LocalClock extends Clock {
     query () {
         let offset = performance.now()/1000.0;
         return {value:offset, dynamic:true, offset};
     }
 }
+const LOCAL_CLOCK = new LocalClock();
 
-// global clock cursor
-const wallclock = new Clock();
+class LocalEpoch extends Clock {
+    query () {
+        let offset = (Date.now() / 1000.0);
+        return {value:offset, dynamic:true, offset};
+    }
+}
+new LocalEpoch();
+
+
+/**
+ * 
+ * CLOCK CURSORS
+ * 
+ * 
+ * LocalClock - (performance now, epoch) - these are wallclocks
+ * 
+ * OnlineClock - set up with a fixed clock server (epoch)
+ * 
+ * MediaClock - set up with a clock (ctrl) (fixed),
+ * and stateprovider (src) (switchable)
+ * 
+ * Cursor - both (ctrl) and (src) are switchable
+ * 
+ * 
+ * CHALLENGES
+ * 
+ * Media Clock should not support ctrl switching
+ * - restrict state to motions
+ */
+
 
 
 /** 
@@ -1798,7 +1852,7 @@ class Cursor extends CursorBase {
         let {ctrl, offset} = options;
         if (ctrl == undefined) {
             if (offset == undefined) {
-                ctrl = wallclock;
+                ctrl = LOCAL_CLOCK;
             } else {
                 // TODO - Motion
                 throw new Error("Motion not implemented yet")
@@ -1812,8 +1866,8 @@ class Cursor extends CursorBase {
         // initialise with stateprovider
         let {src, value} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider();
-            src.value = value;
+            let items = assign(value);
+            src = new SimpleStateProvider({items});
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -1834,12 +1888,15 @@ class Cursor extends CursorBase {
         // switch state provider
         this._src = stateprovider;
         // add callbacks from state provider
-        this._src.add_callback(this._onchange_stateprovider.bind(this));
+        this._src.add_callback(this._onchange_stateprovider.bind(this));        
     }
 
     // state change in state provider
     _onchange_stateprovider() {
+        this._index.update(this._src.items);
         this._cache.dirty();
+        // trigger change event for cursor
+        this.eventifyTrigger("change", this.query());
     }
 
     // src accessors - state provider
@@ -1849,7 +1906,7 @@ class Cursor extends CursorBase {
         if (stateprovider != this._src) {
             this._switch_stateprovider(stateprovider);
             // refresh index
-            let {dynamic, overlapping} = this._src.type;
+            let {overlapping} = this._src.info || {};
             if (overlapping) {
                     throw new Error("overlapping not supported yet")
             } else {
@@ -1926,4 +1983,4 @@ class Cursor extends CursorBase {
 
 }
 
-export { Cursor, segments };
+export { Cursor, cmd, segments };

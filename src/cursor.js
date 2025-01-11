@@ -1,69 +1,56 @@
-import { eventify } from "./eventify.js";
+
 import { NearbyCache } from "./nearbycache.js";
 import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
-import {bind, release} from "./monitor.js";
+import { bind, release } from "./monitor.js";
 import { StateProviderBase } from "./stateprovider_base.js";
-
-export class CursorBase {
-
-    constructor () {
-        // define cursor events
-        eventify.theInstance(this);
-        this.eventifyDefine("change", {init:true});
-    }
-    /**********************************************************
-     * QUERY
-     **********************************************************/
-
-    query () {
-        throw new Error("Not implemented");
-    }
-
-    // Convenience
-    get dynamic () {return this.query().dynamic;}
-    get value () {return this.query().value;}
-
-    /*
-        Eventify: immediate events
-    */
-    eventifyInitEventArgs(name) {
-        if (name == "change") {
-            return [this.query()];
-        }
-    }
-
-}
-eventify.thePrototype(CursorBase.prototype);
-
+import { CursorBase } from "./cursor_base.js";
+import { assign } from "./cmd.js";
 
 /**
  * CLOCK (counting seconds since page load)
  */
 
+export class Clock extends CursorBase {}
 
-export class Clock extends CursorBase {
-
+export class LocalClock extends Clock {
     query () {
         let offset = performance.now()/1000.0;
         return {value:offset, dynamic:true, offset};
     }
 }
+export const LOCAL_CLOCK = new LocalClock();
 
-// global clock cursor
-export const wallclock = new Clock();
-
-
+export class LocalEpoch extends Clock {
+    query () {
+        let offset = (Date.now() / 1000.0)
+        return {value:offset, dynamic:true, offset};
+    }
+}
+export const LOCAL_EPOCH_CLOCK = new LocalEpoch();
 
 
 /**
- * Motion/Timing Object
  * 
+ * CLOCK CURSORS
+ * 
+ * 
+ * LocalClock - (performance now, epoch) - these are wallclocks
+ * 
+ * OnlineClock - set up with a fixed clock server (epoch)
+ * 
+ * MediaClock - set up with a clock (ctrl) (fixed),
+ * and stateprovider (src) (switchable)
+ * 
+ * Cursor - both (ctrl) and (src) are switchable
+ * 
+ * 
+ * CHALLENGES
+ * 
+ * Media Clock should not support ctrl switching
+ * - restrict state to motions
  */
 
-export class Motion extends CursorBase {
-
-}
 
 
 /** 
@@ -93,7 +80,7 @@ export class Cursor extends CursorBase {
         let {ctrl, offset} = options;
         if (ctrl == undefined) {
             if (offset == undefined) {
-                ctrl = wallclock;
+                ctrl = LOCAL_CLOCK;
             } else {
                 // TODO - Motion
                 throw new Error("Motion not implemented yet")
@@ -107,8 +94,8 @@ export class Cursor extends CursorBase {
         // initialise with stateprovider
         let {src, value} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider();
-            src.value = value;
+            let items = assign(value);
+            src = new SimpleStateProvider({items});
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -129,12 +116,15 @@ export class Cursor extends CursorBase {
         // switch state provider
         this._src = stateprovider;
         // add callbacks from state provider
-        this._src.add_callback(this._onchange_stateprovider.bind(this));
+        this._src.add_callback(this._onchange_stateprovider.bind(this));        
     }
 
     // state change in state provider
     _onchange_stateprovider() {
+        this._index.update(this._src.items);
         this._cache.dirty();
+        // trigger change event for cursor
+        this.eventifyTrigger("change", this.query());
     }
 
     // src accessors - state provider
@@ -144,7 +134,7 @@ export class Cursor extends CursorBase {
         if (stateprovider != this._src) {
             this._switch_stateprovider(stateprovider);
             // refresh index
-            let {dynamic, overlapping} = this._src.type;
+            let {overlapping} = this._src.info || {};
             if (overlapping) {
                     throw new Error("overlapping not supported yet")
             } else {

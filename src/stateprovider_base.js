@@ -17,24 +17,24 @@ import {eventing} from "./eventing.js";
     {interval, ...data}
 */
 
-const DEAULT_OPTIONS = {};
-
 export class StateProviderBase {
-    constructor(options={}) {
-        this._options = {...DEAULT_OPTIONS, ...options};
+    constructor() {
         eventing.theInstance(this);
     }
-    update(items) {
+
+    // public update function
+    update(items){
+        return Promise.resolve()
+            .then(() => {
+                return this.handle_update(items);
+            });
+    }
+
+    handle_update(items) {
         throw new Error("not implemented");
     }
 
     get items() {
-        throw new Error("not implemented");
-    }
-    get size() {
-        throw new Error("not implemented");
-    }
-    get type () {
         throw new Error("not implemented");
     }
 }
