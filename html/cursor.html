@@ -5,14 +5,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script type="module">
-        // Test ES6 module import
+
+        function render_html (selector, to_value) {
+            let elems = document.querySelector(selector);
+            return function (state) {
+                elems.innerHTML = to_value(state);
+            }
+        }
+
+
+        function getRandomInt(max) {
+          return Math.floor(Math.random() * max);
+        }
+
         import { Cursor } from './js/layers.es.js';
 
-        let c = new Cursor();
-        console.log(c);
+        let c = new Cursor({value:1});
+        c.bind(render_html("#value", ({value}) => `${value}`), 200);
+
+
+
+
 </script>
 </head>
 <body>
     <h1>Hello, Cursor!</h1>
+
+    <h3> Value </h3>
+
+    <p>
+        <button id="setValueBtn">SetValue</button>
+        <button id="setTransBtn">SetTrans</button>
+        <button id="setTuplesBtn">SetTuples</button>
+        <button id="setUndefBtn">SetUndefined</button>
+    </p>
+    <p>
+        <div id="value"></div>
+    </p>
+
 </body>
 </html>
