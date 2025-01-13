@@ -81,7 +81,7 @@ eventify.thePrototype(LayerBase.prototype);
 export class CursorBase extends LayerBase { 
         // Convenience
         get dynamic () {return this.query().dynamic;}
-        get value () {return this.query().value;}    
+        get value () {return this.query().value;}  
 }
 
 
