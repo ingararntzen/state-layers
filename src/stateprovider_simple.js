@@ -1,4 +1,4 @@
-import {StateProviderBase} from "./stateprovider_base.js";
+import {StateProviderBase} from "./bases.js";
 import {endpoint} from "./intervals.js";
 
 /***************************************************************

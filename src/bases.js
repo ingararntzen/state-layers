@@ -1,4 +1,89 @@
-import {eventing} from "./eventing.js";
+import { eventify } from "./eventify.js";
+import { callbacks } from "./util.js";
+
+/***************************************************************
+    STATE PROVIDER BASE
+***************************************************************/
+
+/*
+    STATE PROVIDER
+
+    Abstract base class for all state providers
+
+    - object with collection of items
+    - could be local - or proxy to online source
+
+    represents a dynamic collection of items
+    {interval, ...data}
+*/
+
+export class StateProviderBase {
+    constructor() {
+        callbacks.theInstance(this);
+    }
+
+    // public update function
+    update(items){
+        return Promise.resolve()
+            .then(() => {
+                return this.handle_update(items);
+            });
+    }
+
+    handle_update(items) {
+        throw new Error("not implemented");
+    }
+
+    get items() {
+        throw new Error("not implemented");
+    }
+}
+callbacks.thePrototype(StateProviderBase.prototype);
+
+
+/************************************************
+ * LAYER BASE
+ ************************************************/
+
+export class LayerBase {
+
+    constructor () {
+        // define cursor events
+        eventify.theInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+
+    query () {
+        throw new Error("Not implemented");
+    }
+
+
+    /*
+        Eventify: immediate events
+    */
+    eventifyInitEventArgs(name) {
+        if (name == "change") {
+            return [this.query()];
+        }
+    }
+
+}
+eventify.thePrototype(LayerBase.prototype);
+
+
+/************************************************
+ * Cursor BASE
+ ************************************************/
+
+export class CursorBase extends LayerBase { 
+        // Convenience
+        get dynamic () {return this.query().dynamic;}
+        get value () {return this.query().value;}    
+}
+
 
 /*********************************************************************
     NEARBY INDEX BASE
@@ -76,7 +161,7 @@ import {eventing} from "./eventing.js";
 export class NearbyIndexBase {
 
     constructor() {
-        eventing.theInstance(this);
+        callbacks.theInstance(this);
     }
 
     update (items) {
@@ -90,6 +175,5 @@ export class NearbyIndexBase {
         
     }
 }
-eventing.thePrototype(NearbyIndexBase.prototype);
-
+callbacks.thePrototype(NearbyIndexBase.prototype);
 

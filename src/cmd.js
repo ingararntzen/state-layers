@@ -1,6 +1,5 @@
 
-import {StateProviderBase} from "./stateprovider_base.js";
-import {CursorBase} from "./cursor_base.js";
+import {StateProviderBase, CursorBase} from "./bases.js";
 
 function get_target(obj) {
     if (obj instanceof CursorBase) {

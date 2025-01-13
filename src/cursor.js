@@ -3,8 +3,8 @@ import { NearbyCache } from "./nearbycache.js";
 import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
 import { bind, release } from "./monitor.js";
-import { StateProviderBase } from "./stateprovider_base.js";
-import { CursorBase } from "./cursor_base.js";
+import { StateProviderBase } from "./bases.js";
+import { CursorBase } from "./bases.js";
 import { assign } from "./cmd.js";
 
 /**

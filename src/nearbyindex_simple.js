@@ -1,4 +1,4 @@
-import {NearbyIndexBase} from "./nearbyindex_base.js";
+import {NearbyIndexBase} from "./bases.js";
 import {interval, endpoint} from "./intervals.js";
 
 /**
