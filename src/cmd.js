@@ -1,27 +1,15 @@
 
-import {StateProviderBase, CursorBase} from "./bases.js";
-
-function get_target(obj) {
-    if (obj instanceof CursorBase) {
-        return obj.src;
-    } else if (obj instanceof StateProviderBase) {
-        return obj;
-    } else {
-        throw new Error(`do: obj not supported ${obj}`);
-    }
-}
 
 const METHODS = {assign, move, transition, interpolate};
 
 
-export function cmd (obj) {
-    let target = get_target(obj);
+export function cmd (target) {
     let entries = Object.entries(METHODS)
         .map(([name, method]) => {
             return [
                 name,
                 function(...args) { 
-                    let items = method.call(this, ...args);
+                    let items = method.call(this, target, ...args);
                     return target.update(items);  
                 }
             ]
@@ -29,7 +17,7 @@ export function cmd (obj) {
     return Object.fromEntries(entries);
 }
 
-export function assign(value) {
+function assign(target, value) {
     if (value == undefined) {
         return [];
     } else {
@@ -42,17 +30,18 @@ export function assign(value) {
     }
 }
 
-export function move(vector={}, old_vector={}) {
-    let {position=0, velocity=0} = vector;
+function move(target, vector={}) {
+    let {value, rate, offset} = target.query();
+    let {position=value, velocity=rate} = vector;
     let item = {
         interval: [-Infinity, Infinity, true, true],
         type: "motion",
-        args: {vector: [position, velocity, 0, offset]}                 
+        args: {vector: {position, velocity, timestamp:offset}}                 
     }
     return [item];
 }
 
-export function transition(v0, v1, t0, t1, easing) {
+function transition(target, v0, v1, t0, t1, easing) {
     let items = [
         {
             interval: [-Inifinity, t0, true, false],
@@ -73,7 +62,7 @@ export function transition(v0, v1, t0, t1, easing) {
     return items;
 }
 
-export function interpolate(tuples) {
+function interpolate(target, tuples) {
     let items = [
         {
             interval: [-Inifinity, t0, true, false],

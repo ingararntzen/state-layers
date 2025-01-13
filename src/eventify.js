@@ -290,8 +290,8 @@ export function eventifyPrototype(_prototype) {
 
 export const eventify = function () {
 	return {
-		theInstance: eventifyInstance,
-		thePrototype: eventifyPrototype
+		addToInstance: eventifyInstance,
+		addToPrototype: eventifyPrototype
 	}
 }();
 

@@ -1,14 +1,33 @@
 import { eventify } from "./eventify.js";
-import { callbacks } from "./util.js";
+import { callback } from "./util.js";
+import { bind, release } from "./monitor.js";
 
-/***************************************************************
-    STATE PROVIDER BASE
-***************************************************************/
+/************************************************
+ * SOURCE BASE
+ ************************************************/
+
+/**
+ * Base class for entities which can be used as source
+ * 
+ * Implement the callback interface.
+ */
+
+
+export class SourceBase {
+    constructor() {
+        callback.addToInstance(this);
+    }
+}
+callback.addToPrototype(SourceBase.prototype);
+
+
+
+/************************************************
+ * STATE PROVIDER BASE
+ ************************************************/
 
 /*
-    STATE PROVIDER
-
-    Abstract base class for all state providers
+    Base class for all state providers
 
     - object with collection of items
     - could be local - or proxy to online source
@@ -17,16 +36,13 @@ import { callbacks } from "./util.js";
     {interval, ...data}
 */
 
-export class StateProviderBase {
-    constructor() {
-        callbacks.theInstance(this);
-    }
+export class StateProviderBase extends SourceBase {
 
     // public update function
     update(items){
         return Promise.resolve()
             .then(() => {
-                return this.handle_update(items);
+                return this._update(items);
             });
     }
 
@@ -38,20 +54,38 @@ export class StateProviderBase {
         throw new Error("not implemented");
     }
 }
-callbacks.thePrototype(StateProviderBase.prototype);
+
 
 
 /************************************************
  * LAYER BASE
  ************************************************/
 
-export class LayerBase {
+export class LayerBase extends SourceBase {
+
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+
+    query (offset) {
+        throw new Error("Not implemented");
+    }
+}
+
+/************************************************
+ * CURSOR BASE
+ ************************************************/
+
+export class CursorBase extends SourceBase {
 
     constructor () {
-        // define cursor events
-        eventify.theInstance(this);
+        super();
+
+        // define change event
+        eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
     }
+    
     /**********************************************************
      * QUERY
      **********************************************************/
@@ -59,7 +93,6 @@ export class LayerBase {
     query () {
         throw new Error("Not implemented");
     }
-
 
     /*
         Eventify: immediate events
@@ -70,20 +103,19 @@ export class LayerBase {
         }
     }
 
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay, options);
+    }
+    release(handle) {
+        return release(handle);
+    }
+
 }
-eventify.thePrototype(LayerBase.prototype);
-
-
-/************************************************
- * Cursor BASE
- ************************************************/
-
-export class CursorBase extends LayerBase { 
-        // Convenience
-        get dynamic () {return this.query().dynamic;}
-        get value () {return this.query().value;}  
-}
-
+eventify.addToPrototype(CursorBase.prototype);
 
 /*********************************************************************
     NEARBY INDEX BASE
@@ -161,7 +193,7 @@ export class CursorBase extends LayerBase {
 export class NearbyIndexBase {
 
     constructor() {
-        callbacks.theInstance(this);
+        callback.addToInstance(this);
     }
 
     update (items) {
@@ -175,5 +207,5 @@ export class NearbyIndexBase {
         
     }
 }
-callbacks.thePrototype(NearbyIndexBase.prototype);
+callback.addToPrototype(NearbyIndexBase.prototype);
 

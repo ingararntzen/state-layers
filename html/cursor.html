@@ -18,16 +18,13 @@
           return Math.floor(Math.random() * max);
         }
 
-        import { Cursor, cmd } from './js/layers.es.js';
+        import { MediaClock, cmd} from './js/layers.es.js';
 
-        let c = new Cursor({value:1});
+        let c = new MediaClock();
+
         c.bind(render_html("#value", ({value}) => `${value}`), 200);
 
-
         document.querySelector("#setValueBtn").onclick = () => {
-            let val = getRandomInt(10);
-            console.log(val)
-            cmd(c).assign(val);
         }
 
 

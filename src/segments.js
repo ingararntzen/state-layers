@@ -97,17 +97,24 @@ export class MotionSegment extends BaseSegment {
     
     constructor(itv, args) {
         super(itv);
-        let [p0, v0, a0, t0] = args.vector;
+        const {
+            position:p0, velocity:v0, timestamp:t0
+        } = args.vector;
         // create motion transition
-        this._dynamic = (v0 != 0 || a0 != 0);
-        this._trans = function (ts) {
+        const a0 = 0;
+        this._velocity = v0;
+        this._position = function (ts) {
             let d = ts - t0;
             return p0 + v0*d + 0.5*a0*d*d;
         };   
     }
 
     state(offset) {
-        return {value: this._trans(offset), dynamic:this._dynamic}
+        return {
+            value: this._position(offset), 
+            rate: this._velocity, 
+            dynamic: this._velocity != 0
+        }
     }
 }
 

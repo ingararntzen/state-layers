@@ -21,7 +21,7 @@ export class SimpleStateProvider extends StateProviderBase {
     }
 
     // internal update function
-    handle_update (items) {
+    _update (items) {
         this._items = check_input(items);
         this.notify_callbacks();
     }
