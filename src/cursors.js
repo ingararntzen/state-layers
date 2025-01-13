@@ -1,7 +1,152 @@
+
 import { NearbyCache } from "./nearbycache.js";
 import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
+import { bind, release } from "./monitor.js";
 import { StateProviderBase } from "./bases.js";
+import { CursorBase } from "./bases.js";
+import { assign } from "./cmd.js";
+
+
+/************************************************
+ * SPECIAL CURSORS
+ ************************************************/
+
+
+export class Clock extends CursorBase {}
+
+// CLOCK (counting seconds since page load)
+export class LocalClock extends Clock {
+    query () {
+        let offset = performance.now()/1000.0;
+        return {value:offset, dynamic:true, offset};
+    }
+}
+export const LOCAL_CLOCK = new LocalClock();
+
+// CLOCK (counting seconds since epoch (1970)
+export class LocalEpoch extends Clock {
+    query () {
+        let offset = (Date.now() / 1000.0)
+        return {value:offset, dynamic:true, offset};
+    }
+}
+export const LOCAL_EPOCH_CLOCK = new LocalEpoch();
+
+
+
+
+/************************************************
+ * EXTERNAL SOURCE
+ ************************************************/
+
+/**
+ * Add property to a class representing an external source,
+ * such as a Cursor or a Layer.
+ * propName gives the name of the property
+ */
+
+export function addSourceToInstance (object, propName) {
+    object[`_${propName}`] = undefined
+    object[`_${propName}_subid`] = undefined;
+    object[`_${propName}_init`] = false;
+}
+
+// options - mutable:true means that the source property can be reset
+export function addSourceToPrototype (_prototype, propName, options={}) {
+
+    function detach() {
+        // unsubscribe from source change event
+        let {mutable=false} = options;
+        if (mutable && this[`_${propName}`]) {
+            this[`_${propName}`].off(this[`_${propName}_subid`]);
+            this[`_${propName}_subid`] = undefined;
+        }
+        this[`_${propName}`] = undefined;
+    }
+
+    function attatch(src) {
+        let {mutable=false} = options;
+        if (!this[`_${propName}_init`] || mutable) {
+            this[`_${propName}`] = src;
+            this[`_${propName}_init`] = true;
+            // subscribe to source change event
+            const handler = this[`_${propName}_onchange`].bind(this)
+            this[`_${propName}_subid`] = this[`_${propName}`].on("change", handler);    
+        }
+    }
+
+    // getter and setter
+    Object.defineProperty(_prototype, propName, {
+        get: function () {
+            return this[`_${propName}`];
+        },
+        set: function (src) {
+            // TODO - check ctrl object - should be a certain kind of cursor
+            if (src != this[`_${propName}`]) {
+                this[`_${propName}_detatch`]();
+                this[`_${propName}_attatch`](src);
+            }
+        }
+    });
+
+    const api = {};
+    api[`_${propName}_detach`] = detach;
+    api[`_${propName}_attatch`] = attatch;
+    
+    Object.assign(_prototype, api);
+}
+
+
+/*
+    TODO - change to using callbacks instead of events
+*/ 
+
+
+
+/************************************************
+ * MEDIA CLOCK
+ ************************************************/
+
+export class TimingObject extends CursorBase {
+
+    constructor() {
+        super();
+
+        // ctrl is local clock - fixed
+        this.addSourceToInstance(this, "ctrl");
+        this.ctrl = LOCAL_CLOCK;
+
+        // src is StateProvider - fixed
+
+    }
+
+
+}
+addSourceToPrototype(TimingObject.prototype, "ctrl", {mutable:false});
+
+
+/**
+ * 
+ * CLOCK CURSORS
+ * 
+ * 
+ * LocalClock - (performance now, epoch) - these are wallclocks
+ * 
+ * OnlineClock - set up with a fixed clock server (epoch)
+ * 
+ * MediaClock - set up with a clock (ctrl) (fixed),
+ * and stateprovider (src) (switchable)
+ * 
+ * Cursor - both (ctrl) and (src) are switchable
+ * 
+ * 
+ * CHALLENGES
+ * 
+ * Media Clock should not support ctrl switching
+ * - restrict state to motions
+ */
+
 
 
 /** 
@@ -12,36 +157,6 @@ import { StateProviderBase } from "./bases.js";
  * 
  * Implementation uses a NearbyIndex and a NearbyCache 
 */
-
-
-export const nearby = function () {
-
-    function addToInstance(object) {
-        let index = new SimpleNearbyIndex();
-        object.__nearby_index = index;
-        object.__nearby_cache = new NearbyCache(index);
-    }
-
-    function update(items) {
-        this.__nearby_index.update(items);
-        this.__nearby_cache.dirty();
-    }
-
-    function query (offset) {
-        return this.__nearby_cache.query(offset);
-    }
-
-    function addToPrototype(_prototype) {
-        const api = {};
-        api['__nearby_update'] = update;
-        api['__nearby_query'] = query;
-        Object.assign(_prototype, api);
-    }
-
-    return {addToInstance, addToPrototype}
-}
-
-
 
 export class Cursor extends CursorBase {
 
@@ -180,5 +295,16 @@ export class Cursor extends CursorBase {
         return this._cache.query(offset);
     }
 
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay, options);
+    }
+    release(handle) {
+        return release(handle);
+    }
 
 }
+
