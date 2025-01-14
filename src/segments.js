@@ -99,7 +99,7 @@ export class MotionSegment extends BaseSegment {
         super(itv);
         const {
             position:p0, velocity:v0, timestamp:t0
-        } = args.vector;
+        } = args;
         // create motion transition
         const a0 = 0;
         this._velocity = v0;

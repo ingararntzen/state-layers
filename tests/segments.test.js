@@ -46,7 +46,7 @@ describe('StaticSegment class', () => {
 describe('MotionSegment class', () => {
     test('should return correct value for offset within interval', () => {
         const interval = [1, 5, true, true];
-        const args = {vector: [0, 1, 0, 0]};
+        const args = {position:0, velocity: 1, timestamp: 0};
         const segment = new MotionSegment(interval, args);
         const offsets = [0, 1, 2, 3, 4, 5, 6];
         const results = offsets.map(offset => segment.query(offset).value);
