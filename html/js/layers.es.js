@@ -269,7 +269,7 @@ class MotionSegment extends BaseSegment {
         super(itv);
         const {
             position:p0, velocity:v0, timestamp:t0
-        } = args.vector;
+        } = args;
         // create motion transition
         const a0 = 0;
         this._velocity = v0;
@@ -826,7 +826,8 @@ const source = function () {
             handle: `__${propName}_handle`,
             onchange: `__${propName}_onchange`,
             detatch: `__${propName}_detatch`,
-            attatch: `__${propName}_attatch`
+            attatch: `__${propName}_attatch`,
+            check: `__${propName}_check`
         }
     }
 
@@ -867,12 +868,24 @@ const source = function () {
         }
 
 
+        /**
+         * 
+         * object must implement
+         * __{propName}_onchange() {}
+         * 
+         * object can implement
+         * __{propName}_check(source) {}
+         */
+
         // getter and setter
         Object.defineProperty(_prototype, propName, {
             get: function () {
                 return this[p.prop];
             },
             set: function (src) {
+                if (this[p.check]) {
+                    this[p.check](src);
+                }
                 if (src != this[p.prop]) {
                     this[p.detatch]();
                     this[p.attatch](src);
@@ -884,7 +897,7 @@ const source = function () {
         const api = {};
         api[p.detatch] = detatch;
         api[p.attatch] = attatch;
-        
+
         Object.assign(_prototype, api);
     }
     return {addToInstance, addToPrototype};
@@ -1836,114 +1849,23 @@ const nearby = function () {
     return {addToInstance, addToPrototype}
 }();
 
-/************************************************
- * CLOCK CURSORS
- ************************************************/
-
-// CLOCK (counting seconds since page load)
-class LocalClock extends CursorBase {
-    query () {
-        let offset = performance.now()/1000.0;
-        return {value:offset, dynamic:true, offset};
-    }
-}
-
-// CLOCK (counting seconds since epoch (1970)
-class LocalEpoch extends CursorBase {
-    query () {
-        let offset = (Date.now() / 1000.0);
-        return {value:offset, dynamic:true, offset};
-    }
-}
-
-const local_clock = new LocalClock();
-const local_epoch = new LocalEpoch();
-
-// TODO online clock
-
-/************************************************
- * MEDIA CLOCK
- ************************************************/
-
-class MediaClock extends CursorBase {
-
-    constructor(options={}) {
-        super();
-        // src
-        source.addToInstance(this, "src");
-        // nearby
-        nearby.addToInstance(this);
-        // initialse clock
-        let {src, clock=local_clock} = options;
-        this._clock = clock;
-
-        // initialise state
-        if (src == undefined) {
-            src = new SimpleStateProvider();
-            src._update([{
-                interval: [-Infinity, Infinity, true, true],
-                type: "motion",
-                args: {vector: {
-                    position: 0,
-                    velocity: 0,
-                    timestamp: clock.query().value
-                }}
-            }]);
-        }
-        this.src = src;
-    }
-
-    get clock () {return this._clock;}
-
-    __src_onchange() {
-        console.log("OK");
-        let items = this.src.items;
-        this.__nearby_update(items);
-    }
-
-    /**********************************************************
-     * QUERY
-     **********************************************************/
-    query () {
-        let {value:offset} = this._clock.query();
-        return this.__nearby_cache.query(offset);
-    }
-}
-source.addToPrototype(MediaClock.prototype, "src", {mutable:false});
-nearby.addToPrototype(MediaClock.prototype);
-
-/**
- * 
- * CLOCK CURSORS
- * 
- * 
- * LocalClock - (performance now, epoch) - these are wallclocks
- * 
- * OnlineClock - set up with a fixed clock server (epoch)
- * 
- * MediaClock - set up with a clock (ctrl) (fixed),
- * and stateprovider (src) (switchable)
- * 
- * Cursor - both (ctrl) and (src) are switchable
- * 
- * 
- * CHALLENGES
- * 
- * Media Clock should not support ctrl switching
- * - restrict state to motions
- */
-
 const METHODS = {assign, move, transition, interpolate};
 
 
 function cmd (target) {
+    if (!(target instanceof CursorBase)) {
+        throw new Error(`target must be cursor ${target}`);
+    }
+    if (!(target.src instanceof StateProviderBase)) {
+        throw new Error(`target.src must be stateprovider ${target}`);
+    }
     let entries = Object.entries(METHODS)
         .map(([name, method]) => {
             return [
                 name,
                 function(...args) { 
                     let items = method.call(this, target, ...args);
-                    return target.update(items);  
+                    return target.src.update(items);  
                 }
             ]
         });
@@ -1969,7 +1891,7 @@ function move(target, vector={}) {
     let item = {
         interval: [-Infinity, Infinity, true, true],
         type: "motion",
-        args: {vector: {position, velocity, timestamp:offset}}                 
+        args: {position, velocity, timestamp:offset}                 
     };
     return [item];
 }
@@ -1977,7 +1899,7 @@ function move(target, vector={}) {
 function transition(target, v0, v1, t0, t1, easing) {
     let items = [
         {
-            interval: [-Inifinity, t0, true, false],
+            interval: [-Infinity, t0, true, false],
             type: "static",
             args: {value:v0}
         },
@@ -1996,9 +1918,12 @@ function transition(target, v0, v1, t0, t1, easing) {
 }
 
 function interpolate(target, tuples) {
+    let [v0, t0] = tuples[0];
+    let [v1, t1] = tuples[tuples.length-1];
+
     let items = [
         {
-            interval: [-Inifinity, t0, true, false],
+            interval: [-Infinity, t0, true, false],
             type: "static",
             args: {value:v0}
         },
@@ -2016,4 +1941,151 @@ function interpolate(target, tuples) {
     return items;
 }
 
-export { MediaClock, cmd, local_clock, local_epoch, segments };
+/************************************************
+ * CLOCK CURSORS
+ ************************************************/
+
+// CLOCK (counting seconds since page load)
+class LocalClock extends CursorBase {
+    query () {
+        let offset = performance.now()/1000.0;
+        return {value:offset, dynamic:true, offset};
+    }
+}
+
+// CLOCK (counting seconds since epoch (1970)
+class LocalEpoch extends CursorBase {
+    query () {
+        let offset = (Date.now() / 1000.0);
+        return {value:offset, dynamic:true, offset};
+    }
+}
+
+const local_clock = new LocalClock();
+new LocalEpoch();
+
+
+
+/************************************************
+ * CURSOR
+ ************************************************/
+
+/**
+ * 
+ * Cursor is a variable
+ * - has mutable ctrl cursor (default local clock)
+ * - has mutable state provider (src) (default state undefined)
+ * - methods for assign, move, transition, intepolation
+ * 
+ */
+
+class Cursor extends CursorBase {
+
+    constructor (options={}) {
+        super();
+        // ctrl
+        source.addToInstance(this, "ctrl");
+        // src
+        source.addToInstance(this, "src");
+        // nearby
+        nearby.addToInstance(this);
+        // initialse clock
+
+        // initialise ctrl
+        let {ctrl} = options;
+        if (ctrl == undefined) {
+            ctrl = local_clock;
+        }
+        this.ctrl = ctrl;
+
+        // initialise state
+        let {src} = options;
+        if (src == undefined) {
+            src = new SimpleStateProvider();
+        }
+        this.src = src;
+    }
+
+    // check ctrl
+    __ctrl_check(ctrl) {
+        if (!(ctrl instanceof CursorBase)) {
+            throw new Error(`"ctrl" must be cursor ${ctrl}`)
+        }
+    }
+    
+    // check src
+    __src_check(src) {
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error(`"src" must be state provider ${source}`);
+        }
+    }
+
+    // ctrl or src changes
+    __ctrl_onchange() {
+        this.__onchange();
+    }
+    __src_onchange() {
+        this.__onchange();
+    }
+    __onchange() {
+        if (this.src) {
+            let items = this.src.items;
+            this.__nearby_update(items);
+            // trigger change event for cursor
+            this.eventifyTrigger("change", this.query());    
+        }
+    }
+
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+    query () {
+        let {value:offset} = this.ctrl.query();
+        if (typeof offset !== 'number') {
+            throw new Error(`warning: ctrl state must be number ${offset}`);
+        }
+        return this.__nearby_cache.query(offset);
+    }
+
+    /**********************************************************
+     * CONVENIENCE
+     **********************************************************/
+
+    get value () {return this.query().value};
+
+    assign(value) {
+        return cmd(this).assign(value);
+    }
+    move ({position, velocity}) {
+        let {value, rate, offset:timestamp} = this.query();
+        if (typeof value !== 'number') {
+            throw new Error(`warning: cursor state must be number ${value}`);
+        }
+        position = (position != undefined) ? position : value;
+        velocity = (velocity != undefined) ? velocity: rate;
+        return cmd(this).move({position, velocity, timestamp});
+    }
+    transition ({target, duration, easing}) {
+        let {value:v0, offset:t0} = this.query();
+        if (typeof v0 !== 'number') {
+            throw new Error(`warning: cursor state must be number ${v0}`);
+        }
+        return cmd(this).transition(v0, target, t0, t0 + duration, easing);
+    }
+    interpolate ({tuples, duration}) {
+        let t0 = this.query().offset;
+        // assuming timstamps are in range [0,1]
+        // scale timestamps to duration
+        tuples = tuples.map(([v,t]) => {
+            return [v, t0 + t*duration];
+        });
+        return cmd(this).interpolate(tuples);
+    }
+
+
+}
+source.addToPrototype(Cursor.prototype, "src", {mutable:true});
+source.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
+nearby.addToPrototype(Cursor.prototype);
+
+export { Cursor, cmd, segments };

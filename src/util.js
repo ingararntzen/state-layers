@@ -77,7 +77,8 @@ export const source = function () {
             handle: `__${propName}_handle`,
             onchange: `__${propName}_onchange`,
             detatch: `__${propName}_detatch`,
-            attatch: `__${propName}_attatch`
+            attatch: `__${propName}_attatch`,
+            check: `__${propName}_check`
         }
     }
 
@@ -118,12 +119,24 @@ export const source = function () {
         }
 
 
+        /**
+         * 
+         * object must implement
+         * __{propName}_onchange() {}
+         * 
+         * object can implement
+         * __{propName}_check(source) {}
+         */
+
         // getter and setter
         Object.defineProperty(_prototype, propName, {
             get: function () {
                 return this[p.prop];
             },
             set: function (src) {
+                if (this[p.check]) {
+                    this[p.check](src)
+                }
                 if (src != this[p.prop]) {
                     this[p.detatch]();
                     this[p.attatch](src);
@@ -135,7 +148,7 @@ export const source = function () {
         const api = {};
         api[p.detatch] = detatch;
         api[p.attatch] = attatch;
-        
+
         Object.assign(_prototype, api);
     }
     return {addToInstance, addToPrototype};

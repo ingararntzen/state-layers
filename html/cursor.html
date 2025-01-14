@@ -13,19 +13,40 @@
             }
         }
 
-
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
         }
 
-        import { MediaClock, cmd} from './js/layers.es.js';
+        import { Cursor, cmd } from './js/layers.es.js';
 
-        let c = new MediaClock();
+        let v = new Cursor();
 
-        c.bind(render_html("#value", ({value}) => `${value}`), 200);
+        v.bind(render_html("#value", ({value}) => `${value}`), 200);
 
-        document.querySelector("#setValueBtn").onclick = () => {
+        document.querySelector("#valueBtn").onclick = () => {
+            v.assign(getRandomInt(10))
         }
+        document.querySelector("#playBtn").onclick = () => {
+            v.move({velocity:1});
+        }
+        document.querySelector("#pauseBtn").onclick = () => {
+            v.move({velocity:0});
+        }
+        document.querySelector("#transBtn").onclick = () => {
+            v.transition({target:4, duration:4});
+        }
+        document.querySelector("#interpolateBtn").onclick = () => {
+            const tuples = [
+                [4.0, 0.0],
+                [4.8, 0.2],
+                [4.9, 0.4],
+                [4.3, 0.6],
+                [4.7, 0.8],
+                [4.2, 1.0]
+            ];
+            v.interpolate({tuples, duration:4});
+        }
+
 
 
 </script>
@@ -36,10 +57,11 @@
     <h3> Value </h3>
 
     <p>
-        <button id="setValueBtn">SetValue</button>
-        <button id="setTransBtn">SetTrans</button>
-        <button id="setTuplesBtn">SetTuples</button>
-        <button id="setUndefBtn">SetUndefined</button>
+        <button id="valueBtn">SetValue</button>
+        <button id="playBtn">Play</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="transBtn">Transition</button>
+        <button id="interpolateBtn">Interpolate</button>
     </p>
     <p>
         <div id="value"></div>
