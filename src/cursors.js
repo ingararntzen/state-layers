@@ -3,8 +3,9 @@
 import { StateProviderBase, CursorBase } from "./bases.js";
 import { source } from "./util.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
-import { nearby } from "./common.js";
 import { cmd } from "./cmd.js";
+import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
+import { NearbyCache } from "./nearbycache.js";
 
 
 /************************************************
@@ -53,8 +54,12 @@ export class Cursor extends CursorBase {
         source.addToInstance(this, "ctrl");
         // src
         source.addToInstance(this, "src");
-        // nearby
-        nearby.addToInstance(this);
+        
+        // index
+        this._index = new SimpleNearbyIndex();
+        // cache
+        this._cache = new NearbyCache(this._index);
+        
         // initialse clock
 
         // initialise ctrl
@@ -97,7 +102,8 @@ export class Cursor extends CursorBase {
     __handle_change() {
         if (this.src && this.ctrl) {
             let items = this.src.items;
-            this.__nearby_update(items);
+            this._index.update(items);
+            this._cache.dirty();
             // trigger change event for cursor
             this.eventifyTrigger("change", this.query());    
         }
@@ -111,7 +117,7 @@ export class Cursor extends CursorBase {
         if (typeof offset !== 'number') {
             throw new Error(`warning: ctrl state must be number ${offset}`);
         }
-        return this.__nearby_cache.query(offset);
+        return this._cache.query(offset);
     }
 
     /**********************************************************
@@ -153,4 +159,4 @@ export class Cursor extends CursorBase {
 }
 source.addToPrototype(Cursor.prototype, "src", {mutable:true});
 source.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
-nearby.addToPrototype(Cursor.prototype);
+

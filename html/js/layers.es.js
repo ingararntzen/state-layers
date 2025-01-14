@@ -1,446 +1,6 @@
 
 (function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
 /*
-    
-    INTERVAL ENDPOINTS
-
-    * interval endpoints are defined by [value, sign], for example
-    * 
-    * 4) -> [4,-1] - endpoint is on the left of 4
-    * [4, 4, 4] -> [4, 0] - endpoint is at 4 
-    * (4 -> [4, 1] - endpoint is on the right of 4)
-    * 
-    * This representation ensures that the interval endpoints are ordered and allows
-    * intervals to be exclusive or inclusive, yet cover the entire real line 
-    * 
-    * [a,b], (a,b), [a,b), [a, b) are all valid intervals
-
-*/
-
-/*
-    Endpoint comparison
-    returns 
-        - negative : correct order
-        - 0 : equal
-        - positive : wrong order
-
-
-    NOTE 
-    - cmp(4],[4 ) == 0 - since these are the same with respect to sorting
-    - but if you want to see if two intervals are overlapping in the endpoints
-    cmp(high_a, low_b) > 0 this will not be good
-    
-*/ 
-
-
-function cmpNumbers(a, b) {
-    if (a === b) return 0;
-    if (a === Infinity) return 1;
-    if (b === Infinity) return -1;
-    if (a === -Infinity) return -1;
-    if (b === -Infinity) return 1;
-    return a - b;
-  }
-
-function endpoint_cmp (p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    let diff = cmpNumbers(v1, v2);
-    return (diff != 0) ? diff : s1 - s2;
-}
-
-function endpoint_lt (p1, p2) {
-    return endpoint_cmp(p1, p2) < 0
-}
-function endpoint_le (p1, p2) {
-    return endpoint_cmp(p1, p2) <= 0
-}
-function endpoint_gt (p1, p2) {
-    return endpoint_cmp(p1, p2) > 0
-}
-function endpoint_ge (p1, p2) {
-    return endpoint_cmp(p1, p2) >= 0
-}
-function endpoint_eq (p1, p2) {
-    return endpoint_cmp(p1, p2) == 0
-}
-function endpoint_min(p1, p2) {
-    return (endpoint_le(p1, p2)) ? p1 : p2;
-}
-function endpoint_max(p1, p2) {
-    return (endpoint_ge(p1, p2)) ? p1 : p2;
-}
-
-/**
- * flip endpoint to the other side
- * 
- * useful for making back-to-back intervals 
- * 
- * high) <-> [low
- * high] <-> (low
- */
-
-function endpoint_flip(p, target) {
-    let [v,s] = p;
-    if (target == "low") {
-    	// assume point is high: sign must be -1 or 0
-    	if (s > 0) {
-			throw new Error("endpoint is already low");    		
-    	}
-        p = [v, s+1];
-    } else if (target == "high") {
-		// assume point is low: sign is 0 or 1
-    	if (s < 0) {
-			throw new Error("endpoint is already high");    		
-    	}
-        p = [v, s-1];
-    } else {
-    	throw new Error("illegal type", target);
-    }
-    return p;
-}
-
-
-/*
-    returns low and high endpoints from interval
-*/
-function endpoints_from_interval(itv) {
-    let [low, high, lowClosed, highClosed] = itv;
-    let low_p = (lowClosed) ? [low, 0] : [low, 1]; 
-    let high_p = (highClosed) ? [high, 0] : [high, -1];
-    return [low_p, high_p];
-}
-
-
-/*
-    INTERVALS
-
-    Intervals are [low, high, lowClosed, highClosed]
-
-*/ 
-
-/*
-    return true if point p is covered by interval itv
-    point p can be number p or a point [p,s]
-
-    implemented by comparing points
-    exception if interval is not defined
-*/
-function interval_covers_endpoint(itv, p) {
-    let [low_p, high_p] = endpoints_from_interval(itv);
-    // covers: low <= p <= high
-    return endpoint_le(low_p, p) && endpoint_le(p, high_p);
-}
-// convenience
-function interval_covers_point(itv, p) {
-    return interval_covers_endpoint(itv, [p, 0]);
-}
-
-
-
-/*
-    Return true if interval has length 0
-*/
-function interval_is_singular(interval) {
-    return interval[0] == interval[1]
-}
-
-/*
-    Create interval from endpoints
-*/
-function interval_from_endpoints(p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    // p1 must be a low point
-    if (s1 == -1) {
-        throw new Error("illegal low point", p1);
-    }
-    if (s2 == 1) {
-        throw new Error("illegeal high point", p2);   
-    }
-    return [v1, v2, (s1==0), (s2==0)]
-}
-
-
-const endpoint = {
-    le: endpoint_le,
-    lt: endpoint_lt,
-    ge: endpoint_ge,
-    gt: endpoint_gt,
-    cmp: endpoint_cmp,
-    eq: endpoint_eq,
-    min: endpoint_min,
-    max: endpoint_max,
-    flip: endpoint_flip,
-    from_interval: endpoints_from_interval
-};
-const interval = {
-    covers_endpoint: interval_covers_endpoint,
-    covers_point: interval_covers_point, 
-    is_singular: interval_is_singular,
-    from_endpoints: interval_from_endpoints
-};
-
-/********************************************************************
-BASE SEGMENT
-*********************************************************************/
-/*
-	Abstract Base Class for Segments
-
-    constructor(interval)
-
-    - interval: interval of validity of segment
-    - dynamic: true if segment is dynamic
-    - value(offset): value of segment at offset
-    - query(offset): state of segment at offset
-*/
-
-class BaseSegment {
-
-	constructor(itv) {
-		this._itv = itv;
-	}
-
-	get itv() {return this._itv;}
-
-    /** 
-     * implemented by subclass
-     * returns {value, dynamic};
-    */
-    state(offset) {
-    	throw new Error("not implemented");
-    }
-
-    /**
-     * convenience function returning the state of the segment
-     * @param {*} offset 
-     * @returns 
-     */
-    query(offset) {
-        if (interval.covers_point(this._itv, offset)) {
-            return {...this.state(offset), offset};
-        } 
-        return {value: undefined, dynamic:false, offset};
-    }
-}
-
-
-
-/********************************************************************
-    LAYERS SEGMENT
-*********************************************************************/
-
-class LayersSegment extends BaseSegment {
-
-	constructor(itv, args) {
-        super(itv);
-		this._layers = args.layers;
-        this._value_func = args.value_func;
-
-        // TODO - figure out dynamic here?
-    }
-
-	state(offset) {
-        // TODO - use value func
-        // for now - just use first layer
-        return {...this._layers[0].query(offset), offset};
-	}
-}
-
-
-/********************************************************************
-    STATIC SEGMENT
-*********************************************************************/
-
-class StaticSegment extends BaseSegment {
-
-	constructor(itv, args) {
-        super(itv);
-		this._value = args.value;
-	}
-
-	state() {
-        return {value: this._value, dynamic:false}
-	}
-}
-
-
-/********************************************************************
-    MOTION SEGMENT
-*********************************************************************/
-/*
-    Implements deterministic projection based on initial conditions 
-    - motion vector describes motion under constant acceleration
-*/
-
-class MotionSegment extends BaseSegment {
-    
-    constructor(itv, args) {
-        super(itv);
-        const {
-            position:p0, velocity:v0, timestamp:t0
-        } = args;
-        // create motion transition
-        const a0 = 0;
-        this._velocity = v0;
-        this._position = function (ts) {
-            let d = ts - t0;
-            return p0 + v0*d + 0.5*a0*d*d;
-        };   
-    }
-
-    state(offset) {
-        return {
-            value: this._position(offset), 
-            rate: this._velocity, 
-            dynamic: this._velocity != 0
-        }
-    }
-}
-
-
-/********************************************************************
-    TRANSITION SEGMENT
-*********************************************************************/
-
-/*
-    Supported easing functions
-    "ease-in":
-    "ease-out":
-    "ease-in-out"
-*/
-
-function easein (ts) {
-    return Math.pow(ts,2);  
-}
-function easeout (ts) {
-    return 1 - easein(1 - ts);
-}
-function easeinout (ts) {
-    if (ts < .5) {
-        return easein(2 * ts) / 2;
-    } else {
-        return (2 - easein(2 * (1 - ts))) / 2;
-    }
-}
-
-class TransitionSegment extends BaseSegment {
-
-	constructor(itv, args) {
-		super(itv);
-        let {v0, v1, easing} = args;
-        let [t0, t1] = this._itv.slice(0,2);
-
-        // create the transition function
-        this._dynamic = v1-v0 != 0;
-        this._trans = function (ts) {
-            // convert ts to [t0,t1]-space
-            // - shift from [t0,t1]-space to [0,(t1-t0)]-space
-            // - scale from [0,(t1-t0)]-space to [0,1]-space
-            ts = ts - t0;
-            ts = ts/parseFloat(t1-t0);
-            // easing functions stretches or compresses the time scale 
-            if (easing == "ease-in") {
-                ts = easein(ts);
-            } else if (easing == "ease-out") {
-                ts = easeout(ts);
-            } else if (easing == "ease-in-out") {
-                ts = easeinout(ts);
-            }
-            // linear transition from v0 to v1, for time values [0,1]
-            ts = Math.max(ts, 0);
-            ts = Math.min(ts, 1);
-            return v0 + (v1-v0)*ts;
-        };
-	}
-
-	state(offset) {
-        return {value: this._trans(offset), dynamic:this._dynamic}
-	}
-}
-
-
-
-/********************************************************************
-    INTERPOLATION SEGMENT
-*********************************************************************/
-
-/**
- * Function to create an interpolator for nearest neighbor interpolation with
- * extrapolation support.
- *
- * @param {Array} tuples - An array of [value, offset] pairs, where value is the
- * point's value and offset is the corresponding offset.
- * @returns {Function} - A function that takes an offset and returns the
- * interpolated or extrapolated value.
- */
-
-function interpolate$1(tuples) {
-
-    if (tuples.length < 1) {
-        return function interpolator () {return undefined;}
-    } else if (tuples.length == 1) {
-        return function interpolator () {return tuples[0][0];}
-    }
-
-    // Sort the tuples by their offsets
-    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
-  
-    return function interpolator(offset) {
-      // Handle extrapolation before the first point
-      if (offset <= sortedTuples[0][1]) {
-        const [value1, offset1] = sortedTuples[0];
-        const [value2, offset2] = sortedTuples[1];
-        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-      }
-      
-      // Handle extrapolation after the last point
-      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
-        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
-        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
-        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-      }
-  
-      // Find the nearest points to the left and right
-      for (let i = 0; i < sortedTuples.length - 1; i++) {
-        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
-          const [value1, offset1] = sortedTuples[i];
-          const [value2, offset2] = sortedTuples[i + 1];
-          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
-          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-        }
-      }
-  
-      // In case the offset does not fall within any range (should be covered by the previous conditions)
-      return undefined;
-    };
-}
-  
-
-class InterpolationSegment extends BaseSegment {
-
-    constructor(itv, args) {
-        super(itv);
-        // setup interpolation function
-        this._trans = interpolate$1(args.tuples);
-    }
-
-    state(offset) {
-        return {value: this._trans(offset), dynamic:true};
-    }
-}
-
-var segments = /*#__PURE__*/Object.freeze({
-  __proto__: null,
-  BaseSegment: BaseSegment,
-  InterpolationSegment: InterpolationSegment,
-  LayersSegment: LayersSegment,
-  MotionSegment: MotionSegment,
-  StaticSegment: StaticSegment,
-  TransitionSegment: TransitionSegment
-});
-
-/*
 	Copyright 2020
 	Author : Ingar Arntzen
 
@@ -1365,6 +925,187 @@ class CursorBase {
 callback.addToPrototype(CursorBase.prototype);
 eventify.addToPrototype(CursorBase.prototype);
 
+/*
+    
+    INTERVAL ENDPOINTS
+
+    * interval endpoints are defined by [value, sign], for example
+    * 
+    * 4) -> [4,-1] - endpoint is on the left of 4
+    * [4, 4, 4] -> [4, 0] - endpoint is at 4 
+    * (4 -> [4, 1] - endpoint is on the right of 4)
+    * 
+    * This representation ensures that the interval endpoints are ordered and allows
+    * intervals to be exclusive or inclusive, yet cover the entire real line 
+    * 
+    * [a,b], (a,b), [a,b), [a, b) are all valid intervals
+
+*/
+
+/*
+    Endpoint comparison
+    returns 
+        - negative : correct order
+        - 0 : equal
+        - positive : wrong order
+
+
+    NOTE 
+    - cmp(4],[4 ) == 0 - since these are the same with respect to sorting
+    - but if you want to see if two intervals are overlapping in the endpoints
+    cmp(high_a, low_b) > 0 this will not be good
+    
+*/ 
+
+
+function cmpNumbers(a, b) {
+    if (a === b) return 0;
+    if (a === Infinity) return 1;
+    if (b === Infinity) return -1;
+    if (a === -Infinity) return -1;
+    if (b === -Infinity) return 1;
+    return a - b;
+  }
+
+function endpoint_cmp (p1, p2) {
+    let [v1, s1] = p1;
+    let [v2, s2] = p2;
+    let diff = cmpNumbers(v1, v2);
+    return (diff != 0) ? diff : s1 - s2;
+}
+
+function endpoint_lt (p1, p2) {
+    return endpoint_cmp(p1, p2) < 0
+}
+function endpoint_le (p1, p2) {
+    return endpoint_cmp(p1, p2) <= 0
+}
+function endpoint_gt (p1, p2) {
+    return endpoint_cmp(p1, p2) > 0
+}
+function endpoint_ge (p1, p2) {
+    return endpoint_cmp(p1, p2) >= 0
+}
+function endpoint_eq (p1, p2) {
+    return endpoint_cmp(p1, p2) == 0
+}
+function endpoint_min(p1, p2) {
+    return (endpoint_le(p1, p2)) ? p1 : p2;
+}
+function endpoint_max(p1, p2) {
+    return (endpoint_ge(p1, p2)) ? p1 : p2;
+}
+
+/**
+ * flip endpoint to the other side
+ * 
+ * useful for making back-to-back intervals 
+ * 
+ * high) <-> [low
+ * high] <-> (low
+ */
+
+function endpoint_flip(p, target) {
+    let [v,s] = p;
+    if (target == "low") {
+    	// assume point is high: sign must be -1 or 0
+    	if (s > 0) {
+			throw new Error("endpoint is already low");    		
+    	}
+        p = [v, s+1];
+    } else if (target == "high") {
+		// assume point is low: sign is 0 or 1
+    	if (s < 0) {
+			throw new Error("endpoint is already high");    		
+    	}
+        p = [v, s-1];
+    } else {
+    	throw new Error("illegal type", target);
+    }
+    return p;
+}
+
+
+/*
+    returns low and high endpoints from interval
+*/
+function endpoints_from_interval(itv) {
+    let [low, high, lowClosed, highClosed] = itv;
+    let low_p = (lowClosed) ? [low, 0] : [low, 1]; 
+    let high_p = (highClosed) ? [high, 0] : [high, -1];
+    return [low_p, high_p];
+}
+
+
+/*
+    INTERVALS
+
+    Intervals are [low, high, lowClosed, highClosed]
+
+*/ 
+
+/*
+    return true if point p is covered by interval itv
+    point p can be number p or a point [p,s]
+
+    implemented by comparing points
+    exception if interval is not defined
+*/
+function interval_covers_endpoint(itv, p) {
+    let [low_p, high_p] = endpoints_from_interval(itv);
+    // covers: low <= p <= high
+    return endpoint_le(low_p, p) && endpoint_le(p, high_p);
+}
+// convenience
+function interval_covers_point(itv, p) {
+    return interval_covers_endpoint(itv, [p, 0]);
+}
+
+
+
+/*
+    Return true if interval has length 0
+*/
+function interval_is_singular(interval) {
+    return interval[0] == interval[1]
+}
+
+/*
+    Create interval from endpoints
+*/
+function interval_from_endpoints(p1, p2) {
+    let [v1, s1] = p1;
+    let [v2, s2] = p2;
+    // p1 must be a low point
+    if (s1 == -1) {
+        throw new Error("illegal low point", p1);
+    }
+    if (s2 == 1) {
+        throw new Error("illegeal high point", p2);   
+    }
+    return [v1, v2, (s1==0), (s2==0)]
+}
+
+
+const endpoint = {
+    le: endpoint_le,
+    lt: endpoint_lt,
+    ge: endpoint_ge,
+    gt: endpoint_gt,
+    cmp: endpoint_cmp,
+    eq: endpoint_eq,
+    min: endpoint_min,
+    max: endpoint_max,
+    flip: endpoint_flip,
+    from_interval: endpoints_from_interval
+};
+const interval = {
+    covers_endpoint: interval_covers_endpoint,
+    covers_point: interval_covers_point, 
+    is_singular: interval_is_singular,
+    from_endpoints: interval_from_endpoints
+};
+
 /***************************************************************
     SIMPLE STATE PROVIDER (LOCAL)
 ***************************************************************/
@@ -1420,6 +1161,324 @@ function check_input$1(items) {
         }
     }
     return items;
+}
+
+const METHODS = {assign, move, transition, interpolate: interpolate$1};
+
+
+function cmd (target) {
+    if (!(target instanceof CursorBase)) {
+        throw new Error(`target must be cursor ${target}`);
+    }
+    if (!(target.src instanceof StateProviderBase)) {
+        throw new Error(`target.src must be stateprovider ${target}`);
+    }
+    let entries = Object.entries(METHODS)
+        .map(([name, method]) => {
+            return [
+                name,
+                function(...args) { 
+                    let items = method.call(this, target, ...args);
+                    return target.src.update(items);  
+                }
+            ]
+        });
+    return Object.fromEntries(entries);
+}
+
+function assign(target, value) {
+    if (value == undefined) {
+        return [];
+    } else {
+        let item = {
+            itv: [-Infinity, Infinity, true, true],
+            type: "static",
+            args: {value}                 
+        };
+        return [item];
+    }
+}
+
+function move(target, vector={}) {
+    let {value, rate, offset} = target.query();
+    let {position=value, velocity=rate} = vector;
+    let item = {
+        itv: [-Infinity, Infinity, true, true],
+        type: "motion",
+        args: {position, velocity, timestamp:offset}                 
+    };
+    return [item];
+}
+
+function transition(target, v0, v1, t0, t1, easing) {
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "transition",
+            args: {v0, v1, t0, t1, easing}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];
+    return items;
+}
+
+function interpolate$1(target, tuples) {
+    let [v0, t0] = tuples[0];
+    let [v1, t1] = tuples[tuples.length-1];
+
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "interpolation",
+            args: {tuples}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];    
+    return items;
+}
+
+/********************************************************************
+BASE SEGMENT
+*********************************************************************/
+/*
+	Abstract Base Class for Segments
+
+    constructor(interval)
+
+    - interval: interval of validity of segment
+    - dynamic: true if segment is dynamic
+    - value(offset): value of segment at offset
+    - query(offset): state of segment at offset
+*/
+
+class BaseSegment {
+
+	constructor(itv) {
+		this._itv = itv;
+	}
+
+	get itv() {return this._itv;}
+
+    /** 
+     * implemented by subclass
+     * returns {value, dynamic};
+    */
+    state(offset) {
+    	throw new Error("not implemented");
+    }
+
+    /**
+     * convenience function returning the state of the segment
+     * @param {*} offset 
+     * @returns 
+     */
+    query(offset) {
+        if (interval.covers_point(this._itv, offset)) {
+            return {...this.state(offset), offset};
+        } 
+        return {value: undefined, dynamic:false, offset};
+    }
+}
+
+
+/********************************************************************
+    STATIC SEGMENT
+*********************************************************************/
+
+class StaticSegment extends BaseSegment {
+
+	constructor(itv, args) {
+        super(itv);
+		this._value = args.value;
+	}
+
+	state() {
+        return {value: this._value, dynamic:false}
+	}
+}
+
+
+/********************************************************************
+    MOTION SEGMENT
+*********************************************************************/
+/*
+    Implements deterministic projection based on initial conditions 
+    - motion vector describes motion under constant acceleration
+*/
+
+class MotionSegment extends BaseSegment {
+    
+    constructor(itv, args) {
+        super(itv);
+        const {
+            position:p0, velocity:v0, timestamp:t0
+        } = args;
+        // create motion transition
+        const a0 = 0;
+        this._velocity = v0;
+        this._position = function (ts) {
+            let d = ts - t0;
+            return p0 + v0*d + 0.5*a0*d*d;
+        };   
+    }
+
+    state(offset) {
+        return {
+            value: this._position(offset), 
+            rate: this._velocity, 
+            dynamic: this._velocity != 0
+        }
+    }
+}
+
+
+/********************************************************************
+    TRANSITION SEGMENT
+*********************************************************************/
+
+/*
+    Supported easing functions
+    "ease-in":
+    "ease-out":
+    "ease-in-out"
+*/
+
+function easein (ts) {
+    return Math.pow(ts,2);  
+}
+function easeout (ts) {
+    return 1 - easein(1 - ts);
+}
+function easeinout (ts) {
+    if (ts < .5) {
+        return easein(2 * ts) / 2;
+    } else {
+        return (2 - easein(2 * (1 - ts))) / 2;
+    }
+}
+
+class TransitionSegment extends BaseSegment {
+
+	constructor(itv, args) {
+		super(itv);
+        let {v0, v1, easing} = args;
+        let [t0, t1] = this._itv.slice(0,2);
+
+        // create the transition function
+        this._dynamic = v1-v0 != 0;
+        this._trans = function (ts) {
+            // convert ts to [t0,t1]-space
+            // - shift from [t0,t1]-space to [0,(t1-t0)]-space
+            // - scale from [0,(t1-t0)]-space to [0,1]-space
+            ts = ts - t0;
+            ts = ts/parseFloat(t1-t0);
+            // easing functions stretches or compresses the time scale 
+            if (easing == "ease-in") {
+                ts = easein(ts);
+            } else if (easing == "ease-out") {
+                ts = easeout(ts);
+            } else if (easing == "ease-in-out") {
+                ts = easeinout(ts);
+            }
+            // linear transition from v0 to v1, for time values [0,1]
+            ts = Math.max(ts, 0);
+            ts = Math.min(ts, 1);
+            return v0 + (v1-v0)*ts;
+        };
+	}
+
+	state(offset) {
+        return {value: this._trans(offset), dynamic:this._dynamic}
+	}
+}
+
+
+
+/********************************************************************
+    INTERPOLATION SEGMENT
+*********************************************************************/
+
+/**
+ * Function to create an interpolator for nearest neighbor interpolation with
+ * extrapolation support.
+ *
+ * @param {Array} tuples - An array of [value, offset] pairs, where value is the
+ * point's value and offset is the corresponding offset.
+ * @returns {Function} - A function that takes an offset and returns the
+ * interpolated or extrapolated value.
+ */
+
+function interpolate(tuples) {
+
+    if (tuples.length < 1) {
+        return function interpolator () {return undefined;}
+    } else if (tuples.length == 1) {
+        return function interpolator () {return tuples[0][0];}
+    }
+
+    // Sort the tuples by their offsets
+    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
+  
+    return function interpolator(offset) {
+      // Handle extrapolation before the first point
+      if (offset <= sortedTuples[0][1]) {
+        const [value1, offset1] = sortedTuples[0];
+        const [value2, offset2] = sortedTuples[1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+      
+      // Handle extrapolation after the last point
+      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
+        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
+        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+  
+      // Find the nearest points to the left and right
+      for (let i = 0; i < sortedTuples.length - 1; i++) {
+        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
+          const [value1, offset1] = sortedTuples[i];
+          const [value2, offset2] = sortedTuples[i + 1];
+          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
+          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+        }
+      }
+  
+      // In case the offset does not fall within any range (should be covered by the previous conditions)
+      return undefined;
+    };
+}
+  
+
+class InterpolationSegment extends BaseSegment {
+
+    constructor(itv, args) {
+        super(itv);
+        // setup interpolation function
+        this._trans = interpolate(args.tuples);
+    }
+
+    state(offset) {
+        return {value: this._trans(offset), dynamic:true};
+    }
 }
 
 /*********************************************************************
@@ -1958,125 +2017,6 @@ function find_index(target, arr, value_func) {
   	return [false, left]; // Return the index where target should be inserted
 }
 
-const nearby = function () {
-
-    function addToInstance(object) {
-        let index = new SimpleNearbyIndex();
-        object.__nearby_index = index;
-        object.__nearby_cache = new NearbyCache(index);
-    }
-
-    function update(items) {
-        this.__nearby_index.update(items);
-        this.__nearby_cache.dirty();
-    }
-
-    function query (offset) {
-        return this.__nearby_cache.query(offset);
-    }
-
-    function addToPrototype(_prototype) {
-        const api = {};
-        api['__nearby_update'] = update;
-        api['__nearby_query'] = query;
-        Object.assign(_prototype, api);
-    }
-
-    return {addToInstance, addToPrototype}
-}();
-
-const METHODS = {assign, move, transition, interpolate};
-
-
-function cmd (target) {
-    if (!(target instanceof CursorBase)) {
-        throw new Error(`target must be cursor ${target}`);
-    }
-    if (!(target.src instanceof StateProviderBase)) {
-        throw new Error(`target.src must be stateprovider ${target}`);
-    }
-    let entries = Object.entries(METHODS)
-        .map(([name, method]) => {
-            return [
-                name,
-                function(...args) { 
-                    let items = method.call(this, target, ...args);
-                    return target.src.update(items);  
-                }
-            ]
-        });
-    return Object.fromEntries(entries);
-}
-
-function assign(target, value) {
-    if (value == undefined) {
-        return [];
-    } else {
-        let item = {
-            itv: [-Infinity, Infinity, true, true],
-            type: "static",
-            args: {value}                 
-        };
-        return [item];
-    }
-}
-
-function move(target, vector={}) {
-    let {value, rate, offset} = target.query();
-    let {position=value, velocity=rate} = vector;
-    let item = {
-        itv: [-Infinity, Infinity, true, true],
-        type: "motion",
-        args: {position, velocity, timestamp:offset}                 
-    };
-    return [item];
-}
-
-function transition(target, v0, v1, t0, t1, easing) {
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            args: {value:v0}
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "transition",
-            args: {v0, v1, t0, t1, easing}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            args: {value: v1}
-        }
-    ];
-    return items;
-}
-
-function interpolate(target, tuples) {
-    let [v0, t0] = tuples[0];
-    let [v1, t1] = tuples[tuples.length-1];
-
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            args: {value:v0}
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "interpolation",
-            args: {tuples}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            args: {value: v1}
-        }
-    ];    
-    return items;
-}
-
 /************************************************
  * CLOCK CURSORS
  ************************************************/
@@ -2123,8 +2063,12 @@ class Cursor extends CursorBase {
         source.addToInstance(this, "ctrl");
         // src
         source.addToInstance(this, "src");
-        // nearby
-        nearby.addToInstance(this);
+        
+        // index
+        this._index = new SimpleNearbyIndex();
+        // cache
+        this._cache = new NearbyCache(this._index);
+        
         // initialse clock
 
         // initialise ctrl
@@ -2167,7 +2111,8 @@ class Cursor extends CursorBase {
     __handle_change() {
         if (this.src && this.ctrl) {
             let items = this.src.items;
-            this.__nearby_update(items);
+            this._index.update(items);
+            this._cache.dirty();
             // trigger change event for cursor
             this.eventifyTrigger("change", this.query());    
         }
@@ -2181,7 +2126,7 @@ class Cursor extends CursorBase {
         if (typeof offset !== 'number') {
             throw new Error(`warning: ctrl state must be number ${offset}`);
         }
-        return this.__nearby_cache.query(offset);
+        return this._cache.query(offset);
     }
 
     /**********************************************************
@@ -2223,6 +2168,74 @@ class Cursor extends CursorBase {
 }
 source.addToPrototype(Cursor.prototype, "src", {mutable:true});
 source.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
-nearby.addToPrototype(Cursor.prototype);
 
-export { Cursor, cmd, segments };
+/************************************************
+ * LAYER
+ ************************************************/
+
+/**
+ * 
+ * Layer
+ * - has mutable state provider (src) (default state undefined)
+ * - methods for list and sample
+ * 
+ */
+
+
+class Layer extends LayerBase {
+
+    constructor (options={}) {
+        super();
+
+        // src
+        source.addToInstance(this, "src");
+        // index
+        this._index = new SimpleNearbyIndex();
+    
+        // initialise with stateprovider
+        let {src} = options;
+        if (src == undefined) {
+            src = new SimpleStateProvider();
+        }
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error("src must be StateproviderBase")
+        }
+        this.src = src;
+    }
+
+    // src
+    __src_check(src) {
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error(`"src" must be state provider ${source}`);
+        }
+    }    
+    __src_handle_change() {
+        let items = this.src.items;
+        this._index.update(items);
+        // trigger change event for cursor
+        this.eventifyTrigger("change", this.query());   
+    }
+
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+    query(offset) {
+        return this._cache.query(offset);
+    }
+
+    /**********************************************************
+     * ACCESSORS
+     **********************************************************/
+
+    list (options) {
+        return this._index.list(options);
+    }
+
+    sample (options) {
+        return this._index.sample(options);
+    }
+
+}
+source.addToPrototype(Layer.prototype, "src", {mutable:true});
+
+export { Cursor, Layer, cmd };

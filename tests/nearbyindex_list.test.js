@@ -28,7 +28,7 @@ describe('NearbyIndexList', () => {
         });
     });
 
-    test.only('should sample items of nearby index', () => {
+    test('should sample items of nearby index', () => {
 
         const items = [
             {itv: [2, 4, true, false], args: {value: 0.5}},

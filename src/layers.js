@@ -1,27 +1,31 @@
 
 import { LayerBase, StateProviderBase } from "./bases.js";
+import { source } from "./util.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
-import { SimpleNearbyIndex} from "./nearbyindex_simple.js"
-import { NearbyCache } from "./nearbycache.js";
+import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
+
+/************************************************
+ * LAYER
+ ************************************************/
+
+/**
+ * 
+ * Layer
+ * - has mutable state provider (src) (default state undefined)
+ * - methods for list and sample
+ * 
+ */
 
 
-
-
-/*
-    Input Layer is a facade on top of a StateProvider
-*/
-
-export class InputLayer extends LayerBase {
+export class Layer extends LayerBase {
 
     constructor (options={}) {
         super();
 
-        // state provider
-        this._src;
+        // src
+        source.addToInstance(this, "src");
         // index
-        this._index;
-        // nearby cache
-        this._cache;
+        this._index = new SimpleNearbyIndex();
     
         // initialise with stateprovider
         let {src} = options;
@@ -31,27 +35,20 @@ export class InputLayer extends LayerBase {
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
         }
-        this._initialise_src(src);
+        this.src = src;
     }
 
-    _initialise_src (src) {
-        // set state provider
-        this._src = src;
-        // nearby index
-        this._index = new SimpleNearbyIndex();
-        this._index.update(this.src.items);
-        // nearby cache
-        this._cache = new NearbyCache(this._index);
-        // add callbacks from state provider
-        this._src.add_callback(this._onchange_stateprovider.bind(this));
-    }
-
-    // state change in state provider
-    _onchange_stateprovider(itv) {
-        this._index.update(this._src.items);
-        this._cache.dirty();
+    // src
+    __src_check(src) {
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error(`"src" must be state provider ${source}`);
+        }
+    }    
+    __src_handle_change() {
+        let items = this.src.items;
+        this._index.update(items);
         // trigger change event for cursor
-        this.eventifyTrigger("change", itv);
+        this.eventifyTrigger("change", this.query());   
     }
 
     /**********************************************************
@@ -64,9 +61,14 @@ export class InputLayer extends LayerBase {
     /**********************************************************
      * ACCESSORS
      **********************************************************/
-    get src () {return this._src}
 
-    // TODO - define support for list and sample
+    list (options) {
+        return this._index.list(options);
+    }
+
+    sample (options) {
+        return this._index.sample(options);
+    }
 
 }
-
+source.addToPrototype(Layer.prototype, "src", {mutable:true});
