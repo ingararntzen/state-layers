@@ -1,6 +1,6 @@
 /* global describe, test, expect */
 
-import {endpoint} from '../src/intervals.js';
+import {endpoint, interval} from '../src/intervals.js';
 
 
 describe('EndpointTest', () => {
@@ -33,6 +33,13 @@ describe('EndpointTest', () => {
         expect(endpoint.max(high_1, high_2)).toEqual(high_2);
         expect(endpoint.min(low, high_1)).toEqual(low);
         expect(endpoint.max(low, high_1)).toEqual(high_1);
+    });
+
+    test('infinity values', () => {
+        console.log("running")
+        const p = [-Infinity, 0];
+        const itv = [-Infinity, 0, true, false];
+        expect(interval.covers_endpoint(itv, p)).toEqual(true);
     });
 
     // Add more test cases as needed

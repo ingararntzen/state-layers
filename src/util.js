@@ -12,6 +12,33 @@ export function divmod(x, base) {
 
 
 /*
+    similar to range function in python
+*/
+
+export function range (start, end, step = 1, options={}) {
+    const result = [];
+    const {include_end=false} = options;
+    if (step === 0) {
+        throw new Error('Step cannot be zero.');
+    }
+    if (start < end) {
+        for (let i = start; i < end; i += step) {
+          result.push(i);
+        }
+    } else if (start > end) {
+        for (let i = start; i > end; i -= step) {
+          result.push(i);
+        }
+    }
+    if (include_end) {
+        result.push(end);
+    }
+    return result;
+}
+
+
+
+/*
     This adds basic (synchronous) callback support to an object.
 */
 

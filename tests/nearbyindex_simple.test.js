@@ -92,6 +92,36 @@ describe('SimpleNearbyIndex', () => {
 
     });
 
+
+
+    test('should handle -Infinity and Infinity correctly', () => {
+
+        const intervals = [
+            [-Infinity, 0, true, false],
+            [0, 1, true, true],
+            // gap
+            [2, Infinity, false, true],
+        ]
+
+        const items = intervals.map(itv => {
+            return {itv};
+        });
+
+        const index = new SimpleNearbyIndex({items});
+        expect(index).toBeInstanceOf(SimpleNearbyIndex);
+
+        // Test -Infinity
+        let nearby = index.nearby(-Infinity);
+        expect(nearby.center[0]).toBe(items[0]);
+        expect(nearby.itv).toStrictEqual(intervals[0]);
+
+        // Test Infinity
+        nearby = index.nearby(Infinity);
+        expect(nearby.center[0]).toBe(items[2]);
+        expect(nearby.itv).toStrictEqual(intervals[2]);
+    });
+
+
     // Add more test cases as needed
     test('should update the index with one item and check nearby.center', () => {
         const index = new SimpleNearbyIndex();

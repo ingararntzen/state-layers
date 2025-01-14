@@ -30,10 +30,20 @@
     
 */ 
 
+
+function cmpNumbers(a, b) {
+    if (a === b) return 0;
+    if (a === Infinity) return 1;
+    if (b === Infinity) return -1;
+    if (a === -Infinity) return -1;
+    if (b === -Infinity) return 1;
+    return a - b;
+  }
+
 function endpoint_cmp (p1, p2) {
     let [v1, s1] = p1;
     let [v2, s2] = p2;
-    let diff = v1 - v2;
+    let diff = cmpNumbers(v1, v2);
     return (diff != 0) ? diff : s1 - s2;
 }
 

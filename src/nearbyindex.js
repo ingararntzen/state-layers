@@ -1,4 +1,6 @@
-import {callback} from "./util.js";
+import {endpoint} from "./intervals.js";
+import {range} from "./util.js";
+import {NearbyCache} from "./nearbycache.js";
 
 /*********************************************************************
     NEARBY INDEX
@@ -73,11 +75,7 @@ import {callback} from "./util.js";
  * 
  * / */
 
- export class NearbyIndex {
-
-    constructor() {
-        callback.addToInstance(this);
-    }
+ export class NearbyIndexBase {
 
     update (items) {
         throw new Error("Not implemented");
@@ -87,8 +85,109 @@ import {callback} from "./util.js";
         Nearby method
     */
     nearby(offset) {
-        
+        throw new Error("Not implemented");
     }
+
+
+    /*
+        return low point of leftmost entry
+    */
+    first() {
+        let {center, right} = this.nearby([-Infinity, 0]);
+        return (center.length > 0) ? [-Infinity, 0] : right;
+    }
+
+    /*
+        return high point of rightmost entry
+    */
+    last() {
+        let {left, center} = this.nearby([Infinity, 0]);
+        return (center.length > 0) ? [Infinity, 0] : left
+    }
+
+    /*
+        List items of NearbyIndex (order left to right)
+        interval defines [start, end] offset on the timeline.
+        Returns list of item-lists.
+        options
+        - start
+        - stop
+    */
+    list(options={}) {
+        let {start=-Infinity, stop=Infinity} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+        let current = start;
+        let nearby;
+        const results = [];
+        let limit = 5
+        while (limit) {
+            if (endpoint.gt(current, stop)) {
+                // exhausted
+                break;
+            }
+            nearby = this.nearby(current);
+            if (nearby.center.length == 0) {
+                // center empty (typically first iteration)
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // no entries - already exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            } else {
+                results.push(nearby.center);
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // last entry - mark iteractor exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            }
+            limit--;
+        }
+        return results;
+    }
+
+    /*
+        Sample NearbyIndex by timeline offset increments
+        return list of tuples [value, offset]
+        options
+        - start
+        - stop
+        - step
+    */
+    sample(options={}) {
+        let {start=-Infinity, stop=Infinity, step=1} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+
+        start = endpoint.max(this.first(), start);
+        stop = endpoint.min(this.last(), stop);
+
+        console.log("sample", start, stop);
+        const cache = new NearbyCache(this);
+        return range(start[0], stop[0], step, {include_end:true})
+            .map((offset) => {
+                return [cache.query(offset).value, offset];
+            });
+    }
+
 }
-callback.addToPrototype(NearbyIndex.prototype);
+
+
+
+
 
