@@ -3,7 +3,6 @@
 import { SimpleStateProvider} from '../src/stateprovider_simple.js';
 import { SimpleNearbyIndex } from '../src/nearbyindex_simple.js';
 import { NearbyCache} from '../src/nearbycache.js';
-import { assign } from '../src/cmd.js';
 
 /**
  * 
@@ -14,7 +13,12 @@ import { assign } from '../src/cmd.js';
 test('query returns 1 from nearby cache', () => {
     // Set up a state provider and set its value to 1
     const src = new SimpleStateProvider();
-    let items = assign(1);
+    const items = [
+        {
+            interval: [-Infinity, Infinity, true, true],
+            args : {value:1}
+        }
+    ];
     src.update(items).then(() => {
         // Connect it with a simple nearby index
         const index = new SimpleNearbyIndex();

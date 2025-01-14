@@ -123,14 +123,13 @@ function create_segment(interval, type, args) {
 }
 
 function load_segment(nearby) {
-    let item;
     let {interval:itv, center} = nearby;
     if (center.length == 0) {
         return create_segment(itv, "static", {value:undefined});
     }
     if (center.length == 1) {
-        item = center[0];
-        return create_segment(itv, item.type, item.args);
+        let {type="static", args} = center[0];
+        return create_segment(itv, type, args);
     }
     if (center.length > 1) {
         throw new Error("ListSegments not yet supported");
