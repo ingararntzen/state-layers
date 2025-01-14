@@ -824,7 +824,7 @@ const source = function () {
             prop: `__${propName}`,
             init: `__${propName}_init`,
             handle: `__${propName}_handle`,
-            onchange: `__${propName}_onchange`,
+            change: `__${propName}_handle_change`,
             detatch: `__${propName}_detatch`,
             attatch: `__${propName}_attatch`,
             check: `__${propName}_check`
@@ -859,19 +859,20 @@ const source = function () {
                 this[p.prop] = source;
                 this[p.init] = true;
                 // subscribe to callback from source
-                const handler = this[p.onchange].bind(this);
-                this[p.handle] = source.add_callback(handler);
-                handler();
+                if (this[p.change]) {
+                    const handler = this[p.change].bind(this);
+                    this[p.handle] = source.add_callback(handler);
+                    handler(); 
+                }
             } else {
                 throw new Error(`${propName} can not be reassigned`);
             }
         }
 
-
         /**
          * 
          * object must implement
-         * __{propName}_onchange() {}
+         * __{propName}_handle_change() {}
          * 
          * object can implement
          * __{propName}_check(source) {}
@@ -1920,28 +1921,29 @@ class Cursor extends CursorBase {
         this.src = src;
     }
 
-    // check ctrl
+    // ctrl
     __ctrl_check(ctrl) {
         if (!(ctrl instanceof CursorBase)) {
             throw new Error(`"ctrl" must be cursor ${ctrl}`)
         }
     }
-    
-    // check src
+    __ctrl_handle_change() {
+        this.__handle_change();
+    }
+
+
+    // src
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${source}`);
         }
+    }    
+    __src_handle_change() {
+        this.__handle_change();
     }
 
     // ctrl or src changes
-    __ctrl_onchange() {
-        this.__onchange();
-    }
-    __src_onchange() {
-        this.__onchange();
-    }
-    __onchange() {
+    __handle_change() {
         if (this.src && this.ctrl) {
             let items = this.src.items;
             this.__nearby_update(items);

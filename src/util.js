@@ -75,7 +75,7 @@ export const source = function () {
             prop: `__${propName}`,
             init: `__${propName}_init`,
             handle: `__${propName}_handle`,
-            onchange: `__${propName}_onchange`,
+            change: `__${propName}_handle_change`,
             detatch: `__${propName}_detatch`,
             attatch: `__${propName}_attatch`,
             check: `__${propName}_check`
@@ -110,19 +110,20 @@ export const source = function () {
                 this[p.prop] = source;
                 this[p.init] = true;
                 // subscribe to callback from source
-                const handler = this[p.onchange].bind(this);
-                this[p.handle] = source.add_callback(handler);
-                handler();
+                if (this[p.change]) {
+                    const handler = this[p.change].bind(this);
+                    this[p.handle] = source.add_callback(handler);
+                    handler(); 
+                }
             } else {
                 throw new Error(`${propName} can not be reassigned`);
             }
         }
 
-
         /**
          * 
          * object must implement
-         * __{propName}_onchange() {}
+         * __{propName}_handle_change() {}
          * 
          * object can implement
          * __{propName}_check(source) {}

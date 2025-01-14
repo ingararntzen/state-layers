@@ -72,28 +72,29 @@ export class Cursor extends CursorBase {
         this.src = src
     }
 
-    // check ctrl
+    // ctrl
     __ctrl_check(ctrl) {
         if (!(ctrl instanceof CursorBase)) {
             throw new Error(`"ctrl" must be cursor ${ctrl}`)
         }
     }
-    
-    // check src
+    __ctrl_handle_change() {
+        this.__handle_change();
+    }
+
+
+    // src
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${source}`);
         }
+    }    
+    __src_handle_change() {
+        this.__handle_change();
     }
 
     // ctrl or src changes
-    __ctrl_onchange() {
-        this.__onchange();
-    }
-    __src_onchange() {
-        this.__onchange();
-    }
-    __onchange() {
+    __handle_change() {
         if (this.src && this.ctrl) {
             let items = this.src.items;
             this.__nearby_update(items);
