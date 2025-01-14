@@ -94,7 +94,7 @@ export class Cursor extends CursorBase {
         this.__onchange();
     }
     __onchange() {
-        if (this.src) {
+        if (this.src && this.ctrl) {
             let items = this.src.items;
             this.__nearby_update(items);
             // trigger change event for cursor

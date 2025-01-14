@@ -1,5 +1,5 @@
-import {NearbyIndexBase} from "./bases.js";
 import {interval, endpoint} from "./intervals.js";
+import {callback} from "./util.js";
 
 /**
  * 
@@ -39,10 +39,10 @@ function get_high_endpoint(item) {
 }
 
 
-export class SimpleNearbyIndex extends NearbyIndexBase {
+export class SimpleNearbyIndex {
 
     constructor(options={}) {
-        super();
+        callback.addToInstance(this);
         this._items = [];
         let {items} = options;
         if (items) {
@@ -147,7 +147,7 @@ export class SimpleNearbyIndex extends NearbyIndexBase {
         return result;
     }
 }
-
+callback.addToPrototype(SimpleNearbyIndex.prototype);
 
 /*********************************************************************
 	UTILS
