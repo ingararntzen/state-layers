@@ -42,14 +42,14 @@ function check_input(items) {
     }
     // sort items based on interval low endpoint
     items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.interval)[0];
-        let b_low = endpoint.from_interval(b.interval)[0];
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
         return endpoint.cmp(a_low, b_low);
     });
     // check that item intervals are non-overlapping
     for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].interval)[1];
-        let curr_low = endpoint.from_interval(items[i].interval)[0];
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
         // verify that prev high is less that curr low
         if (!endpoint.lt(prev_high, curr_low)) {
             throw new Error("Overlapping intervals found");

@@ -191,7 +191,7 @@ class BaseSegment {
 		this._itv = itv;
 	}
 
-	get interval() {return this._itv;}
+	get itv() {return this._itv;}
 
     /** 
      * implemented by subclass
@@ -1233,7 +1233,7 @@ function release(handle) {
     - could be local - or proxy to online source
 
     represents a dynamic collection of items
-    {interval, ...data}
+    {itv, type, ...data}
 */
 
 class StateProviderBase {
@@ -1368,14 +1368,14 @@ function check_input$1(items) {
     }
     // sort items based on interval low endpoint
     items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.interval)[0];
-        let b_low = endpoint.from_interval(b.interval)[0];
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
         return endpoint.cmp(a_low, b_low);
     });
     // check that item intervals are non-overlapping
     for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].interval)[1];
-        let curr_low = endpoint.from_interval(items[i].interval)[0];
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
         // verify that prev high is less that curr low
         if (!endpoint.lt(prev_high, curr_low)) {
             throw new Error("Overlapping intervals found");
@@ -1408,17 +1408,17 @@ function check_input$1(items) {
 
 // get interval low point
 function get_low_value(item) {
-    return item.interval[0];
+    return item.itv[0];
 }
 
 // get interval low endpoint
 function get_low_endpoint(item) {
-    return endpoint.from_interval(item.interval)[0]
+    return endpoint.from_interval(item.itv)[0]
 }
 
 // get interval high endpoint
 function get_high_endpoint(item) {
-    return endpoint.from_interval(item.interval)[1]
+    return endpoint.from_interval(item.itv)[1]
 }
 
 
@@ -1462,7 +1462,7 @@ class SimpleNearbyIndex {
         }
         const result = {
             center: [],
-            interval: [-Infinity, Infinity, true, true],
+            itv: [-Infinity, Infinity, true, true],
             left: undefined,
             right: undefined,
             prev: undefined,
@@ -1479,7 +1479,7 @@ class SimpleNearbyIndex {
             // search offset matches item low exactly
             // check that it indeed covered by item interval
             item = items[idx];
-            if (interval.covers_endpoint(item.interval, offset)) {
+            if (interval.covers_endpoint(item.itv, offset)) {
                 indexes = {left:idx-1, center:idx, right:idx+1};
             }
         }
@@ -1488,7 +1488,7 @@ class SimpleNearbyIndex {
             item = items[idx-1];
             if (item != undefined) {
                 // check if search offset is covered by item interval
-                if (interval.covers_endpoint(item.interval, offset)) {
+                if (interval.covers_endpoint(item.itv, offset)) {
                     indexes = {left:idx-2, center:idx-1, right:idx};
                 } 
             }
@@ -1512,11 +1512,11 @@ class SimpleNearbyIndex {
         // left/right
         let low, high;
         if (result.center.length > 0) {
-            let itv = result.center[0].interval;
+            let itv = result.center[0].itv;
             [low, high] = endpoint.from_interval(itv);
             result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
             result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
-            result.interval = result.center[0].interval;
+            result.itv = result.center[0].itv;
         } else {
             result.left = result.prev;
             result.right = result.next;
@@ -1525,7 +1525,7 @@ class SimpleNearbyIndex {
             low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
             let right = result.right;
             high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
-            result.interval = interval.from_endpoints(low, high);
+            result.itv = interval.from_endpoints(low, high);
         }
         return result;
     }
@@ -1550,15 +1550,15 @@ function check_input(items) {
 
     // sort items based on interval low endpoint
     items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.interval)[0];
-        let b_low = endpoint.from_interval(b.interval)[0];
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
         return endpoint.cmp(a_low, b_low);
     });
 
     // check that item intervals are non-overlapping
     for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].interval)[1];
-        let curr_low = endpoint.from_interval(items[i].interval)[0];
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
         // verify that prev high is less that curr low
         if (!endpoint.lt(prev_high, curr_low)) {
             throw new Error("Overlapping intervals found");
@@ -1663,7 +1663,7 @@ class NearbyCache {
     /*
         refresh if necessary - else NOOP
         - if nearby is not defined
-        - if offset is outside nearby.interval
+        - if offset is outside nearby.itv
         - if cache is dirty
     */
     refresh (offset) {
@@ -1673,7 +1673,7 @@ class NearbyCache {
         if (this._nearby == undefined || this._dirty) {
             return this._refresh(offset);
         }
-        if (!interval.covers_endpoint(this._nearby.interval, offset)) {
+        if (!interval.covers_endpoint(this._nearby.itv, offset)) {
             return this._refresh(offset)
         }
         return false;
@@ -1708,22 +1708,22 @@ class NearbyCache {
     LOAD SEGMENT
 *********************************************************************/
 
-function create_segment(interval, type, args) {
+function create_segment(itv, type, args) {
     if (type == "static") {
-        return new StaticSegment(interval, args);
+        return new StaticSegment(itv, args);
     } else if (type == "transition") {
-        return new TransitionSegment(interval, args);
+        return new TransitionSegment(itv, args);
     } else if (type == "interpolation") {
-        return new InterpolationSegment(interval, args);
+        return new InterpolationSegment(itv, args);
     } else if (type == "motion") {
-        return new MotionSegment(interval, args);
+        return new MotionSegment(itv, args);
     } else {
         console.log("unrecognized segment type", type);
     }
 }
 
 function load_segment(nearby) {
-    let {interval:itv, center} = nearby;
+    let {itv, center} = nearby;
     if (center.length == 0) {
         return create_segment(itv, "static", {value:undefined});
     }
@@ -1791,7 +1791,7 @@ function assign(target, value) {
         return [];
     } else {
         let item = {
-            interval: [-Infinity, Infinity, true, true],
+            itv: [-Infinity, Infinity, true, true],
             type: "static",
             args: {value}                 
         };
@@ -1803,7 +1803,7 @@ function move(target, vector={}) {
     let {value, rate, offset} = target.query();
     let {position=value, velocity=rate} = vector;
     let item = {
-        interval: [-Infinity, Infinity, true, true],
+        itv: [-Infinity, Infinity, true, true],
         type: "motion",
         args: {position, velocity, timestamp:offset}                 
     };
@@ -1813,17 +1813,17 @@ function move(target, vector={}) {
 function transition(target, v0, v1, t0, t1, easing) {
     let items = [
         {
-            interval: [-Infinity, t0, true, false],
+            itv: [-Infinity, t0, true, false],
             type: "static",
             args: {value:v0}
         },
         {
-            interval: [t0, t1, true, false],
+            itv: [t0, t1, true, false],
             type: "transition",
             args: {v0, v1, t0, t1, easing}
         },
         {
-            interval: [t1, Infinity, true, true],
+            itv: [t1, Infinity, true, true],
             type: "static",
             args: {value: v1}
         }
@@ -1837,17 +1837,17 @@ function interpolate(target, tuples) {
 
     let items = [
         {
-            interval: [-Infinity, t0, true, false],
+            itv: [-Infinity, t0, true, false],
             type: "static",
             args: {value:v0}
         },
         {
-            interval: [t0, t1, true, false],
+            itv: [t0, t1, true, false],
             type: "interpolation",
             args: {tuples}
         },
         {
-            interval: [t1, Infinity, true, true],
+            itv: [t1, Infinity, true, true],
             type: "static",
             args: {value: v1}
         }

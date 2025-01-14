@@ -25,17 +25,17 @@ import {callback} from "./util.js";
 
 // get interval low point
 function get_low_value(item) {
-    return item.interval[0];
+    return item.itv[0];
 }
 
 // get interval low endpoint
 function get_low_endpoint(item) {
-    return endpoint.from_interval(item.interval)[0]
+    return endpoint.from_interval(item.itv)[0]
 }
 
 // get interval high endpoint
 function get_high_endpoint(item) {
-    return endpoint.from_interval(item.interval)[1]
+    return endpoint.from_interval(item.itv)[1]
 }
 
 
@@ -79,7 +79,7 @@ export class SimpleNearbyIndex {
         }
         const result = {
             center: [],
-            interval: [-Infinity, Infinity, true, true],
+            itv: [-Infinity, Infinity, true, true],
             left: undefined,
             right: undefined,
             prev: undefined,
@@ -96,7 +96,7 @@ export class SimpleNearbyIndex {
             // search offset matches item low exactly
             // check that it indeed covered by item interval
             item = items[idx]
-            if (interval.covers_endpoint(item.interval, offset)) {
+            if (interval.covers_endpoint(item.itv, offset)) {
                 indexes = {left:idx-1, center:idx, right:idx+1};
             }
         }
@@ -105,7 +105,7 @@ export class SimpleNearbyIndex {
             item = items[idx-1];
             if (item != undefined) {
                 // check if search offset is covered by item interval
-                if (interval.covers_endpoint(item.interval, offset)) {
+                if (interval.covers_endpoint(item.itv, offset)) {
                     indexes = {left:idx-2, center:idx-1, right:idx};
                 } 
             }
@@ -129,11 +129,11 @@ export class SimpleNearbyIndex {
         // left/right
         let low, high;
         if (result.center.length > 0) {
-            let itv = result.center[0].interval;
+            let itv = result.center[0].itv;
             [low, high] = endpoint.from_interval(itv);
             result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
             result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
-            result.interval = result.center[0].interval;
+            result.itv = result.center[0].itv;
         } else {
             result.left = result.prev;
             result.right = result.next;
@@ -142,7 +142,7 @@ export class SimpleNearbyIndex {
             low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
             let right = result.right;
             high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
-            result.interval = interval.from_endpoints(low, high);
+            result.itv = interval.from_endpoints(low, high);
         }
         return result;
     }
@@ -167,15 +167,15 @@ function check_input(items) {
 
     // sort items based on interval low endpoint
     items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.interval)[0];
-        let b_low = endpoint.from_interval(b.interval)[0];
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
         return endpoint.cmp(a_low, b_low);
     });
 
     // check that item intervals are non-overlapping
     for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].interval)[1];
-        let curr_low = endpoint.from_interval(items[i].interval)[0];
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
         // verify that prev high is less that curr low
         if (!endpoint.lt(prev_high, curr_low)) {
             throw new Error("Overlapping intervals found");

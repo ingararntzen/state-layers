@@ -13,7 +13,7 @@ import { bind, release } from "./monitor.js";
     - could be local - or proxy to online source
 
     represents a dynamic collection of items
-    {interval, ...data}
+    {itv, type, ...data}
 */
 
 export class StateProviderBase {

@@ -25,7 +25,7 @@ import {callback} from "./util.js";
  * 
  * Returns {
  *      center: list of ITEMS covering endpoint,
- *      interval: interval where nearby returns identical {center}
+ *      itv: interval where nearby returns identical {center}
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}

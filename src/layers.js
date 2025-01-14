@@ -47,11 +47,11 @@ export class InputLayer extends LayerBase {
     }
 
     // state change in state provider
-    _onchange_stateprovider(interval) {
+    _onchange_stateprovider(itv) {
         this._index.update(this._src.items);
         this._cache.dirty();
         // trigger change event for cursor
-        this.eventifyTrigger("change", interval);
+        this.eventifyTrigger("change", itv);
     }
 
     /**********************************************************

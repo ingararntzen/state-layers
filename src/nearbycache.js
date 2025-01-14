@@ -63,7 +63,7 @@ export class NearbyCache {
     /*
         refresh if necessary - else NOOP
         - if nearby is not defined
-        - if offset is outside nearby.interval
+        - if offset is outside nearby.itv
         - if cache is dirty
     */
     refresh (offset) {
@@ -73,7 +73,7 @@ export class NearbyCache {
         if (this._nearby == undefined || this._dirty) {
             return this._refresh(offset);
         }
-        if (!interval.covers_endpoint(this._nearby.interval, offset)) {
+        if (!interval.covers_endpoint(this._nearby.itv, offset)) {
             return this._refresh(offset)
         }
         return false;
@@ -108,22 +108,22 @@ export class NearbyCache {
     LOAD SEGMENT
 *********************************************************************/
 
-function create_segment(interval, type, args) {
+function create_segment(itv, type, args) {
     if (type == "static") {
-        return new segment.StaticSegment(interval, args);
+        return new segment.StaticSegment(itv, args);
     } else if (type == "transition") {
-        return new segment.TransitionSegment(interval, args);
+        return new segment.TransitionSegment(itv, args);
     } else if (type == "interpolation") {
-        return new segment.InterpolationSegment(interval, args);
+        return new segment.InterpolationSegment(itv, args);
     } else if (type == "motion") {
-        return new segment.MotionSegment(interval, args);
+        return new segment.MotionSegment(itv, args);
     } else {
         console.log("unrecognized segment type", type);
     }
 }
 
 function load_segment(nearby) {
-    let {interval:itv, center} = nearby;
+    let {itv, center} = nearby;
     if (center.length == 0) {
         return create_segment(itv, "static", {value:undefined});
     }

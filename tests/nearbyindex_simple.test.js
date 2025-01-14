@@ -13,8 +13,8 @@ describe('SimpleNearbyIndex', () => {
             [2, Infinity, false, true],
         ]
 
-        const items = intervals.map(interval => {
-            return {interval};
+        const items = intervals.map(itv => {
+            return {itv};
         })
 
         const index = new SimpleNearbyIndex({items});
@@ -31,7 +31,7 @@ describe('SimpleNearbyIndex', () => {
         expect(nearby.center[0]).toBe(items[0]);
 
         // interval
-        expect(nearby.interval).toStrictEqual(intervals[0]);
+        expect(nearby.itv).toStrictEqual(intervals[0]);
         // prev/next
         expect(nearby.prev).toBe(undefined);
         expect(nearby.next).toStrictEqual([0, 0]);
@@ -50,7 +50,7 @@ describe('SimpleNearbyIndex', () => {
         expect(nearby.center[0]).toBe(items[1]);
 
         // interval
-        expect(nearby.interval).toStrictEqual(intervals[1]);
+        expect(nearby.itv).toStrictEqual(intervals[1]);
         // prev/next
         expect(nearby.prev).toStrictEqual([0, -1]);
         expect(nearby.next).toStrictEqual([2, 1]);
@@ -69,7 +69,7 @@ describe('SimpleNearbyIndex', () => {
         expect(nearby.center[0]).toBe(items[2]);
 
         // interval
-        expect(nearby.interval).toStrictEqual(intervals[2]);
+        expect(nearby.itv).toStrictEqual(intervals[2]);
         // prev/next
         expect(nearby.prev).toStrictEqual([1, 0]);
         expect(nearby.next).toStrictEqual(undefined);
@@ -81,7 +81,7 @@ describe('SimpleNearbyIndex', () => {
         // endpoint within gap
         nearby = index.nearby(1.5);
         expect(nearby.center).toStrictEqual([]);
-        expect(nearby.interval).toStrictEqual([1, 2, false, true]);
+        expect(nearby.itv).toStrictEqual([1, 2, false, true]);
 
         // prev/next
         expect(nearby.prev).toStrictEqual([1, 0]);
@@ -102,7 +102,7 @@ describe('SimpleNearbyIndex', () => {
 
         // Update the index with a new item
         const newItem =             {
-            interval: [-Infinity, Infinity, true, true], 
+            itv: [-Infinity, Infinity, true, true], 
             args: {value:1}
         }
         index.update([newItem]);

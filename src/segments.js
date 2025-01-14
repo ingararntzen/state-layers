@@ -21,7 +21,7 @@ export class BaseSegment {
 		this._itv = itv;
 	}
 
-	get interval() {return this._itv;}
+	get itv() {return this._itv;}
 
     /** 
      * implemented by subclass

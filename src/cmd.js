@@ -28,7 +28,7 @@ function assign(target, value) {
         return [];
     } else {
         let item = {
-            interval: [-Infinity, Infinity, true, true],
+            itv: [-Infinity, Infinity, true, true],
             type: "static",
             args: {value}                 
         }
@@ -40,7 +40,7 @@ function move(target, vector={}) {
     let {value, rate, offset} = target.query();
     let {position=value, velocity=rate} = vector;
     let item = {
-        interval: [-Infinity, Infinity, true, true],
+        itv: [-Infinity, Infinity, true, true],
         type: "motion",
         args: {position, velocity, timestamp:offset}                 
     }
@@ -50,17 +50,17 @@ function move(target, vector={}) {
 function transition(target, v0, v1, t0, t1, easing) {
     let items = [
         {
-            interval: [-Infinity, t0, true, false],
+            itv: [-Infinity, t0, true, false],
             type: "static",
             args: {value:v0}
         },
         {
-            interval: [t0, t1, true, false],
+            itv: [t0, t1, true, false],
             type: "transition",
             args: {v0, v1, t0, t1, easing}
         },
         {
-            interval: [t1, Infinity, true, true],
+            itv: [t1, Infinity, true, true],
             type: "static",
             args: {value: v1}
         }
@@ -74,17 +74,17 @@ function interpolate(target, tuples) {
 
     let items = [
         {
-            interval: [-Infinity, t0, true, false],
+            itv: [-Infinity, t0, true, false],
             type: "static",
             args: {value:v0}
         },
         {
-            interval: [t0, t1, true, false],
+            itv: [t0, t1, true, false],
             type: "interpolation",
             args: {tuples}
         },
         {
-            interval: [t1, Infinity, true, true],
+            itv: [t1, Infinity, true, true],
             type: "static",
             args: {value: v1}
         }

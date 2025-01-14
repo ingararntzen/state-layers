@@ -15,7 +15,7 @@ test('query returns 1 from nearby cache', () => {
     const src = new SimpleStateProvider();
     const items = [
         {
-            interval: [-Infinity, Infinity, true, true],
+            itv: [-Infinity, Infinity, true, true],
             args : {value:1}
         }
     ];
