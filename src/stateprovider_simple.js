@@ -22,13 +22,12 @@ export class SimpleStateProvider extends StateProviderBase {
         } else {
             this._items = [];
         }
-        // notify callbacks?
     }
 
     update (items) {
-        this._items = check_input(items);
         return Promise.resolve()
             .then(() => {
+                this._items = check_input(items);
                 this.notify_callbacks();
             });
     }

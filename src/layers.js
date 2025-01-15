@@ -51,8 +51,7 @@ export class Layer extends LayerBase {
         }
     }    
     __src_handle_change() {
-        let items = this.src.items;
-        this._index.update(items);
+        this._index.update(this.src.items);
         this._cache.dirty();
         // trigger change event for cursor
         this.eventifyTrigger("change", this.query());   
@@ -63,6 +62,9 @@ export class Layer extends LayerBase {
      **********************************************************/
 
     query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
         return this._cache.query(offset);
     }
 

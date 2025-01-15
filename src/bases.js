@@ -22,17 +22,32 @@ export class StateProviderBase {
         callback.addToInstance(this);
     }
 
-    // public update function
+    /**
+     * update function
+     * called from cursor or layer objects
+     * for online implementation, this will
+     * typically result in a network request 
+     * to update some online item collection
+     */
     update(items){
         throw new Error("not implemented");
     }
+
+    /**
+     * return array with all items in collection 
+     * - no requirement wrt order
+     */
 
     get items() {
         throw new Error("not implemented");
     }
 
+    /**
+     * signal if items can be overlapping or not
+     */
+
     get info () {
-        return {dynamic: true, overlapping: true, local:false};
+        return {overlapping: true};
     }
 }
 callback.addToPrototype(StateProviderBase.prototype);
@@ -79,6 +94,11 @@ export class CursorBase {
     query () {
         throw new Error("Not implemented");
     }
+
+    state() {
+        throw new Error("Not implemented");
+    }
+
 
     /*
         Eventify: immediate events
