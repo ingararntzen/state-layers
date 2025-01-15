@@ -19,7 +19,7 @@
 
         import { Cursor, cmd } from './js/layers.es.js';
 
-        let v = new Cursor();
+        let v = new Cursor({value:0});
 
         v.bind(render_html("#value", ({value}) => `${value}`), 200);
 

@@ -3,6 +3,7 @@ import { LayerBase, StateProviderBase } from "./bases.js";
 import { source } from "./util.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
 import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
+import { NearbyCache } from "./nearbycache.js";
 
 /************************************************
  * LAYER
@@ -26,11 +27,13 @@ export class Layer extends LayerBase {
         source.addToInstance(this, "src");
         // index
         this._index = new SimpleNearbyIndex();
-    
+        // cache
+        this._cache = new NearbyCache(this._index);
+
         // initialise with stateprovider
-        let {src} = options;
+        let {src, ...opts} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider();
+            src = new SimpleStateProvider(opts);
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -38,7 +41,10 @@ export class Layer extends LayerBase {
         this.src = src;
     }
 
-    // src
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
+
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${source}`);
@@ -47,20 +53,18 @@ export class Layer extends LayerBase {
     __src_handle_change() {
         let items = this.src.items;
         this._index.update(items);
+        this._cache.dirty();
         // trigger change event for cursor
         this.eventifyTrigger("change", this.query());   
     }
 
     /**********************************************************
-     * QUERY
+     * QUERY API
      **********************************************************/
+
     query(offset) {
         return this._cache.query(offset);
     }
-
-    /**********************************************************
-     * ACCESSORS
-     **********************************************************/
 
     list (options) {
         return this._index.list(options);
@@ -69,6 +73,12 @@ export class Layer extends LayerBase {
     sample (options) {
         return this._index.sample(options);
     }
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
+
+    // TODO - add methods for update?
 
 }
 source.addToPrototype(Layer.prototype, "src", {mutable:true});

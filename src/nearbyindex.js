@@ -176,8 +176,6 @@ import {NearbyCache} from "./nearbycache.js";
 
         start = endpoint.max(this.first(), start);
         stop = endpoint.min(this.last(), stop);
-
-        console.log("sample", start, stop);
         const cache = new NearbyCache(this);
         return range(start[0], stop[0], step, {include_end:true})
             .map((offset) => {

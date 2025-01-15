@@ -24,18 +24,15 @@ export class StateProviderBase {
 
     // public update function
     update(items){
-        return Promise.resolve()
-            .then(() => {
-                return this._update(items);
-            });
-    }
-
-    handle_update(items) {
         throw new Error("not implemented");
     }
 
     get items() {
         throw new Error("not implemented");
+    }
+
+    get info () {
+        return {dynamic: true, overlapping: true, local:false};
     }
 }
 callback.addToPrototype(StateProviderBase.prototype);

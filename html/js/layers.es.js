@@ -842,18 +842,15 @@ class StateProviderBase {
 
     // public update function
     update(items){
-        return Promise.resolve()
-            .then(() => {
-                return this._update(items);
-            });
-    }
-
-    handle_update(items) {
         throw new Error("not implemented");
     }
 
     get items() {
         throw new Error("not implemented");
+    }
+
+    get info () {
+        return {dynamic: true, overlapping: true, local:false};
     }
 }
 callback.addToPrototype(StateProviderBase.prototype);
@@ -1111,28 +1108,35 @@ const interval = {
 ***************************************************************/
 
 /**
- * Local Array with non overlapping items.
+ * Local Array with non-overlapping items.
  */
 
 class SimpleStateProvider extends StateProviderBase {
 
     constructor(options={}) {
         super();
-        this._items = [];
-        let {items} = options;
-        if (items) {
-            this.handle_update(items);  
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            this._items = check_input$1(items);
+        } else if (value != undefined) {
+            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
+        } else {
+            this._items = [];
         }
+        // notify callbacks?
     }
 
-    // internal update function
-    _update (items) {
+    update (items) {
         this._items = check_input$1(items);
-        this.notify_callbacks();
+        return Promise.resolve()
+            .then(() => {
+                this.notify_callbacks();
+            });
     }
 
     get items () {
-        return this._items;
+        return this._items.slice();
     }
 
     get info () {
@@ -1790,8 +1794,6 @@ function load_segment(nearby) {
 
         start = endpoint.max(this.first(), start);
         stop = endpoint.min(this.last(), stop);
-
-        console.log("sample", start, stop);
         const cache = new NearbyCache(this);
         return range(start[0], stop[0], step, {include_end:true})
             .map((offset) => {
@@ -2025,7 +2027,7 @@ function find_index(target, arr, value_func) {
 class LocalClock extends CursorBase {
     query () {
         let offset = performance.now()/1000.0;
-        return {value:offset, dynamic:true, offset};
+        return {value:offset, dynamic:true, rate:1, offset};
     }
 }
 
@@ -2033,7 +2035,7 @@ class LocalClock extends CursorBase {
 class LocalEpoch extends CursorBase {
     query () {
         let offset = (Date.now() / 1000.0);
-        return {value:offset, dynamic:true, offset};
+        return {value:offset, dynamic:true, rate:1, offset};
     }
 }
 
@@ -2063,30 +2065,30 @@ class Cursor extends CursorBase {
         source.addToInstance(this, "ctrl");
         // src
         source.addToInstance(this, "src");
-        
         // index
         this._index = new SimpleNearbyIndex();
         // cache
         this._cache = new NearbyCache(this._index);
         
-        // initialse clock
+        let {src, ctrl, ...opts} = options;
 
         // initialise ctrl
-        let {ctrl} = options;
         if (ctrl == undefined) {
             ctrl = local_clock;
         }
         this.ctrl = ctrl;
 
         // initialise state
-        let {src} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider();
+            src = new SimpleStateProvider(opts);
         }
         this.src = src;
     }
 
-    // ctrl
+    /**********************************************************
+     * CTRL (cursor)
+     **********************************************************/
+
     __ctrl_check(ctrl) {
         if (!(ctrl instanceof CursorBase)) {
             throw new Error(`"ctrl" must be cursor ${ctrl}`)
@@ -2096,8 +2098,10 @@ class Cursor extends CursorBase {
         this.__handle_change();
     }
 
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
 
-    // src
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${source}`);
@@ -2107,7 +2111,10 @@ class Cursor extends CursorBase {
         this.__handle_change();
     }
 
-    // ctrl or src changes
+    /**********************************************************
+     * CALLBACK
+     **********************************************************/
+
     __handle_change() {
         if (this.src && this.ctrl) {
             let items = this.src.items;
@@ -2119,8 +2126,9 @@ class Cursor extends CursorBase {
     }
 
     /**********************************************************
-     * QUERY
+     * QUERY API
      **********************************************************/
+    
     query () {
         let {value:offset} = this.ctrl.query();
         if (typeof offset !== 'number') {
@@ -2129,11 +2137,12 @@ class Cursor extends CursorBase {
         return this._cache.query(offset);
     }
 
-    /**********************************************************
-     * CONVENIENCE
-     **********************************************************/
-
     get value () {return this.query().value};
+
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
 
     assign(value) {
         return cmd(this).assign(value);
@@ -2164,7 +2173,6 @@ class Cursor extends CursorBase {
         return cmd(this).interpolate(tuples);
     }
 
-
 }
 source.addToPrototype(Cursor.prototype, "src", {mutable:true});
 source.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
@@ -2191,11 +2199,13 @@ class Layer extends LayerBase {
         source.addToInstance(this, "src");
         // index
         this._index = new SimpleNearbyIndex();
-    
+        // cache
+        this._cache = new NearbyCache(this._index);
+
         // initialise with stateprovider
-        let {src} = options;
+        let {src, ...opts} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider();
+            src = new SimpleStateProvider(opts);
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -2203,7 +2213,10 @@ class Layer extends LayerBase {
         this.src = src;
     }
 
-    // src
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
+
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${source}`);
@@ -2212,20 +2225,18 @@ class Layer extends LayerBase {
     __src_handle_change() {
         let items = this.src.items;
         this._index.update(items);
+        this._cache.dirty();
         // trigger change event for cursor
         this.eventifyTrigger("change", this.query());   
     }
 
     /**********************************************************
-     * QUERY
+     * QUERY API
      **********************************************************/
+
     query(offset) {
         return this._cache.query(offset);
     }
-
-    /**********************************************************
-     * ACCESSORS
-     **********************************************************/
 
     list (options) {
         return this._index.list(options);
@@ -2234,6 +2245,12 @@ class Layer extends LayerBase {
     sample (options) {
         return this._index.sample(options);
     }
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
+
+    // TODO - add methods for update?
 
 }
 source.addToPrototype(Layer.prototype, "src", {mutable:true});

@@ -16,7 +16,7 @@ import { NearbyCache } from "./nearbycache.js";
 class LocalClock extends CursorBase {
     query () {
         let offset = performance.now()/1000.0;
-        return {value:offset, dynamic:true, offset};
+        return {value:offset, dynamic:true, rate:1, offset};
     }
 }
 
@@ -24,7 +24,7 @@ class LocalClock extends CursorBase {
 class LocalEpoch extends CursorBase {
     query () {
         let offset = (Date.now() / 1000.0)
-        return {value:offset, dynamic:true, offset};
+        return {value:offset, dynamic:true, rate:1, offset};
     }
 }
 
@@ -54,30 +54,30 @@ export class Cursor extends CursorBase {
         source.addToInstance(this, "ctrl");
         // src
         source.addToInstance(this, "src");
-        
         // index
         this._index = new SimpleNearbyIndex();
         // cache
         this._cache = new NearbyCache(this._index);
         
-        // initialse clock
+        let {src, ctrl, ...opts} = options;
 
         // initialise ctrl
-        let {ctrl} = options;
         if (ctrl == undefined) {
             ctrl = local_clock;
         }
         this.ctrl = ctrl;
 
         // initialise state
-        let {src} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider();
+            src = new SimpleStateProvider(opts);
         }
         this.src = src
     }
 
-    // ctrl
+    /**********************************************************
+     * CTRL (cursor)
+     **********************************************************/
+
     __ctrl_check(ctrl) {
         if (!(ctrl instanceof CursorBase)) {
             throw new Error(`"ctrl" must be cursor ${ctrl}`)
@@ -87,8 +87,10 @@ export class Cursor extends CursorBase {
         this.__handle_change();
     }
 
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
 
-    // src
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${source}`);
@@ -98,7 +100,10 @@ export class Cursor extends CursorBase {
         this.__handle_change();
     }
 
-    // ctrl or src changes
+    /**********************************************************
+     * CALLBACK
+     **********************************************************/
+
     __handle_change() {
         if (this.src && this.ctrl) {
             let items = this.src.items;
@@ -110,8 +115,9 @@ export class Cursor extends CursorBase {
     }
 
     /**********************************************************
-     * QUERY
+     * QUERY API
      **********************************************************/
+    
     query () {
         let {value:offset} = this.ctrl.query()
         if (typeof offset !== 'number') {
@@ -120,11 +126,12 @@ export class Cursor extends CursorBase {
         return this._cache.query(offset);
     }
 
-    /**********************************************************
-     * CONVENIENCE
-     **********************************************************/
-
     get value () {return this.query().value};
+
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
 
     assign(value) {
         return cmd(this).assign(value);
@@ -154,7 +161,6 @@ export class Cursor extends CursorBase {
         })
         return cmd(this).interpolate(tuples);
     }
-
 
 }
 source.addToPrototype(Cursor.prototype, "src", {mutable:true});

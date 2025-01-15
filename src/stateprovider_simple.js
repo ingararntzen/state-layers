@@ -6,28 +6,35 @@ import {endpoint} from "./intervals.js";
 ***************************************************************/
 
 /**
- * Local Array with non overlapping items.
+ * Local Array with non-overlapping items.
  */
 
 export class SimpleStateProvider extends StateProviderBase {
 
     constructor(options={}) {
         super();
-        this._items = [];
-        let {items} = options;
-        if (items) {
-            this.handle_update(items);  
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            this._items = check_input(items);
+        } else if (value != undefined) {
+            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
+        } else {
+            this._items = [];
         }
+        // notify callbacks?
     }
 
-    // internal update function
-    _update (items) {
+    update (items) {
         this._items = check_input(items);
-        this.notify_callbacks();
+        return Promise.resolve()
+            .then(() => {
+                this.notify_callbacks();
+            });
     }
 
     get items () {
-        return this._items;
+        return this._items.slice();
     }
 
     get info () {
