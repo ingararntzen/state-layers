@@ -146,22 +146,75 @@ export class Cursor extends CursorBase {
              * Playback support
              * 
              * During playback (ctrl signaling dynamic change)
-             * there is a need to report passing from one segment interval
-             * to the next - ideally at precisely the right time
+             * there is a need to detect passing from one segment interval
+             * to the next - ideally at precisely the correct time
              * 
-             * [1] In cases where the ctrl is deterministic, this can
-             * be achived by calculating a timeout.
+             * cache.nearby.itv (derived from src) gives the 
+             * interval where nearby stays constant, and we are 
+             * currently in this interval so the timeout
+             * shold target the momen when we leave this interval.
              * 
-             * [2] If ctrl is not deterministic, the cursor
-             * could detect the event by polling internally, meaning
-             * that polling observers could still observe changes at 
-             * precisely the correct time, even if their poll frequency is low.
-             * This is ineffective if the poll time is long.
-             *  
-             * [3] The fallback solution is to not do anything, in which case
-             * observers will simply find out according to their own
-             * poll frequency. 
              * 
+             * Approach [0] 
+             * The trivial solution is to do nothing, in which case
+             * observers will simply find out themselves according to their 
+             * own poll frequency. This is suboptimal, particularly for
+             * low frequency observers. If there is at least one high-
+             * frequency poller, this could trigger the timeout for all
+             * to be notified.
+             * 
+             * Note also that an incorrect timeout would NOT ruin things.
+             * It would essentially be equivalent to [0], but would wake up
+             * observers unnessarsarily 
+             * 
+             * Approach [1] 
+             * In cases where the ctrl is deterministic, the timeout
+             * can be calculated. This, though, can be more tricky 
+             * than expected. 
+             * 
+             * - a) 
+             * Motion and linear transitions are easy to calculate, 
+             * but with acceleration in motion, or non-linear easing, 
+             * calculations quickly become more complex
+             * 
+             * - b)
+             * These calculations also assume that the ctrl.ctrl 
+             * is not a monotonic clock with velocity 1. In principle,
+             * there could be a recursive chain of ctrl.ctrl.ctrl.clock
+             * of some length, where all controls would have to be
+             * linear transformations, in order to calculate a deterministic
+             * timeout.
+             * 
+             * Approch [2] 
+             * It would also be possible to sampling future values of the
+             * ctrl to see if the values violate the nearby.itv at some point. 
+             * This would essentially be treating ctrl as a layer and sampling 
+             * future values. This approch would work for all types, 
+             * but there is no knowing how far into the future one 
+             * would have to seek
+             * 
+             * Approach [3] 
+             * It would also be possible to detect the event by
+             * repeatedly polling internally. This would ensure timely
+             * detection, even if all observers are low-frequency pollers..
+             * This would essentially be equivalent to [2], only with 
+             * sampling spread out in time. 
+             *   
+             * 
+             * 
+             * SOLUTION
+             * As there is no perfect solution, we make the pragmatic 
+             * solution to only support timeout when the following conditions
+             * hold:
+             * (i) if ctrl is a clock || ctrl.ctrl is a clock
+             * (ii) ctrl.nearby.center has exactly 1 item
+             * (iii) ctrl.nearby.center[0].type == "motion"
+             * (iv) ctrl.nearby.center[0].args.velocity != 0.0 
+             * (v) the prospective cache.nearby.itv low or high 
+             *     are not -Infinity or Infinity
+             * 
+             * This is presumably likely the most common case for playback, 
+             * where precise timing would be of importance
              */
             let {
                 value: ctrl_offset, 
@@ -250,6 +303,10 @@ export class Cursor extends CursorBase {
         if (typeof offset !== 'number') {
             throw new Error(`warning: ctrl state must be number ${offset}`);
         }
+        /**
+         * TODO - if query causes a cache miss, we should generate an
+         * event to let consumers know cursor state has changed.
+         */
         return this._cache.query(offset);
     }
 
