@@ -161,14 +161,12 @@ export class Cursor extends CursorBase {
              * own poll frequency. This is suboptimal, particularly for
              * low frequency observers. If there is at least one high-
              * frequency poller, this could trigger the timeout for all
-             * to be notified.
+             * to be notified. The problem though, is if no observers
+             * are polling.
              * 
-             * Note also that an incorrect timeout would NOT ruin things.
-             * It would essentially be equivalent to [0], but would wake up
-             * observers unnessarsarily 
              * 
              * Approach [1] 
-             * In cases where the ctrl is deterministic, the timeout
+             * In cases where the ctrl is deterministic, a timeout
              * can be calculated. This, though, can be more tricky 
              * than expected. 
              * 
@@ -201,10 +199,14 @@ export class Cursor extends CursorBase {
              * sampling spread out in time. 
              *   
              * 
+             * Note also that an incorrect timeout would NOT ruin things.
+             * It would essentially be equivalent to [0], but would wake up
+             * observers unnessarsarily 
+             * 
              * 
              * SOLUTION
              * As there is no perfect solution, we make the pragmatic 
-             * solution to only support timeout when the following conditions
+             * solution to do approach [1] when the following conditions
              * hold:
              * (i) if ctrl is a clock || ctrl.ctrl is a clock
              * (ii) ctrl.nearby.center has exactly 1 item
@@ -215,6 +217,9 @@ export class Cursor extends CursorBase {
              * 
              * This is presumably likely the most common case for playback, 
              * where precise timing would be of importance
+             * 
+             * In all other cases, we do approach [3], as this is easier than
+             * [2].
              */
             let {
                 value: ctrl_offset, 
