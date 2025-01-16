@@ -2173,159 +2173,199 @@ class Cursor extends CursorBase {
             this._cache.dirty();
             // trigger change event for cursor
             this.eventifyTrigger("change", this.query());
-            /**
-             * Playback support
-             * 
-             * During playback (ctrl signaling dynamic change)
-             * there is a need to detect passing from one segment interval
-             * to the next - ideally at precisely the correct time
-             * 
-             * cache.nearby.itv (derived from src) gives the 
-             * interval where nearby stays constant, and we are 
-             * currently in this interval so the timeout
-             * shold target the momen when we leave this interval.
-             * 
-             * 
-             * Approach [0] 
-             * The trivial solution is to do nothing, in which case
-             * observers will simply find out themselves according to their 
-             * own poll frequency. This is suboptimal, particularly for
-             * low frequency observers. If there is at least one high-
-             * frequency poller, this could trigger the timeout for all
-             * to be notified. The problem though, is if no observers
-             * are polling.
-             * 
-             * 
-             * Approach [1] 
-             * In cases where the ctrl is deterministic, a timeout
-             * can be calculated. This, though, can be more tricky 
-             * than expected. 
-             * 
-             * - a) 
-             * Motion and linear transitions are easy to calculate, 
-             * but with acceleration in motion, or non-linear easing, 
-             * calculations quickly become more complex
-             * 
-             * - b)
-             * These calculations also assume that the ctrl.ctrl 
-             * is not a monotonic clock with velocity 1. In principle,
-             * there could be a recursive chain of ctrl.ctrl.ctrl.clock
-             * of some length, where all controls would have to be
-             * linear transformations, in order to calculate a deterministic
-             * timeout.
-             * 
-             * Approch [2] 
-             * It would also be possible to sampling future values of the
-             * ctrl to see if the values violate the nearby.itv at some point. 
-             * This would essentially be treating ctrl as a layer and sampling 
-             * future values. This approch would work for all types, 
-             * but there is no knowing how far into the future one 
-             * would have to seek
-             * 
-             * Approach [3] 
-             * It would also be possible to detect the event by
-             * repeatedly polling internally. This would ensure timely
-             * detection, even if all observers are low-frequency pollers..
-             * This would essentially be equivalent to [2], only with 
-             * sampling spread out in time. 
-             *   
-             * 
-             * Note also that an incorrect timeout would NOT ruin things.
-             * It would essentially be equivalent to [0], but would wake up
-             * observers unnessarsarily 
-             * 
-             * 
-             * SOLUTION
-             * As there is no perfect solution, we make the pragmatic 
-             * solution to do approach [1] when the following conditions
-             * hold:
-             * (i) if ctrl is a clock || ctrl.ctrl is a clock
-             * (ii) ctrl.nearby.center has exactly 1 item
-             * (iii) ctrl.nearby.center[0].type == "motion"
-             * (iv) ctrl.nearby.center[0].args.velocity != 0.0 
-             * (v) the prospective cache.nearby.itv low or high 
-             *     are not -Infinity or Infinity
-             * 
-             * This is presumably likely the most common case for playback, 
-             * where precise timing would be of importance
-             * 
-             * In all other cases, we do approach [3], as this is easier than
-             * [2].
-             */
-            let {
-                value: ctrl_offset, 
-                dynamic: ctrl_dynamic,
-            } = this.ctrl.query();
-    
-            /**
-             * - no need for playback timeout if there is no playback
-             */
-
-            if (!ctrl_dynamic) {
-                return;
-            }
-
-            /**
-             * - no need for playback timeout if current segment has no boundary
-             * boundary of current segment - low and high
-             */
-            this._cache.refresh(ctrl_offset);
-            const itv = this._cache.nearby.itv;
-            const [low, high] = itv.slice(0,2);
-            if (low == -Infinity && high == Infinity) {
-                return;
-            }
-
-            /**
-             * - no need for playback timeout if ctrl is not deterministic
-             * - must have exactly on segment item - type motion
-             */
-            let ctrl_items = this.ctrl.items();
-            if (ctrl_items.length != 1) {
-                console.log(`warning: ctrl has multiple items ${this.ctrl}`);
-                return;
-            }
-            const ctrl_item = ctrl_items[0];
-
-            /**
-             * option [1] 
-             * - deterministic motion
-             * - TODO - expand to fixed duration transitions
-             * 
-             * calculate the time to ctrl.value first hits low or high
-             * i.e. time to end for current motion or transition
-             */
-            if (ctrl_item.type == "motion") {
-                // calculate the time to ctrl.value first hits low or high
-                const {velocity:v0} = ctrl_item.args;
-                // figur out which boundary we hit first
-                // assuming we are currently between low and high
-                let target_position = (v0 > 0) ? high : low;
-                // no need for timeout if boundary is infinity
-                if (isFinite(target_position)) {
-                    // calculate time until hitting target
-                    const delta_sec = Math.abs(target_position - ctrl_offset)/v0;
-                    console.log("set timeout");
-                    this._tid = setTimeout(this.__handle_timeout.bind(this), delta_sec*1000);
-                    return;
-                }
-
-            }
-
-            /**
-             * option [2] - polling until ctrl.value is no longer witin itv
-             * NOT SUPPORTED
-             * 
-             * option [3] - do nothing
-             */
-
+            // detect future change event - if needed
+            this.__detect_future_change();
         }
+    }
+
+    /**
+     * DETECT FUTURE CHANGE
+     * 
+     * PROBLEM:
+     * 
+     * During playback (cursor.ctrl is dynamic), there is a need to 
+     * detect the passing from one segment interval
+     * to the next - ideally at precisely the correct time
+     * 
+     * nearby.itv (derived from cursor.src) gives the 
+     * interval (i) we are currently in, i.e., 
+     * containing the current offset (value of cursor.ctrl), 
+     * and (ii) where nearby.center stays constant
+     * 
+     * The event that needs to be detected is therefore the
+     * moment when we leave this interval, through either
+     * the low or high interval endpoint
+     * 
+     * GOAL:
+     * 
+     * At this moment, we simply need to reevaluate the state (query) and
+     * emit a change event to notify observers. 
+     * 
+     * APPROACHES:
+     * 
+     * Approach [0] 
+     * The trivial solution is to do nothing, in which case
+     * observers will simply find out themselves according to their 
+     * own poll frequency. This is suboptimal, particularly for low frequency 
+     * observers. If there is at least one high-frequency poller, 
+     * this would trigger trigger the state change, causing all
+     * observers to be notified. The problem though, is if no observers
+     * are actively polling, but only depending on change events.
+     * 
+     * Approach [1] 
+     * In cases where the ctrl is deterministic, a timeout
+     * can be calculated. This is trivial if ctrl is a ClockCursor, and
+     * it is fairly easy if the ctrl is Cursor representing motion
+     * or linear transition. However, calculations can become more
+     * complex if motion supports acceleration, or if transitions
+     * are set up with non-linear easing.
+     *   
+     * Note, however, that these calculations assume that the cursor.ctrl is 
+     * a ClockCursor, or that cursor.ctrl.ctrl is a ClockCursor. 
+     * In principle, though, there could be a recursive chain of cursors,
+     * (cursor.ctrl.ctrl....ctrl) of some length, where only the last is a 
+     * ClockCursor. In order to do deterministic calculations in the general
+     * case, all cursors in the chain would have to be limited to 
+     * deterministic linear transformations.
+     * 
+     * Approch [2] 
+     * It might also be possible to sample future values of 
+     * cursor.ctrl to see if the values violate the nearby.itv at some point. 
+     * This would essentially be treating ctrl as a layer and sampling 
+     * future values. This approch would work for all types, 
+     * but there is no knowing how far into the future one 
+     * would have to seek. However, again - as in [1] the ability to sample future values
+     * is predicated on cursor.ctrl being a ClockCursor. Also, there 
+     * is no way of knowing how long into the future sampling would be necessary.
+     * 
+     * Approach [3] 
+     * In the general case, the only way to reliabley detect the event is through repeated
+     * polling. Approach [3] is simply the idea that this polling is performed
+     * internally by the cursor itself, as a way of securing its own consistent
+     * state, and ensuring that observer get change events in a timely manner, event
+     * if they do low-frequency polling, or do not do polling at all. 
+     * 
+     * SOLUTION:
+     * As there is no perfect solution in the general case, we opportunistically
+     * use approach [1] when this is possible. If not, we are falling back on 
+     * approach [3]
+     * 
+     * CONDITIONS when NO event detection is needed (NOOP)
+     * (i) cursor.ctrl is not dynamic
+     * or
+     * (ii) nearby.itv stretches into infinity in both directions
+     * 
+     * CONDITIONS when approach [1] can be used
+     * 
+     * (i) if ctrl is a ClockCursor && nearby.itv.high < Infinity
+     * or
+     * (ii) ctrl.ctrl is a ClockCursor
+     *      (a) ctrl.nearby.center has exactly 1 item
+     *      &&
+     *      (b) ctrl.nearby.center[0].type == ("motion") || ("transition" && easing=="linear")
+     *      &&
+     *      (c) ctrl.nearby.center[0].args.velocity != 0.0
+     *      && 
+     *      (d) future intersecton point with cache.nearby.itv 
+     *          is not -Infinity or Infinity
+     * 
+     * Though it seems complex, conditions for [1] should be met for common cases involving
+     * playback. Also, use of transition etc might be rare.
+     * 
+     */
+
+    __detect_future_change() {
+
+        // ctrl 
+        const ctrl_vector = this.ctrl.query();
+        const {value:current_pos} = ctrl_vector;
+
+        // nearby.center - low and high
+        this.cache.refresh(ctrl_vector.value);
+        const src_nearby = this.cache.nearby;
+        const [low, high] = src_nearby.itv.slice(0,2);
+
+        // ctrl must be dynamic
+        if (!ctrl_vector.dynamic) {
+            return;
+        }
+
+        // approach [1]
+        if (this.ctrl instanceof ClockCursor) {
+            if (isFinite(high)) {
+                this.__set_timeout(high, current_pos, 1.0);
+            }
+            return;
+        } 
+        
+        if (this.ctrl instanceof Cursor && this.ctrl.ctrl instanceof ClockCursor) {
+            const ctrl_nearby = this.ctrl.cache.nearby;
+
+            if (!isFinite(low) && !isFinite(high)) {
+                return;
+            }
+            if (ctrl_nearby.center.length == 1) {
+                const ctrl_item = ctrl_nearby.center[0];
+                if (ctrl_item.type == "motion") {
+                    const {velocity, acceleration=0.0} = ctrl_item.args;
+                    if (acceleration == 0.0) {
+                        // figure out which boundary we hit first
+                        let target_pos = (velocity > 0) ? high : low;
+                        if (isFinite(target_pos)) {
+                            this.__set_timeout(target_pos, current_pos, velocity);
+                            return;                           
+                        } else {
+                            // no need for timeout
+                            return;
+                        }
+                    }
+                } else if (ctrl_item.type == "transition") {
+                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.args;
+                    if (easing == "linear") {
+                        // linear transtion
+                        let velocity = (p1-p0)/(t1-t0);
+                        // figure out which boundary we hit first
+                        const target_pos = (velocity > 0) ? Math.min(high, p1) : Math.max(low, p1);
+                        this.__set_timeout(target_pos, current_pos, velocity);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // approach [3]
+        this.__set_polling();
+    }
+
+    __set_timeout(target_pos, current_pos, velocity) {
+        console.log("set timeout");
+        const delta_sec = (target_pos - current_pos)/velocity;
+        this._tid = setTimeout(() => {
+            this.__handle_timeout();
+        }, delta_sec*1000);
     }
 
     __handle_timeout() {
         // trigger change event for cursor
         console.log("timeout");
-        this.eventifyTrigger("change");
+        this.eventifyTrigger("change", this.query());
+    }
+
+    __set_polling() {
+        console.log("set polling");
+        this._tid = setInterval(() => {
+            this.__handle_poll();
+        }, 100);
+    }
+
+    __handle_poll() {
+        console.log("poll");
+        let {value:offset} = this.ctrl.query();
+        let refreshed = this.cache.refresh(offset);
+        if(refreshed) {
+            clearInterval(this._tid);
+            this.eventifyTrigger("change", this.query());
+        }
     }
 
 
@@ -2342,17 +2382,14 @@ class Cursor extends CursorBase {
         /**
          * TODO - if query causes a cache miss, we should generate an
          * event to let consumers know cursor state has changed.
+         * 
+         * TODO 2 - 
          */
         return this._cache.query(offset);
     }
 
     get value () {return this.query().value};
-
-    state () {
-        // nearby.center represents the state of the cursor
-        // the ensure that the cache is not stale - run a query first
-        return this._cache.nearby.center;
-    }
+    get cache () {return this._cache};
 
     /**********************************************************
      * UPDATE API
