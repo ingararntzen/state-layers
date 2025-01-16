@@ -2118,6 +2118,8 @@ class Cursor extends CursorBase {
         this._cache = new NearbyCache(this._index);
         // timeout
         this._tid;
+        // polling
+        this._pid;
 
         let {src, ctrl, ...opts} = options;
 
@@ -2144,7 +2146,7 @@ class Cursor extends CursorBase {
         }
     }
     __ctrl_handle_change() {
-        this.__handle_change();
+        this.__handle_change("ctrl");
     }
 
     /**********************************************************
@@ -2157,20 +2159,29 @@ class Cursor extends CursorBase {
         }
     }    
     __src_handle_change() {
-        this.__handle_change();
+        this.__handle_change("src");
     }
 
     /**********************************************************
      * CALLBACK
      **********************************************************/
 
-    __handle_change() {
-        // clean up old timeout
+    __handle_change(origin) {
+        console.log("handle change", origin);
         clearTimeout(this._tid);
-
+        clearInterval(this._pid);
         if (this.src && this.ctrl) {
-            this._index.update(this.src.items);
-            this._cache.dirty();
+            if (origin == "src") {
+                this._index.update(this.src.items);
+            }
+            if (origin == "src" || origin == "ctrl") {
+                this._cache.dirty();
+                let {value:offset} = this.ctrl.query();
+                if (typeof offset !== 'number') {
+                    throw new Error(`warning: ctrl state must be number ${offset}`);
+                }        
+                this._cache.refresh(offset); 
+            }
             // trigger change event for cursor
             this.eventifyTrigger("change", this.query());
             // detect future change event - if needed
@@ -2353,19 +2364,14 @@ class Cursor extends CursorBase {
 
     __set_polling() {
         console.log("set polling");
-        this._tid = setInterval(() => {
+        this._pid = setInterval(() => {
             this.__handle_poll();
         }, 100);
     }
 
     __handle_poll() {
         console.log("poll");
-        let {value:offset} = this.ctrl.query();
-        let refreshed = this.cache.refresh(offset);
-        if(refreshed) {
-            clearInterval(this._tid);
-            this.eventifyTrigger("change", this.query());
-        }
+        this.query();
     }
 
 
@@ -2373,18 +2379,16 @@ class Cursor extends CursorBase {
     /**********************************************************
      * QUERY API
      **********************************************************/
-    
+
     query () {
         let {value:offset} = this.ctrl.query();
         if (typeof offset !== 'number') {
             throw new Error(`warning: ctrl state must be number ${offset}`);
         }
-        /**
-         * TODO - if query causes a cache miss, we should generate an
-         * event to let consumers know cursor state has changed.
-         * 
-         * TODO 2 - 
-         */
+        let refreshed = this._cache.refresh(offset);
+        if (refreshed) {
+            this.__handle_change("query");
+        }
         return this._cache.query(offset);
     }
 
