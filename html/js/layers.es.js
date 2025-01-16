@@ -879,6 +879,9 @@ class LayerBase {
 
     constructor() {
         callback.addToInstance(this);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
     }
 
     /**********************************************************
@@ -890,6 +893,7 @@ class LayerBase {
     }
 }
 callback.addToPrototype(LayerBase.prototype);
+eventify.addToPrototype(LayerBase.prototype);
 
 
 /************************************************
@@ -1103,6 +1107,69 @@ function interval_from_endpoints(p1, p2) {
     return [v1, v2, (s1==0), (s2==0)]
 }
 
+function isNumber(n) {
+    return typeof n == "number";
+}
+
+function interval_from_input(input){
+    let itv = input;
+    if (itv == undefined) {
+        throw new Error("input is undefined");
+    }
+    if (!Array.isArray(itv)) {
+        if (isNumber(itv)) {
+            // input is singular number
+            itv = [itv, itv, true, true];
+        } else {
+            throw new Error(`input: ${input}: must be Array or Number`)
+        }
+    }    // make sure interval is length 4
+    if (itv.length == 1) {
+        itv = [itv[0], itv[0], true, true];
+    } else if (itv.length == 2) {
+        itv = itv.concat([true, false]);
+    } else if (itv.length == 3) {
+        itv = itv.push(false);
+    } else if (itv.length > 4) {
+        itv = itv.slice(0,4);
+    }
+    let [low, high, lowInclude, highInclude] = itv;
+    // undefined
+    if (low == undefined || low == null) {
+        low = -Infinity;
+    }
+    if (high == undefined || high == null) {
+        high = Infinity;
+    }
+    // check that low and high are numbers
+    if (!isNumber(low)) throw new Error("low not a number", low);
+    if (!isNumber(high)) throw new Error("high not a number", high);
+    // check that low <= high
+    if (low > high) throw new Error("low > high", low, high);
+    // singleton
+    if (low == high) {
+        lowInclude = true;
+        highInclude = true;
+    }
+    // check infinity values
+    if (low == -Infinity) {
+        lowInclude = true;
+    }
+    if (high == Infinity) {
+        highInclude = true;
+    }
+    // check that lowInclude, highInclude are booleans
+    if (typeof lowInclude !== "boolean") {
+        throw new Error("lowInclude not boolean");
+    } 
+    if (typeof highInclude !== "boolean") {
+        throw new Error("highInclude not boolean");
+    }
+    return [low, high, lowInclude, highInclude];
+}
+
+
+
 
 const endpoint = {
     le: endpoint_le,
@@ -1120,7 +1187,8 @@ const interval = {
     covers_endpoint: interval_covers_endpoint,
     covers_point: interval_covers_point, 
     is_singular: interval_is_singular,
-    from_endpoints: interval_from_endpoints
+    from_endpoints: interval_from_endpoints,
+    from_input: interval_from_input
 };
 
 /***************************************************************
@@ -1190,10 +1258,7 @@ const METHODS = {assign, move, transition, interpolate: interpolate$1};
 
 
 function cmd (target) {
-    if (!(target instanceof CursorBase)) {
-        throw new Error(`target must be cursor ${target}`);
-    }
-    if (!(target.src instanceof StateProviderBase)) {
+    if (!(target instanceof StateProviderBase)) {
         throw new Error(`target.src must be stateprovider ${target}`);
     }
     let entries = Object.entries(METHODS)
@@ -1201,15 +1266,15 @@ function cmd (target) {
             return [
                 name,
                 function(...args) { 
-                    let items = method.call(this, target, ...args);
-                    return target.src.update(items);  
+                    let items = method.call(this, ...args);
+                    return target.update(items);  
                 }
             ]
         });
     return Object.fromEntries(entries);
 }
 
-function assign(target, value) {
+function assign(value) {
     if (value == undefined) {
         return [];
     } else {
@@ -1222,18 +1287,16 @@ function assign(target, value) {
     }
 }
 
-function move(target, vector={}) {
-    let {value, rate, offset} = target.query();
-    let {position=value, velocity=rate} = vector;
+function move(vector) {
     let item = {
         itv: [-Infinity, Infinity, true, true],
         type: "motion",
-        args: {position, velocity, timestamp:offset}                 
+        args: vector  
     };
     return [item];
 }
 
-function transition(target, v0, v1, t0, t1, easing) {
+function transition(v0, v1, t0, t1, easing) {
     let items = [
         {
             itv: [-Infinity, t0, true, false],
@@ -1254,7 +1317,7 @@ function transition(target, v0, v1, t0, t1, easing) {
     return items;
 }
 
-function interpolate$1(target, tuples) {
+function interpolate$1(tuples) {
     let [v0, t0] = tuples[0];
     let [v1, t1] = tuples[tuples.length-1];
 
@@ -2039,6 +2102,103 @@ function find_index(target, arr, value_func) {
 }
 
 /************************************************
+ * LAYER
+ ************************************************/
+
+/**
+ * 
+ * Layer
+ * - has mutable state provider (src) (default state undefined)
+ * - methods for list and sample
+ * 
+ */
+
+
+class Layer extends LayerBase {
+
+    constructor (options={}) {
+        super();
+
+        // src
+        source.addToInstance(this, "src");
+        // index
+        this._index = new SimpleNearbyIndex();
+        // cache
+        this._cache = new NearbyCache(this._index);
+
+        // initialise with stateprovider
+        let {src, ...opts} = options;
+        if (src == undefined) {
+            src = new SimpleStateProvider(opts);
+        }
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error("src must be StateproviderBase")
+        }
+        this.src = src;
+    }
+
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
+
+    __src_check(src) {
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error(`"src" must be state provider ${source}`);
+        }
+    }    
+    __src_handle_change() {
+        this._index.update(this.src.items);
+        this._cache.dirty();
+        this.notify_callbacks();
+        // trigger change event for cursor
+        this.eventifyTrigger("change");   
+    }
+
+    /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    get cache () {return this._cache};
+    get index () {return this._index};
+    
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        return this._cache.query(offset);
+    }
+
+    list (options) {
+        return this._index.list(options);
+    }
+
+    sample (options) {
+        return this._index.sample(options);
+    }
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
+
+    // TODO - add methods for update?
+
+}
+source.addToPrototype(Layer.prototype, "src", {mutable:true});
+
+
+function fromArray (array) {
+    const items = array.map((obj, index) => {
+        return { 
+            itv: [index, index+1, true, false], 
+            type: "static", 
+            args: {value:obj}};
+    });
+    return new Layer({items});
+}
+
+Layer.fromArray = fromArray;
+
+/************************************************
  * CLOCKS
  ************************************************/
 
@@ -2113,14 +2273,14 @@ class Cursor extends CursorBase {
         // src
         source.addToInstance(this, "src");
         // index
-        this._index = new SimpleNearbyIndex();
+        this._index;
         // cache
-        this._cache = new NearbyCache(this._index);
+        this._cache;
         // timeout
         this._tid;
         // polling
         this._pid;
-
+        // options
         let {src, ctrl, ...opts} = options;
 
         // initialise ctrl
@@ -2131,7 +2291,7 @@ class Cursor extends CursorBase {
 
         // initialise state
         if (src == undefined) {
-            src = new SimpleStateProvider(opts);
+            src = new Layer(opts);
         }
         this.src = src;
     }
@@ -2154,8 +2314,8 @@ class Cursor extends CursorBase {
      **********************************************************/
 
     __src_check(src) {
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${source}`);
+        if (!(src instanceof LayerBase)) {
+            throw new Error(`"src" must be Layer ${src}`);
         }
     }    
     __src_handle_change() {
@@ -2167,14 +2327,18 @@ class Cursor extends CursorBase {
      **********************************************************/
 
     __handle_change(origin) {
-        console.log("handle change", origin);
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {
             if (origin == "src") {
-                this._index.update(this.src.items);
+                // reset cursor index to layer index
+                if (this._index != this.src.index) {
+                    this._index = this.src.index;
+                    this._cache = new NearbyCache(this._index);
+                }
             }
             if (origin == "src" || origin == "ctrl") {
+                // refresh cache
                 this._cache.dirty();
                 let {value:offset} = this.ctrl.query();
                 if (typeof offset !== 'number') {
@@ -2182,6 +2346,7 @@ class Cursor extends CursorBase {
                 }        
                 this._cache.refresh(offset); 
             }
+            this.notify_callbacks();
             // trigger change event for cursor
             this.eventifyTrigger("change", this.query());
             // detect future change event - if needed
@@ -2308,8 +2473,10 @@ class Cursor extends CursorBase {
             }
             return;
         } 
-        
-        if (this.ctrl instanceof Cursor && this.ctrl.ctrl instanceof ClockCursor) {
+        if (
+            this.ctrl instanceof Cursor && 
+            this.ctrl.ctrl instanceof ClockCursor
+        ) {
             const ctrl_nearby = this.ctrl.cache.nearby;
 
             if (!isFinite(low) && !isFinite(high)) {
@@ -2349,7 +2516,6 @@ class Cursor extends CursorBase {
     }
 
     __set_timeout(target_pos, current_pos, velocity) {
-        console.log("set timeout");
         const delta_sec = (target_pos - current_pos)/velocity;
         this._tid = setTimeout(() => {
             this.__handle_timeout();
@@ -2358,19 +2524,16 @@ class Cursor extends CursorBase {
 
     __handle_timeout() {
         // trigger change event for cursor
-        console.log("timeout");
         this.eventifyTrigger("change", this.query());
     }
 
     __set_polling() {
-        console.log("set polling");
         this._pid = setInterval(() => {
             this.__handle_poll();
         }, 100);
     }
 
     __handle_poll() {
-        console.log("poll");
         this.query();
     }
 
@@ -2394,29 +2557,30 @@ class Cursor extends CursorBase {
 
     get value () {return this.query().value};
     get cache () {return this._cache};
+    get index () {return this._index};
 
     /**********************************************************
      * UPDATE API
      **********************************************************/
 
     assign(value) {
-        return cmd(this).assign(value);
+        return cmd(this.src.src).assign(value);
     }
     move ({position, velocity}) {
-        let {value, rate, offset:timestamp} = this.query();
+        let {value, offset:timestamp} = this.query();
         if (typeof value !== 'number') {
             throw new Error(`warning: cursor state must be number ${value}`);
         }
         position = (position != undefined) ? position : value;
         velocity = (velocity != undefined) ? velocity: rate;
-        return cmd(this).move({position, velocity, timestamp});
+        return cmd(this.src.src).move({position, velocity, timestamp});
     }
     transition ({target, duration, easing}) {
         let {value:v0, offset:t0} = this.query();
         if (typeof v0 !== 'number') {
             throw new Error(`warning: cursor state must be number ${v0}`);
         }
-        return cmd(this).transition(v0, target, t0, t0 + duration, easing);
+        return cmd(this.src.src).transition(v0, target, t0, t0 + duration, easing);
     }
     interpolate ({tuples, duration}) {
         let t0 = this.query().offset;
@@ -2425,91 +2589,11 @@ class Cursor extends CursorBase {
         tuples = tuples.map(([v,t]) => {
             return [v, t0 + t*duration];
         });
-        return cmd(this).interpolate(tuples);
+        return cmd(this.src.src).interpolate(tuples);
     }
 
 }
 source.addToPrototype(Cursor.prototype, "src", {mutable:true});
 source.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
-
-/************************************************
- * LAYER
- ************************************************/
-
-/**
- * 
- * Layer
- * - has mutable state provider (src) (default state undefined)
- * - methods for list and sample
- * 
- */
-
-
-class Layer extends LayerBase {
-
-    constructor (options={}) {
-        super();
-
-        // src
-        source.addToInstance(this, "src");
-        // index
-        this._index = new SimpleNearbyIndex();
-        // cache
-        this._cache = new NearbyCache(this._index);
-
-        // initialise with stateprovider
-        let {src, ...opts} = options;
-        if (src == undefined) {
-            src = new SimpleStateProvider(opts);
-        }
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error("src must be StateproviderBase")
-        }
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRC (stateprovider)
-     **********************************************************/
-
-    __src_check(src) {
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${source}`);
-        }
-    }    
-    __src_handle_change() {
-        this._index.update(this.src.items);
-        this._cache.dirty();
-        // trigger change event for cursor
-        this.eventifyTrigger("change", this.query());   
-    }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
-
-    list (options) {
-        return this._index.list(options);
-    }
-
-    sample (options) {
-        return this._index.sample(options);
-    }
-
-    /**********************************************************
-     * UPDATE API
-     **********************************************************/
-
-    // TODO - add methods for update?
-
-}
-source.addToPrototype(Layer.prototype, "src", {mutable:true});
 
 export { Cursor, Layer, cmd };

@@ -1,13 +1,10 @@
 
-import { StateProviderBase, CursorBase } from "./bases";
+import { StateProviderBase} from "./bases";
 const METHODS = {assign, move, transition, interpolate};
 
 
 export function cmd (target) {
-    if (!(target instanceof CursorBase)) {
-        throw new Error(`target must be cursor ${target}`);
-    }
-    if (!(target.src instanceof StateProviderBase)) {
+    if (!(target instanceof StateProviderBase)) {
         throw new Error(`target.src must be stateprovider ${target}`);
     }
     let entries = Object.entries(METHODS)
@@ -15,15 +12,15 @@ export function cmd (target) {
             return [
                 name,
                 function(...args) { 
-                    let items = method.call(this, target, ...args);
-                    return target.src.update(items);  
+                    let items = method.call(this, ...args);
+                    return target.update(items);  
                 }
             ]
         });
     return Object.fromEntries(entries);
 }
 
-function assign(target, value) {
+function assign(value) {
     if (value == undefined) {
         return [];
     } else {
@@ -36,18 +33,16 @@ function assign(target, value) {
     }
 }
 
-function move(target, vector={}) {
-    let {value, rate, offset} = target.query();
-    let {position=value, velocity=rate} = vector;
+function move(vector) {
     let item = {
         itv: [-Infinity, Infinity, true, true],
         type: "motion",
-        args: {position, velocity, timestamp:offset}                 
+        args: vector  
     }
     return [item];
 }
 
-function transition(target, v0, v1, t0, t1, easing) {
+function transition(v0, v1, t0, t1, easing) {
     let items = [
         {
             itv: [-Infinity, t0, true, false],
@@ -68,7 +63,7 @@ function transition(target, v0, v1, t0, t1, easing) {
     return items;
 }
 
-function interpolate(target, tuples) {
+function interpolate(tuples) {
     let [v0, t0] = tuples[0];
     let [v1, t1] = tuples[tuples.length-1];
 

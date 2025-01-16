@@ -159,6 +159,70 @@ function interval_from_endpoints(p1, p2) {
     return [v1, v2, (s1==0), (s2==0)]
 }
 
+function isNumber(n) {
+    return typeof n == "number";
+}
+
+export function interval_from_input(input){
+    let itv = input;
+    if (itv == undefined) {
+        throw new Error("input is undefined");
+    }
+    if (!Array.isArray(itv)) {
+        if (isNumber(itv)) {
+            // input is singular number
+            itv = [itv, itv, true, true];
+        } else {
+            throw new Error(`input: ${input}: must be Array or Number`)
+        }
+    };
+    // make sure interval is length 4
+    if (itv.length == 1) {
+        itv = [itv[0], itv[0], true, true]
+    } else if (itv.length == 2) {
+        itv = itv.concat([true, false]);
+    } else if (itv.length == 3) {
+        itv = itv.push(false);
+    } else if (itv.length > 4) {
+        itv = itv.slice(0,4);
+    }
+    let [low, high, lowInclude, highInclude] = itv;
+    // undefined
+    if (low == undefined || low == null) {
+        low = -Infinity;
+    }
+    if (high == undefined || high == null) {
+        high = Infinity;
+    }
+    // check that low and high are numbers
+    if (!isNumber(low)) throw new Error("low not a number", low);
+    if (!isNumber(high)) throw new Error("high not a number", high);
+    // check that low <= high
+    if (low > high) throw new Error("low > high", low, high);
+    // singleton
+    if (low == high) {
+        lowInclude = true;
+        highInclude = true;
+    }
+    // check infinity values
+    if (low == -Infinity) {
+        lowInclude = true;
+    }
+    if (high == Infinity) {
+        highInclude = true;
+    }
+    // check that lowInclude, highInclude are booleans
+    if (typeof lowInclude !== "boolean") {
+        throw new Error("lowInclude not boolean");
+    } 
+    if (typeof highInclude !== "boolean") {
+        throw new Error("highInclude not boolean");
+    }
+    return [low, high, lowInclude, highInclude];
+}
+
+
+
 
 export const endpoint = {
     le: endpoint_le,
@@ -176,5 +240,6 @@ export const interval = {
     covers_endpoint: interval_covers_endpoint,
     covers_point: interval_covers_point, 
     is_singular: interval_is_singular,
-    from_endpoints: interval_from_endpoints
+    from_endpoints: interval_from_endpoints,
+    from_input: interval_from_input
 }

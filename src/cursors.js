@@ -1,11 +1,12 @@
 
 
-import { StateProviderBase, CursorBase } from "./bases.js";
+import { StateProviderBase, CursorBase, LayerBase } from "./bases.js";
 import { source } from "./util.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
 import { cmd } from "./cmd.js";
 import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
+import { Layer } from "./layers.js";
 
 /************************************************
  * CLOCKS
@@ -82,14 +83,14 @@ export class Cursor extends CursorBase {
         // src
         source.addToInstance(this, "src");
         // index
-        this._index = new SimpleNearbyIndex();
+        this._index;
         // cache
-        this._cache = new NearbyCache(this._index);
+        this._cache;
         // timeout
         this._tid;
         // polling
         this._pid;
-
+        // options
         let {src, ctrl, ...opts} = options;
 
         // initialise ctrl
@@ -100,7 +101,7 @@ export class Cursor extends CursorBase {
 
         // initialise state
         if (src == undefined) {
-            src = new SimpleStateProvider(opts);
+            src = new Layer(opts);
         }
         this.src = src
     }
@@ -123,8 +124,8 @@ export class Cursor extends CursorBase {
      **********************************************************/
 
     __src_check(src) {
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${source}`);
+        if (!(src instanceof LayerBase)) {
+            throw new Error(`"src" must be Layer ${src}`);
         }
     }    
     __src_handle_change() {
@@ -136,14 +137,18 @@ export class Cursor extends CursorBase {
      **********************************************************/
 
     __handle_change(origin) {
-        console.log("handle change", origin);
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {
             if (origin == "src") {
-                this._index.update(this.src.items);
+                // reset cursor index to layer index
+                if (this._index != this.src.index) {
+                    this._index = this.src.index;
+                    this._cache = new NearbyCache(this._index);
+                }
             }
             if (origin == "src" || origin == "ctrl") {
+                // refresh cache
                 this._cache.dirty();
                 let {value:offset} = this.ctrl.query();
                 if (typeof offset !== 'number') {
@@ -151,6 +156,7 @@ export class Cursor extends CursorBase {
                 }        
                 this._cache.refresh(offset); 
             }
+            this.notify_callbacks();
             // trigger change event for cursor
             this.eventifyTrigger("change", this.query());
             // detect future change event - if needed
@@ -277,8 +283,10 @@ export class Cursor extends CursorBase {
             }
             return;
         } 
-        
-        if (this.ctrl instanceof Cursor && this.ctrl.ctrl instanceof ClockCursor) {
+        if (
+            this.ctrl instanceof Cursor && 
+            this.ctrl.ctrl instanceof ClockCursor
+        ) {
             const ctrl_nearby = this.ctrl.cache.nearby;
 
             if (!isFinite(low) && !isFinite(high)) {
@@ -318,7 +326,6 @@ export class Cursor extends CursorBase {
     }
 
     __set_timeout(target_pos, current_pos, velocity) {
-        console.log("set timeout")
         const delta_sec = (target_pos - current_pos)/velocity;
         this._tid = setTimeout(() => {
             this.__handle_timeout()
@@ -327,19 +334,16 @@ export class Cursor extends CursorBase {
 
     __handle_timeout() {
         // trigger change event for cursor
-        console.log("timeout");
         this.eventifyTrigger("change", this.query());
     }
 
     __set_polling() {
-        console.log("set polling")
         this._pid = setInterval(() => {
             this.__handle_poll();
         }, 100);
     }
 
     __handle_poll() {
-        console.log("poll")
         this.query();
     }
 
@@ -363,29 +367,30 @@ export class Cursor extends CursorBase {
 
     get value () {return this.query().value};
     get cache () {return this._cache};
+    get index () {return this._index};
 
     /**********************************************************
      * UPDATE API
      **********************************************************/
 
     assign(value) {
-        return cmd(this).assign(value);
+        return cmd(this.src.src).assign(value);
     }
     move ({position, velocity}) {
-        let {value, rate, offset:timestamp} = this.query();
+        let {value, offset:timestamp} = this.query();
         if (typeof value !== 'number') {
             throw new Error(`warning: cursor state must be number ${value}`);
         }
         position = (position != undefined) ? position : value;
         velocity = (velocity != undefined) ? velocity: rate;
-        return cmd(this).move({position, velocity, timestamp});
+        return cmd(this.src.src).move({position, velocity, timestamp});
     }
     transition ({target, duration, easing}) {
         let {value:v0, offset:t0} = this.query();
         if (typeof v0 !== 'number') {
             throw new Error(`warning: cursor state must be number ${v0}`);
         }
-        return cmd(this).transition(v0, target, t0, t0 + duration, easing);
+        return cmd(this.src.src).transition(v0, target, t0, t0 + duration, easing);
     }
     interpolate ({tuples, duration}) {
         let t0 = this.query().offset;
@@ -394,7 +399,7 @@ export class Cursor extends CursorBase {
         tuples = tuples.map(([v,t]) => {
             return [v, t0 + t*duration];
         })
-        return cmd(this).interpolate(tuples);
+        return cmd(this.src.src).interpolate(tuples);
     }
 
 }

@@ -61,6 +61,9 @@ export class LayerBase {
 
     constructor() {
         callback.addToInstance(this);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
     }
 
     /**********************************************************
@@ -72,6 +75,7 @@ export class LayerBase {
     }
 }
 callback.addToPrototype(LayerBase.prototype);
+eventify.addToPrototype(LayerBase.prototype);
 
 
 /************************************************

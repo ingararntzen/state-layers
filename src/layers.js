@@ -4,6 +4,7 @@ import { source } from "./util.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
 import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
+import { interval } from "./intervals.js";
 
 /************************************************
  * LAYER
@@ -53,14 +54,18 @@ export class Layer extends LayerBase {
     __src_handle_change() {
         this._index.update(this.src.items);
         this._cache.dirty();
+        this.notify_callbacks();
         // trigger change event for cursor
-        this.eventifyTrigger("change", this.query());   
+        this.eventifyTrigger("change");   
     }
 
     /**********************************************************
      * QUERY API
      **********************************************************/
 
+    get cache () {return this._cache};
+    get index () {return this._index};
+    
     query(offset) {
         if (offset == undefined) {
             throw new Error("Layer: query offset can not be undefined");
@@ -84,3 +89,16 @@ export class Layer extends LayerBase {
 
 }
 source.addToPrototype(Layer.prototype, "src", {mutable:true});
+
+
+function fromArray (array) {
+    const items = array.map((obj, index) => {
+        return { 
+            itv: [index, index+1, true, false], 
+            type: "static", 
+            args: {value:obj}};
+    });
+    return new Layer({items});
+}
+
+Layer.fromArray = fromArray;

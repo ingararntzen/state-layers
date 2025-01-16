@@ -17,23 +17,29 @@
           return Math.floor(Math.random() * max);
         }
 
-        import { Cursor, cmd } from './js/layers.es.js';
+        import { Cursor, Layer, cmd } from './js/layers.es.js';
 
-        let v = new Cursor({value:0});
 
-        v.bind(render_html("#value", ({value}) => `${value}`), 200);
+        const colors = Layer.fromArray([
+            "red", "blue", "green", "yellow", "orange", "#4B0082", "violet"
+        ]);
+        const offset = new Cursor({value:0});
+        const color = new Cursor({src:colors, ctrl:offset});
+
+        offset.bind(render_html("#offset", ({value}) => `${value}`), 200);
+        color.bind(render_html("#color", ({value}) => `${value}`), 200);
 
         document.querySelector("#valueBtn").onclick = () => {
-            v.assign(getRandomInt(10))
+            offset.assign(getRandomInt(10))
         }
         document.querySelector("#playBtn").onclick = () => {
-            v.move({velocity:1});
+            offset.move({velocity:1});
         }
         document.querySelector("#pauseBtn").onclick = () => {
-            v.move({velocity:0});
+            offset.move({velocity:0});
         }
         document.querySelector("#transBtn").onclick = () => {
-            v.transition({target:4, duration:4});
+            offset.transition({target:4, duration:4});
         }
         document.querySelector("#interpolateBtn").onclick = () => {
             const tuples = [
@@ -44,8 +50,10 @@
                 [4.7, 0.8],
                 [4.2, 1.0]
             ];
-            v.interpolate({tuples, duration:4});
+            offset.interpolate({tuples, duration:4});
         }
+
+
 
 
 
@@ -64,8 +72,12 @@
         <button id="interpolateBtn">Interpolate</button>
     </p>
     <p>
-        <div id="value"></div>
+        <div id="offset"></div>
     </p>
+    <p>
+        <div id="color"></div>
+    </p>
+    
 
 </body>
 </html>
