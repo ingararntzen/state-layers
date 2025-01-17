@@ -459,7 +459,7 @@ const source = function () {
                 if (this[p.change]) {
                     const handler = this[p.change].bind(this);
                     this[p.handle] = source.add_callback(handler);
-                    handler(); 
+                    handler("reset"); 
                 }
             } else {
                 throw new Error(`${propName} can not be reassigned`);
@@ -2248,8 +2248,14 @@ class ClockCursor extends CursorBase {
         // TODO - check restrictions on Layer specific to
         // ClockCursor - must be a single motion segment
     }    
-    __src_handle_change() {
-        this.notify_callbacks();
+    __src_handle_change(reason) {
+        // ClockCursors never change - by definition
+        // so we ignore changes in state,
+        // but we do not ignore switching between clocks,
+        // signalled through the reason flag.
+        if (reason == "reset") {
+            this.notify_callbacks();
+        }
     }
 
     query () {
@@ -2320,8 +2326,8 @@ class Cursor extends CursorBase {
             throw new Error(`"ctrl" must be cursor ${ctrl}`)
         }
     }
-    __ctrl_handle_change() {
-        this.__handle_change("ctrl");
+    __ctrl_handle_change(reason) {
+        this.__handle_change("ctrl", reason);
     }
 
     /**********************************************************
@@ -2333,15 +2339,15 @@ class Cursor extends CursorBase {
             throw new Error(`"src" must be Layer ${src}`);
         }
     }    
-    __src_handle_change() {
-        this.__handle_change("src");
+    __src_handle_change(reason) {
+        this.__handle_change("src", reason);
     }
 
     /**********************************************************
      * CALLBACK
      **********************************************************/
 
-    __handle_change(origin) {
+    __handle_change(origin, reason) {
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {

@@ -140,7 +140,7 @@ export const source = function () {
                 if (this[p.change]) {
                     const handler = this[p.change].bind(this);
                     this[p.handle] = source.add_callback(handler);
-                    handler(); 
+                    handler("reset"); 
                 }
             } else {
                 throw new Error(`${propName} can not be reassigned`);
