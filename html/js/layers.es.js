@@ -946,6 +946,93 @@ class CursorBase {
 callback.addToPrototype(CursorBase.prototype);
 eventify.addToPrototype(CursorBase.prototype);
 
+const METHODS = {assign, move, transition, interpolate: interpolate$1};
+
+
+function cmd (target) {
+    if (!(target instanceof StateProviderBase)) {
+        throw new Error(`target.src must be stateprovider ${target}`);
+    }
+    let entries = Object.entries(METHODS)
+        .map(([name, method]) => {
+            return [
+                name,
+                function(...args) { 
+                    let items = method.call(this, ...args);
+                    return target.update(items);  
+                }
+            ]
+        });
+    return Object.fromEntries(entries);
+}
+
+function assign(value) {
+    if (value == undefined) {
+        return [];
+    } else {
+        let item = {
+            itv: [-Infinity, Infinity, true, true],
+            type: "static",
+            args: {value}                 
+        };
+        return [item];
+    }
+}
+
+function move(vector) {
+    let item = {
+        itv: [-Infinity, Infinity, true, true],
+        type: "motion",
+        args: vector  
+    };
+    return [item];
+}
+
+function transition(v0, v1, t0, t1, easing) {
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "transition",
+            args: {v0, v1, t0, t1, easing}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];
+    return items;
+}
+
+function interpolate$1(tuples) {
+    let [v0, t0] = tuples[0];
+    let [v1, t1] = tuples[tuples.length-1];
+
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "interpolation",
+            args: {tuples}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];    
+    return items;
+}
+
 /*
     
     INTERVAL ENDPOINTS
@@ -1190,156 +1277,6 @@ const interval = {
     from_endpoints: interval_from_endpoints,
     from_input: interval_from_input
 };
-
-/***************************************************************
-    SIMPLE STATE PROVIDER (LOCAL)
-***************************************************************/
-
-/**
- * Local Array with non-overlapping items.
- */
-
-class SimpleStateProvider extends StateProviderBase {
-
-    constructor(options={}) {
-        super();
-        // initialization
-        let {items, value} = options;
-        if (items != undefined) {
-            this._items = check_input$1(items);
-        } else if (value != undefined) {
-            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
-        } else {
-            this._items = [];
-        }
-    }
-
-    update (items) {
-        return Promise.resolve()
-            .then(() => {
-                this._items = check_input$1(items);
-                this.notify_callbacks();
-            });
-    }
-
-    get items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {dynamic: true, overlapping: false, local:true};
-    }
-}
-
-
-function check_input$1(items) {
-    if (!Array.isArray(items)) {
-        throw new Error("Input must be an array");
-    }
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
-    }
-    return items;
-}
-
-const METHODS = {assign, move, transition, interpolate: interpolate$1};
-
-
-function cmd (target) {
-    if (!(target instanceof StateProviderBase)) {
-        throw new Error(`target.src must be stateprovider ${target}`);
-    }
-    let entries = Object.entries(METHODS)
-        .map(([name, method]) => {
-            return [
-                name,
-                function(...args) { 
-                    let items = method.call(this, ...args);
-                    return target.update(items);  
-                }
-            ]
-        });
-    return Object.fromEntries(entries);
-}
-
-function assign(value) {
-    if (value == undefined) {
-        return [];
-    } else {
-        let item = {
-            itv: [-Infinity, Infinity, true, true],
-            type: "static",
-            args: {value}                 
-        };
-        return [item];
-    }
-}
-
-function move(vector) {
-    let item = {
-        itv: [-Infinity, Infinity, true, true],
-        type: "motion",
-        args: vector  
-    };
-    return [item];
-}
-
-function transition(v0, v1, t0, t1, easing) {
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            args: {value:v0}
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "transition",
-            args: {v0, v1, t0, t1, easing}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            args: {value: v1}
-        }
-    ];
-    return items;
-}
-
-function interpolate$1(tuples) {
-    let [v0, t0] = tuples[0];
-    let [v1, t1] = tuples[tuples.length-1];
-
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            args: {value:v0}
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "interpolation",
-            args: {tuples}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            args: {value: v1}
-        }
-    ];    
-    return items;
-}
 
 /********************************************************************
 BASE SEGMENT
@@ -1700,6 +1637,69 @@ function load_segment(nearby) {
     if (center.length > 1) {
         throw new Error("ListSegments not yet supported");
     }
+}
+
+/***************************************************************
+    SIMPLE STATE PROVIDER (LOCAL)
+***************************************************************/
+
+/**
+ * Local Array with non-overlapping items.
+ */
+
+class SimpleStateProvider extends StateProviderBase {
+
+    constructor(options={}) {
+        super();
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            this._items = check_input$1(items);
+        } else if (value != undefined) {
+            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
+        } else {
+            this._items = [];
+        }
+    }
+
+    update (items) {
+        return Promise.resolve()
+            .then(() => {
+                this._items = check_input$1(items);
+                this.notify_callbacks();
+            });
+    }
+
+    get items () {
+        return this._items.slice();
+    }
+
+    get info () {
+        return {dynamic: true, overlapping: false, local:true};
+    }
+}
+
+
+function check_input$1(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
 }
 
 /*********************************************************************
@@ -2202,52 +2202,65 @@ Layer.fromArray = fromArray;
  * CLOCKS
  ************************************************/
 
+// CLOCK (counting seconds since page load)
 const CLOCK = function () {
     return performance.now()/1000.0;
 };
-
-/*
-    NOTE 
-    epoch should only be used for visualization,
-    as it has time resolution limited to ms
-*/
-
-const EPOCH = function () {
-    return Date.now()/1000.0;
-};
-
 
 /************************************************
  * CLOCK CURSORS
  ************************************************/
 
-// CLOCK (counting seconds since page load)
 class ClockCursor extends CursorBase {
 
-    constructor (clock) {
+    constructor (options={}) {
         super();
-        this._clock = clock;
-        // items
-        const t0 = this._clock();
-        this._items = [{
-            itv: [-Infinity, Infinity, true, true],
-            type: "motion",
-            args: {position: t0, velocity: 1, offset: t0}
-        }];    
+
+        // src
+        source.addToInstance(this, "src");
+
+        // options
+        let {src} = options;
+        
+        if (src == undefined) {
+            // initialise state provider
+            const t0 = CLOCK();
+            const items = [{
+                itv: [-Infinity, Infinity, true, true],
+                type: "motion",
+                args: {position: t0, velocity: 1.0, timestamp: t0}
+            }]; 
+            src = new Layer({items});
+        } else if (src instanceof StateProviderBase) {
+            src = new Layer({src});
+        }
+        this.src = src;
+    }
+
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
+
+    __src_check(src) {
+        if (!(src instanceof LayerBase)) {
+            throw new Error(`"src" must be Layer ${src}`);
+        }
+        // TODO - check restrictions on Layer specific to
+        // ClockCursor - must be a single motion segment
+    }    
+    __src_handle_change() {
+        this.notify_callbacks();
     }
 
     query () {
-        let ts = this._clock(); 
-        return {value:ts, dynamic:true, offset:ts};
-    }
-
-    items () {
-        return this._items;
+        let ts = CLOCK(); 
+        return this.src.query(ts);
     }
 }
+source.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
-const local_clock = new ClockCursor(CLOCK);
-new ClockCursor(EPOCH);
+
+const local_clock = new ClockCursor();
 
 
 
@@ -2292,6 +2305,8 @@ class Cursor extends CursorBase {
         // initialise state
         if (src == undefined) {
             src = new Layer(opts);
+        } else if (src instanceof StateProviderBase) {
+            src = new Layer({src});
         }
         this.src = src;
     }
@@ -2310,7 +2325,7 @@ class Cursor extends CursorBase {
     }
 
     /**********************************************************
-     * SRC (stateprovider)
+     * SRC (layer)
      **********************************************************/
 
     __src_check(src) {
@@ -2518,13 +2533,9 @@ class Cursor extends CursorBase {
     __set_timeout(target_pos, current_pos, velocity) {
         const delta_sec = (target_pos - current_pos)/velocity;
         this._tid = setTimeout(() => {
-            this.__handle_timeout();
+            // TODO - guarantee that timeout is not too early
+            this.__handle_change("timeout");
         }, delta_sec*1000);
-    }
-
-    __handle_timeout() {
-        // trigger change event for cursor
-        this.eventifyTrigger("change", this.query());
     }
 
     __set_polling() {
@@ -2572,7 +2583,7 @@ class Cursor extends CursorBase {
             throw new Error(`warning: cursor state must be number ${value}`);
         }
         position = (position != undefined) ? position : value;
-        velocity = (velocity != undefined) ? velocity: rate;
+        velocity = (velocity != undefined) ? velocity: 0;
         return cmd(this.src.src).move({position, velocity, timestamp});
     }
     transition ({target, duration, easing}) {

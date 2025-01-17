@@ -1,10 +1,8 @@
 
 
-import { StateProviderBase, CursorBase, LayerBase } from "./bases.js";
+import { CursorBase, LayerBase, StateProviderBase } from "./bases.js";
 import { source } from "./util.js";
-import { SimpleStateProvider } from "./stateprovider_simple.js";
 import { cmd } from "./cmd.js";
-import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
 import { Layer } from "./layers.js";
 
@@ -12,52 +10,65 @@ import { Layer } from "./layers.js";
  * CLOCKS
  ************************************************/
 
+// CLOCK (counting seconds since page load)
 const CLOCK = function () {
     return performance.now()/1000.0;
 }
-
-/*
-    NOTE 
-    epoch should only be used for visualization,
-    as it has time resolution limited to ms
-*/
-
-const EPOCH = function () {
-    return Date.now()/1000.0;
-}
-
 
 /************************************************
  * CLOCK CURSORS
  ************************************************/
 
-// CLOCK (counting seconds since page load)
 class ClockCursor extends CursorBase {
 
-    constructor (clock) {
+    constructor (options={}) {
         super();
-        this._clock = clock;
-        // items
-        const t0 = this._clock();
-        this._items = [{
-            itv: [-Infinity, Infinity, true, true],
-            type: "motion",
-            args: {position: t0, velocity: 1, offset: t0}
-        }];    
+
+        // src
+        source.addToInstance(this, "src");
+
+        // options
+        let {src} = options;
+        
+        if (src == undefined) {
+            // initialise state provider
+            const t0 = CLOCK();
+            const items = [{
+                itv: [-Infinity, Infinity, true, true],
+                type: "motion",
+                args: {position: t0, velocity: 1.0, timestamp: t0}
+            }]; 
+            src = new Layer({items});
+        } else if (src instanceof StateProviderBase) {
+            src = new Layer({src})
+        }
+        this.src = src;
+    }
+
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
+
+    __src_check(src) {
+        if (!(src instanceof LayerBase)) {
+            throw new Error(`"src" must be Layer ${src}`);
+        }
+        // TODO - check restrictions on Layer specific to
+        // ClockCursor - must be a single motion segment
+    }    
+    __src_handle_change() {
+        this.notify_callbacks();
     }
 
     query () {
-        let ts = this._clock(); 
-        return {value:ts, dynamic:true, offset:ts};
-    }
-
-    items () {
-        return this._items;
+        let ts = CLOCK(); 
+        return this.src.query(ts);
     }
 }
+source.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
-export const local_clock = new ClockCursor(CLOCK);
-export const local_epoch = new ClockCursor(EPOCH);
+
+export const local_clock = new ClockCursor();
 
 
 
@@ -102,6 +113,8 @@ export class Cursor extends CursorBase {
         // initialise state
         if (src == undefined) {
             src = new Layer(opts);
+        } else if (src instanceof StateProviderBase) {
+            src = new Layer({src});
         }
         this.src = src
     }
@@ -120,7 +133,7 @@ export class Cursor extends CursorBase {
     }
 
     /**********************************************************
-     * SRC (stateprovider)
+     * SRC (layer)
      **********************************************************/
 
     __src_check(src) {
@@ -328,13 +341,9 @@ export class Cursor extends CursorBase {
     __set_timeout(target_pos, current_pos, velocity) {
         const delta_sec = (target_pos - current_pos)/velocity;
         this._tid = setTimeout(() => {
-            this.__handle_timeout()
+            // TODO - guarantee that timeout is not too early
+            this.__handle_change("timeout");
         }, delta_sec*1000);
-    }
-
-    __handle_timeout() {
-        // trigger change event for cursor
-        this.eventifyTrigger("change", this.query());
     }
 
     __set_polling() {
@@ -382,7 +391,7 @@ export class Cursor extends CursorBase {
             throw new Error(`warning: cursor state must be number ${value}`);
         }
         position = (position != undefined) ? position : value;
-        velocity = (velocity != undefined) ? velocity: rate;
+        velocity = (velocity != undefined) ? velocity: 0;
         return cmd(this.src.src).move({position, velocity, timestamp});
     }
     transition ({target, duration, easing}) {

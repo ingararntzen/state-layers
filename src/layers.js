@@ -4,7 +4,6 @@ import { source } from "./util.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
 import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
-import { interval } from "./intervals.js";
 
 /************************************************
  * LAYER
