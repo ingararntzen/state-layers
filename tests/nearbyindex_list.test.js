@@ -50,4 +50,6 @@ describe('NearbyIndexList', () => {
         expect(result[5][0]).toBe(1.0);
         expect(result[6][0]).toBe(undefined);        
     });
+
+
 });

@@ -80,6 +80,9 @@ function endpoint_max(p1, p2) {
 
 function endpoint_flip(p, target) {
     let [v,s] = p;
+    if (!isFinite(v)) {
+        return p;
+    }
     if (target == "low") {
     	// assume point is high: sign must be -1 or 0
     	if (s > 0) {
