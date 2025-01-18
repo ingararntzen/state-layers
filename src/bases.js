@@ -73,6 +73,9 @@ export class LayerBase {
     query (offset) {
         throw new Error("Not implemented");
     }
+    get index() {
+        throw new Error("Not implemented");
+    }
 }
 callback.addToPrototype(LayerBase.prototype);
 eventify.addToPrototype(LayerBase.prototype);
@@ -99,10 +102,9 @@ export class CursorBase {
         throw new Error("Not implemented");
     }
 
-    state() {
+    get index() {
         throw new Error("Not implemented");
     }
-
 
     /*
         Eventify: immediate events
