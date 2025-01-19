@@ -1,7 +1,7 @@
 
 import { LayerBase, StateProviderBase } from "./bases.js";
 import * as sourceprop from "./sourceprop.js";
-import { SimpleStateProvider } from "./stateprovider_simple.js";
+import { StateProviderSimple } from "./stateprovider_simple.js";
 import { NearbyIndexSimple } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
 import { NearbyIndexMerge } from "./nearbyindex_merge.js";
@@ -33,7 +33,7 @@ export class Layer extends LayerBase {
         // initialise with stateprovider
         let {src, ...opts} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider(opts);
+            src = new StateProviderSimple(opts);
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -89,24 +89,22 @@ export class MergeLayer extends LayerBase {
     constructor (options={}) {
         super();
 
-        // sources
+        // sources (layers)
         this._sources = [];
-        // index
-        this._index = new NearbyIndexMerge(this._sources);
-        // cache
-        this._cache = new NearbyCache(this._index);
 
         // layers
         let {sources} = options;
-        this.add_sources(sources);
+        this.set_sources(sources);
     }
 
     /**********************************************************
      * UPDATE API
      **********************************************************/
-    add_sources (sources) {
+    set_sources (sources) {
         this._sources.push(...sources);
-        this._cache.dirty();
+        let indexes = sources.map((layer) => layer.index);
+        this._index = new NearbyIndexMerge(indexes);
+        this._cache = new NearbyCache(this._index);
     }
 
 }

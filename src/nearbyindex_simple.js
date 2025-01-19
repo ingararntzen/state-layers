@@ -70,7 +70,6 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             next: undefined
         };
         let items = this._src.items;
-        console.log("items", items)
         let indexes, item;
         const size = items.length;
         if (size == 0) {

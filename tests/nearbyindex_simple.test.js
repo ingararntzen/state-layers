@@ -123,7 +123,7 @@ describe('SimpleNearbyIndex', () => {
 
 
     // Add more test cases as needed
-    test.only('should update the index with one item and check nearby.center', () => {
+    test('should update the index with one item and check nearby.center', () => {
 
         const src = new StateProviderSimple();
         const index = new NearbyIndexSimple(src);
@@ -141,7 +141,6 @@ describe('SimpleNearbyIndex', () => {
         src.update([new_item]).then(() => {
             // Check nearby.center after update
             nearby = index.nearby(1.5);
-            console.log(nearby);
             expect(nearby.center[0]).toStrictEqual(new_item);
         });
     });

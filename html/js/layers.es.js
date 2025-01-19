@@ -399,108 +399,6 @@ const callback = function () {
     return {addToInstance, addToPrototype}
 }();
 
-
-/************************************************
- * SOURCE
- ************************************************/
-
-/**
- * Extend a class with support for external source on 
- * a named property.
- * 
- * option: mutable:true means that propery may be reset 
- * 
- * source object is assumed to support the callback interface
- */
-
-
-const source = function () {
-
-    function propnames (propName) {
-        return {
-            prop: `__${propName}`,
-            init: `__${propName}_init`,
-            handle: `__${propName}_handle`,
-            change: `__${propName}_handle_change`,
-            detatch: `__${propName}_detatch`,
-            attatch: `__${propName}_attatch`,
-            check: `__${propName}_check`
-        }
-    }
-
-    function addToInstance (object, propName) {
-        const p = propnames(propName);
-        object[p.prop] = undefined;
-        object[p.init] = false;
-        object[p.handle] = undefined;
-    }
-
-    function addToPrototype (_prototype, propName, options={}) {
-
-        const p = propnames(propName);
-
-        function detatch() {
-            // unsubscribe from source change event
-            let {mutable=false} = options;
-            if (mutable && this[p.prop]) {
-                let handle = this[p.handle];
-                this[p.prop].remove_callback(handle);
-                this[p.handle] = undefined;
-            }
-            this[p.prop] = undefined;
-        }
-    
-        function attatch(source) {
-            let {mutable=false} = options;
-            if (!this[p.init] || mutable) {
-                this[p.prop] = source;
-                this[p.init] = true;
-                // subscribe to callback from source
-                if (this[p.change]) {
-                    const handler = this[p.change].bind(this);
-                    this[p.handle] = source.add_callback(handler);
-                    handler("reset"); 
-                }
-            } else {
-                throw new Error(`${propName} can not be reassigned`);
-            }
-        }
-
-        /**
-         * 
-         * object must implement
-         * __{propName}_handle_change() {}
-         * 
-         * object can implement
-         * __{propName}_check(source) {}
-         */
-
-        // getter and setter
-        Object.defineProperty(_prototype, propName, {
-            get: function () {
-                return this[p.prop];
-            },
-            set: function (src) {
-                if (this[p.check]) {
-                    this[p.check](src);
-                }
-                if (src != this[p.prop]) {
-                    this[p.detatch]();
-                    this[p.attatch](src);
-                }
-            }
-
-        });
-
-        const api = {};
-        api[p.detatch] = detatch;
-        api[p.attatch] = attatch;
-
-        Object.assign(_prototype, api);
-    }
-    return {addToInstance, addToPrototype};
-}();
-
 /*
     Timeout Monitor
 
@@ -878,6 +776,9 @@ callback.addToPrototype(StateProviderBase.prototype);
 class LayerBase {
 
     constructor() {
+        this._index;
+        this._cache;
+
         callback.addToInstance(this);
         // define change event
         eventify.addToInstance(this);
@@ -885,14 +786,25 @@ class LayerBase {
     }
 
     /**********************************************************
-     * QUERY
+     * QUERY API
      **********************************************************/
 
-    query (offset) {
-        throw new Error("Not implemented");
+    get cache () {return this._cache};
+    get index () {return this._index};
+    
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        return this._cache.query(offset);
     }
-    get index() {
-        throw new Error("Not implemented");
+
+    list (options) {
+        return this._index.list(options);
+    }
+
+    sample (options) {
+        return this._index.sample(options);
     }
 }
 callback.addToPrototype(LayerBase.prototype);
@@ -947,6 +859,102 @@ class CursorBase {
 }
 callback.addToPrototype(CursorBase.prototype);
 eventify.addToPrototype(CursorBase.prototype);
+
+/************************************************
+ * SOURCE PROPERTY
+ ************************************************/
+
+/**
+ * Functions for extending a class with support for 
+ * external source on a named property.
+ * 
+ * option: mutable:true means that propery may be reset 
+ * 
+ * source object is assumed to support the callback interface
+ */
+
+function propnames (propName) {
+    return {
+        prop: `__${propName}`,
+        init: `__${propName}_init`,
+        handle: `__${propName}_handle`,
+        change: `__${propName}_handle_change`,
+        detatch: `__${propName}_detatch`,
+        attatch: `__${propName}_attatch`,
+        check: `__${propName}_check`
+    }
+}
+
+function addToInstance (object, propName) {
+    const p = propnames(propName);
+    object[p.prop] = undefined;
+    object[p.init] = false;
+    object[p.handle] = undefined;
+}
+
+function addToPrototype (_prototype, propName, options={}) {
+
+    const p = propnames(propName);
+
+    function detatch() {
+        // unsubscribe from source change event
+        let {mutable=false} = options;
+        if (mutable && this[p.prop]) {
+            let handle = this[p.handle];
+            this[p.prop].remove_callback(handle);
+            this[p.handle] = undefined;
+        }
+        this[p.prop] = undefined;
+    }
+
+    function attatch(source) {
+        let {mutable=false} = options;
+        if (!this[p.init] || mutable) {
+            this[p.prop] = source;
+            this[p.init] = true;
+            // subscribe to callback from source
+            if (this[p.change]) {
+                const handler = this[p.change].bind(this);
+                this[p.handle] = source.add_callback(handler);
+                handler("reset"); 
+            }
+        } else {
+            throw new Error(`${propName} can not be reassigned`);
+        }
+    }
+
+    /**
+     * 
+     * object must implement
+     * __{propName}_handle_change() {}
+     * 
+     * object can implement
+     * __{propName}_check(source) {}
+     */
+
+    // getter and setter
+    Object.defineProperty(_prototype, propName, {
+        get: function () {
+            return this[p.prop];
+        },
+        set: function (src) {
+            if (this[p.check]) {
+                this[p.check](src);
+            }
+            if (src != this[p.prop]) {
+                this[p.detatch]();
+                this[p.attatch](src);
+            }
+        }
+
+    });
+
+    const api = {};
+    api[p.detatch] = detatch;
+    api[p.attatch] = attatch;
+
+    Object.assign(_prototype, api);
+}
 
 const METHODS = {assign, move, transition, interpolate: interpolate$1};
 
@@ -1652,7 +1660,7 @@ function load_segment(nearby) {
  * Local Array with non-overlapping items.
  */
 
-class SimpleStateProvider extends StateProviderBase {
+class StateProviderSimple extends StateProviderBase {
 
     constructor(options={}) {
         super();
@@ -2064,14 +2072,13 @@ function find_index(target, arr, value_func) {
  * 
  */
 
-
 class Layer extends LayerBase {
 
     constructor (options={}) {
         super();
 
         // src
-        source.addToInstance(this, "src");
+        addToInstance(this, "src");
         // index
         this._index;
         // cache
@@ -2080,7 +2087,7 @@ class Layer extends LayerBase {
         // initialise with stateprovider
         let {src, ...opts} = options;
         if (src == undefined) {
-            src = new SimpleStateProvider(opts);
+            src = new StateProviderSimple(opts);
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -2094,7 +2101,7 @@ class Layer extends LayerBase {
 
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${source}`);
+            throw new Error(`"src" must be state provider ${src}`);
         }
     }    
     __src_handle_change() {
@@ -2108,37 +2115,8 @@ class Layer extends LayerBase {
         // trigger change event for cursor
         this.eventifyTrigger("change");   
     }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get cache () {return this._cache};
-    get index () {return this._index};
-    
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
-
-    list (options) {
-        return this._index.list(options);
-    }
-
-    sample (options) {
-        return this._index.sample(options);
-    }
-
-    /**********************************************************
-     * UPDATE API
-     **********************************************************/
-
-    // TODO - add methods for update?
-
 }
-source.addToPrototype(Layer.prototype, "src", {mutable:true});
+addToPrototype(Layer.prototype, "src", {mutable:true});
 
 
 function fromArray (array) {
@@ -2172,7 +2150,7 @@ class ClockCursor extends CursorBase {
         super();
 
         // src
-        source.addToInstance(this, "src");
+        addToInstance(this, "src");
 
         // options
         let {src} = options;
@@ -2218,7 +2196,7 @@ class ClockCursor extends CursorBase {
         return this.src.query(ts);
     }
 }
-source.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
+addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
 
 const local_clock = new ClockCursor();
@@ -2243,9 +2221,9 @@ class Cursor extends CursorBase {
     constructor (options={}) {
         super();
         // ctrl
-        source.addToInstance(this, "ctrl");
+        addToInstance(this, "ctrl");
         // src
-        source.addToInstance(this, "src");
+        addToInstance(this, "src");
         // index
         this._index;
         // cache
@@ -2565,7 +2543,7 @@ class Cursor extends CursorBase {
     }
 
 }
-source.addToPrototype(Cursor.prototype, "src", {mutable:true});
-source.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
+addToPrototype(Cursor.prototype, "src", {mutable:true});
+addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
 
 export { Cursor, Layer, cmd };
