@@ -1,6 +1,7 @@
 /* global describe, test, expect */
 
-import {SimpleNearbyIndex} from '../src/nearbyindex_simple.js';
+import { StateProviderSimple } from '../src/stateprovider_simple.js';
+import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
 
 // Add your test cases here
 describe('NearbyIndexList', () => {
@@ -17,7 +18,8 @@ describe('NearbyIndexList', () => {
             return {itv};
         })
 
-        const index = new SimpleNearbyIndex({items});
+        const src = new StateProviderSimple({items});
+        const index = new NearbyIndexSimple(src);
 
         let result = index.list();
 
@@ -34,7 +36,8 @@ describe('NearbyIndexList', () => {
             {itv: [2, 4, true, false], args: {value: 0.5}},
             {itv: [6, 8, true, false], args: {value: 1.0}},
         ];
-        const index = new SimpleNearbyIndex({items});
+        const src = new StateProviderSimple({items});
+        const index = new NearbyIndexSimple(src);
         let result = index.sample();
 
         expect(result.length).toBe(8-2+1);

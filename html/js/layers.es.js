@@ -1659,7 +1659,7 @@ class SimpleStateProvider extends StateProviderBase {
         // initialization
         let {items, value} = options;
         if (items != undefined) {
-            this._items = check_input$1(items);
+            this._items = check_input(items);
         } else if (value != undefined) {
             this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
         } else {
@@ -1670,7 +1670,7 @@ class SimpleStateProvider extends StateProviderBase {
     update (items) {
         return Promise.resolve()
             .then(() => {
-                this._items = check_input$1(items);
+                this._items = check_input(items);
                 this.notify_callbacks();
             });
     }
@@ -1685,7 +1685,7 @@ class SimpleStateProvider extends StateProviderBase {
 }
 
 
-function check_input$1(items) {
+function check_input(items) {
     if (!Array.isArray(items)) {
         throw new Error("Input must be an array");
     }
@@ -1782,9 +1782,6 @@ function check_input$1(items) {
 
  class NearbyIndexBase {
 
-    update (items) {
-        throw new Error("Not implemented");
-    }
 
     /* 
         Nearby method
@@ -1899,16 +1896,7 @@ function check_input$1(items) {
  * - exception will be raised if overlapping ITEMS are found
  * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
  * 
- * 
- * NEARBY
- * The nearby method returns information about the neighborhood around offset. 
- * 
- * Returns {
- *      left - high interval endpoint of the first ITEM to the left which does not cover offset, else undefined
- *      center - list of ITEMS covering offset, else []
- *      right - low interval endpoint of the first ITEM to the right which does not cover offset, else undefined
- * }
- * 
+ *  
  */
 
 
@@ -1928,21 +1916,14 @@ function get_high_endpoint(item) {
 }
 
 
-class SimpleNearbyIndex extends NearbyIndexBase {
+class NearbyIndexSimple extends NearbyIndexBase {
 
-    constructor(options={}) {
+    constructor(src) {
         super();
-        this._items = [];
-        let {items} = options;
-        if (items) {
-            this.update(items);
-        }
+        this._src = src;
     }
 
-    update (items) {
-        this._items = check_input(items);
-    }
-
+    get src () {return this._src;}
 
     /*
         nearby by offset
@@ -1974,7 +1955,7 @@ class SimpleNearbyIndex extends NearbyIndexBase {
             prev: undefined,
             next: undefined
         };
-        let items = this._items;
+        let items = this._src.items;
         let indexes, item;
         const size = items.length;
         if (size == 0) {
@@ -2037,41 +2018,6 @@ class SimpleNearbyIndex extends NearbyIndexBase {
     }
 }
 
-/*********************************************************************
-	UTILS
-*********************************************************************/
-
-
-// check input
-function check_input(items) {
-
-    if (items == undefined) {
-        items = [];
-    }
-
-    if (!Array.isArray(items)) {
-        throw new Error("Input must be an array");
-    }
-
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
-    }
-    return items;
-}
-
 
 /*
 	binary search for finding the correct insertion index into
@@ -2127,9 +2073,9 @@ class Layer extends LayerBase {
         // src
         source.addToInstance(this, "src");
         // index
-        this._index = new SimpleNearbyIndex();
+        this._index;
         // cache
-        this._cache = new NearbyCache(this._index);
+        this._cache;
 
         // initialise with stateprovider
         let {src, ...opts} = options;
@@ -2152,8 +2098,12 @@ class Layer extends LayerBase {
         }
     }    
     __src_handle_change() {
-        this._index.update(this.src.items);
-        this._cache.dirty();
+        if (this._index == undefined) {
+            this._index = new NearbyIndexSimple(this.src);
+            this._cache = new NearbyCache(this._index);
+        } else {
+            this._cache.dirty();
+        }
         this.notify_callbacks();
         // trigger change event for cursor
         this.eventifyTrigger("change");   

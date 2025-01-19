@@ -1,6 +1,7 @@
 /* global describe, test, expect */
 
-import {SimpleNearbyIndex} from '../src/nearbyindex_simple.js';
+import {NearbyIndexSimple} from '../src/nearbyindex_simple.js';
+import { StateProviderSimple } from '../src/stateprovider_simple.js';
 
 // Add your test cases here
 describe('SimpleNearbyIndex', () => {
@@ -17,8 +18,8 @@ describe('SimpleNearbyIndex', () => {
             return {itv};
         })
 
-        const index = new SimpleNearbyIndex({items});
-        expect(index).toBeInstanceOf(SimpleNearbyIndex);
+        const index = new NearbyIndexSimple({items});
+        expect(index).toBeInstanceOf(NearbyIndexSimple);
 
         // FIRST ITEM
 
@@ -107,8 +108,7 @@ describe('SimpleNearbyIndex', () => {
             return {itv};
         });
 
-        const index = new SimpleNearbyIndex({items});
-        expect(index).toBeInstanceOf(SimpleNearbyIndex);
+        const index = new NearbyIndexSimple({items});
 
         // Test -Infinity
         let nearby = index.nearby(-Infinity);
@@ -123,23 +123,27 @@ describe('SimpleNearbyIndex', () => {
 
 
     // Add more test cases as needed
-    test('should update the index with one item and check nearby.center', () => {
-        const index = new SimpleNearbyIndex();
+    test.only('should update the index with one item and check nearby.center', () => {
+
+        const src = new StateProviderSimple();
+        const index = new NearbyIndexSimple(src);
 
         // Check nearby.center before update
         let nearby = index.nearby(1.5);
         expect(nearby.center).toStrictEqual([]);
 
+
         // Update the index with a new item
-        const newItem =             {
+        const new_item = {
             itv: [-Infinity, Infinity, true, true], 
             args: {value:1}
         }
-        index.update([newItem]);
-
-        // Check nearby.center after update
-        nearby = index.nearby(1.5);
-        expect(nearby.center[0]).toStrictEqual(newItem);
+        src.update([new_item]).then(() => {
+            // Check nearby.center after update
+            nearby = index.nearby(1.5);
+            console.log(nearby);
+            expect(nearby.center[0]).toStrictEqual(new_item);
+        });
     });
 
 });

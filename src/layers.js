@@ -2,7 +2,7 @@
 import { LayerBase, StateProviderBase } from "./bases.js";
 import { source } from "./util.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
-import { SimpleNearbyIndex } from "./nearbyindex_simple.js";
+import { NearbyIndexSimple, SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
 
 /************************************************
@@ -26,9 +26,9 @@ export class Layer extends LayerBase {
         // src
         source.addToInstance(this, "src");
         // index
-        this._index = new SimpleNearbyIndex();
+        this._index;
         // cache
-        this._cache = new NearbyCache(this._index);
+        this._cache;
 
         // initialise with stateprovider
         let {src, ...opts} = options;
@@ -51,8 +51,12 @@ export class Layer extends LayerBase {
         }
     }    
     __src_handle_change() {
-        this._index.update(this.src.items);
-        this._cache.dirty();
+        if (this._index == undefined) {
+            this._index = new NearbyIndexSimple(this.src)
+            this._cache = new NearbyCache(this._index);
+        } else {
+            this._cache.dirty();
+        }
         this.notify_callbacks();
         // trigger change event for cursor
         this.eventifyTrigger("change");   

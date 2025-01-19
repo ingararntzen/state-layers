@@ -9,7 +9,7 @@ import {endpoint} from "./intervals.js";
  * Local Array with non-overlapping items.
  */
 
-export class SimpleStateProvider extends StateProviderBase {
+export class StateProviderSimple extends StateProviderBase {
 
     constructor(options={}) {
         super();

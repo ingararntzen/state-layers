@@ -77,9 +77,6 @@ import {NearbyCache} from "./nearbycache.js";
 
  export class NearbyIndexBase {
 
-    update (items) {
-        throw new Error("Not implemented");
-    }
 
     /* 
         Nearby method

@@ -1,14 +1,16 @@
 /* global describe, test, expect */
 
-import {nearby} from "../src/merge.js";
-import {Layer} from "../src/layers.js";
+import { NearbyIndexMerge } from "../src/nearbyindex_merge.js";
+import { StateProviderSimple } from "../src/stateprovider_simple.js";
+import { NearbyIndexSimple } from "../src/nearbyindex_simple.js";
 
 function testrun(acase) {
     return acase.layers.map((layer_intervals) => {
         const items = layer_intervals.map((itv) => {
             return {itv, type: "static", args: data};
         });
-        return new Layer({items});
+        const src = new StateProviderSimple({items});
+        return new NearbyIndexSimple (src);
     });
 }
 
@@ -153,8 +155,9 @@ describe('MergeTest', () => {
 
     test('TestAllCases', () => {
         for (let acase of cases) {
-            let layers = testrun(acase);
-            let result = nearby(layers, offset);
+            let indexes = testrun(acase);
+            let index = new NearbyIndexMerge(indexes);
+            let result = index.nearby(offset);
             console.log("result", result);
             expect(acase.expected.itv).toStrictEqual(result.itv);
             expect(acase.expected.left).toStrictEqual(result.left);

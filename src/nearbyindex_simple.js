@@ -1,4 +1,4 @@
-import {interval, endpoint} from "./intervals.js";
+import { interval, endpoint } from "./intervals.js";
 import { NearbyIndexBase } from "./nearbyindex.js";
 
 /**
@@ -10,16 +10,7 @@ import { NearbyIndexBase } from "./nearbyindex.js";
  * - exception will be raised if overlapping ITEMS are found
  * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
  * 
- * 
- * NEARBY
- * The nearby method returns information about the neighborhood around offset. 
- * 
- * Returns {
- *      left - high interval endpoint of the first ITEM to the left which does not cover offset, else undefined
- *      center - list of ITEMS covering offset, else []
- *      right - low interval endpoint of the first ITEM to the right which does not cover offset, else undefined
- * }
- * 
+ *  
  */
 
 
@@ -39,21 +30,14 @@ function get_high_endpoint(item) {
 }
 
 
-export class SimpleNearbyIndex extends NearbyIndexBase {
+export class NearbyIndexSimple extends NearbyIndexBase {
 
-    constructor(options={}) {
+    constructor(src) {
         super();
-        this._items = [];
-        let {items} = options;
-        if (items) {
-            this.update(items);
-        }
+        this._src = src;
     }
 
-    update (items) {
-        this._items = check_input(items)
-    }
-
+    get src () {return this._src;}
 
     /*
         nearby by offset
@@ -85,7 +69,8 @@ export class SimpleNearbyIndex extends NearbyIndexBase {
             prev: undefined,
             next: undefined
         };
-        let items = this._items;
+        let items = this._src.items;
+        console.log("items", items)
         let indexes, item;
         const size = items.length;
         if (size == 0) {
