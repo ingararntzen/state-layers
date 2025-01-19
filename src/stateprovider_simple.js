@@ -1,5 +1,5 @@
-import {StateProviderBase} from "./bases.js";
-import {endpoint} from "./intervals.js";
+import { StateProviderBase } from "./bases.js";
+import { endpoint } from "./intervals.js";
 
 /***************************************************************
     SIMPLE STATE PROVIDER (LOCAL)

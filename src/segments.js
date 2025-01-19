@@ -1,4 +1,4 @@
-import {interval} from "./intervals.js";
+import { interval } from "./intervals.js";
 
 
 /********************************************************************

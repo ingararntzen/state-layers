@@ -1,7 +1,7 @@
 
 
 import { CursorBase, LayerBase, StateProviderBase } from "./bases.js";
-import { source } from "./util.js";
+import * as sourceprop from "./sourceprop.js";
 import { cmd } from "./cmd.js";
 import { NearbyCache } from "./nearbycache.js";
 import { Layer } from "./layers.js";
@@ -25,7 +25,7 @@ class ClockCursor extends CursorBase {
         super();
 
         // src
-        source.addToInstance(this, "src");
+        sourceprop.addToInstance(this, "src");
 
         // options
         let {src} = options;
@@ -71,7 +71,7 @@ class ClockCursor extends CursorBase {
         return this.src.query(ts);
     }
 }
-source.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
+sourceprop.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
 
 export const local_clock = new ClockCursor();
@@ -96,9 +96,9 @@ export class Cursor extends CursorBase {
     constructor (options={}) {
         super();
         // ctrl
-        source.addToInstance(this, "ctrl");
+        sourceprop.addToInstance(this, "ctrl");
         // src
-        source.addToInstance(this, "src");
+        sourceprop.addToInstance(this, "src");
         // index
         this._index;
         // cache
@@ -418,6 +418,6 @@ export class Cursor extends CursorBase {
     }
 
 }
-source.addToPrototype(Cursor.prototype, "src", {mutable:true});
-source.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
+sourceprop.addToPrototype(Cursor.prototype, "src", {mutable:true});
+sourceprop.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
 

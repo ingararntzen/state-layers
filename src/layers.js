@@ -1,6 +1,6 @@
 
 import { LayerBase, StateProviderBase } from "./bases.js";
-import { source } from "./util.js";
+import * as sourceprop from "./sourceprop.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
 import { NearbyIndexSimple, SimpleNearbyIndex } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
@@ -24,7 +24,7 @@ export class Layer extends LayerBase {
         super();
 
         // src
-        source.addToInstance(this, "src");
+        sourceprop.addToInstance(this, "src");
         // index
         this._index;
         // cache
@@ -47,7 +47,7 @@ export class Layer extends LayerBase {
 
     __src_check(src) {
         if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${source}`);
+            throw new Error(`"src" must be state provider ${src}`);
         }
     }    
     __src_handle_change() {
@@ -91,7 +91,7 @@ export class Layer extends LayerBase {
     // TODO - add methods for update?
 
 }
-source.addToPrototype(Layer.prototype, "src", {mutable:true});
+sourceprop.addToPrototype(Layer.prototype, "src", {mutable:true});
 
 
 function fromArray (array) {
