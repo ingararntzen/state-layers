@@ -2,8 +2,9 @@
 import { LayerBase, StateProviderBase } from "./bases.js";
 import * as sourceprop from "./sourceprop.js";
 import { SimpleStateProvider } from "./stateprovider_simple.js";
-import { NearbyIndexSimple, SimpleNearbyIndex } from "./nearbyindex_simple.js";
+import { NearbyIndexSimple } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
+import { NearbyIndexMerge } from "./nearbyindex_merge.js";
 
 /************************************************
  * LAYER
@@ -16,7 +17,6 @@ import { NearbyCache } from "./nearbycache.js";
  * - methods for list and sample
  * 
  */
-
 
 export class Layer extends LayerBase {
 
@@ -61,35 +61,6 @@ export class Layer extends LayerBase {
         // trigger change event for cursor
         this.eventifyTrigger("change");   
     }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get cache () {return this._cache};
-    get index () {return this._index};
-    
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
-
-    list (options) {
-        return this._index.list(options);
-    }
-
-    sample (options) {
-        return this._index.sample(options);
-    }
-
-    /**********************************************************
-     * UPDATE API
-     **********************************************************/
-
-    // TODO - add methods for update?
-
 }
 sourceprop.addToPrototype(Layer.prototype, "src", {mutable:true});
 
@@ -105,3 +76,39 @@ function fromArray (array) {
 }
 
 Layer.fromArray = fromArray;
+
+
+
+/************************************************
+ * MERGE LAYER
+ ************************************************/
+
+
+export class MergeLayer extends LayerBase {
+
+    constructor (options={}) {
+        super();
+
+        // sources
+        this._sources = [];
+        // index
+        this._index = new NearbyIndexMerge(this._sources);
+        // cache
+        this._cache = new NearbyCache(this._index);
+
+        // layers
+        let {sources} = options;
+        this.add_sources(sources);
+    }
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
+    add_sources (sources) {
+        this._sources.push(...sources);
+        this._cache.dirty();
+    }
+
+}
+
+
