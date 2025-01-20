@@ -61,7 +61,6 @@ export class LayerBase {
 
     constructor() {
         this._index;
-        this._cache;
 
         callback.addToInstance(this);
         // define change event
@@ -73,15 +72,8 @@ export class LayerBase {
      * QUERY API
      **********************************************************/
 
-    get cache () {return this._cache};
     get index () {return this._index};
     
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
 
     list (options) {
         return this._index.list(options);

@@ -6,6 +6,29 @@ import { NearbyIndexSimple } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
 import { NearbyIndexMerge } from "./nearbyindex_merge.js";
 
+
+
+class QueryObject {
+
+    constructor (layer) {
+        this._layer = layer;
+        this._cache = new NearbyCache(this._layer.index);
+    }
+
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        return this._cache.query(offset);
+    }
+
+    dirty() {
+        this._cache.dirty();
+    }
+}
+
+
+
 /************************************************
  * LAYER
  ************************************************/
@@ -27,8 +50,8 @@ export class Layer extends LayerBase {
         sourceprop.addToInstance(this, "src");
         // index
         this._index;
-        // cache
-        this._cache;
+        // query object
+        this._query_objects = [];
 
         // initialise with stateprovider
         let {src, ...opts} = options;
@@ -42,6 +65,25 @@ export class Layer extends LayerBase {
     }
 
     /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    getQueryObject () {
+        const query_object = new QueryObject(layer);
+        this._query_objects.push(query_object);
+        return query_object;
+    }
+    
+    /*
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        return this._cache.query(offset);
+    }
+    */
+
+    /**********************************************************
      * SRC (stateprovider)
      **********************************************************/
 
@@ -53,9 +95,10 @@ export class Layer extends LayerBase {
     __src_handle_change() {
         if (this._index == undefined) {
             this._index = new NearbyIndexSimple(this.src)
-            this._cache = new NearbyCache(this._index);
         } else {
-            this._cache.dirty();
+            for (query_object of this._query_objects) {
+                query_object.dirty();
+            }
         }
         this.notify_callbacks();
         // trigger change event for cursor
@@ -98,13 +141,27 @@ export class MergeLayer extends LayerBase {
     }
 
     /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        let values = this._sources.map((layer) => {
+            return layer.query(offset);
+        });
+        // TODO - apply function to arrive at single value for layer.
+        return values;
+    }
+
+    /**********************************************************
      * UPDATE API
      **********************************************************/
     set_sources (sources) {
         this._sources.push(...sources);
         let indexes = sources.map((layer) => layer.index);
         this._index = new NearbyIndexMerge(indexes);
-        this._cache = new NearbyCache(this._index);
     }
 
 }
