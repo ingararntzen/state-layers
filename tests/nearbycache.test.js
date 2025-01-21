@@ -22,7 +22,7 @@ test('query returns 1 from nearby cache', () => {
     // Connect it with a simple nearby index
     const index = new NearbyIndexSimple(src);
     // Put a nearby cache in front of it
-    const cache = new NearbyCache(index);
+    const cache = new NearbyCache({index});
     // Test that the query returns 1
     const result = cache.query(44);
     expect(result.value).toBe(1)

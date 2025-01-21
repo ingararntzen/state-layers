@@ -21,9 +21,9 @@ import * as segment from "./segments.js";
 
 export class NearbyCache {
 
-    constructor (nearbyIndex) {
+    constructor (layer) {
         // nearby index
-        this._index = nearbyIndex;
+        this._index = layer.index;
         // cached nearby object
         this._nearby = undefined;
         // cached segment

@@ -718,345 +718,6 @@ function release(handle) {
     }
 }
 
-/***************************************************************
-    CLOCK PROVIDER BASE
-***************************************************************/
-
-/**
- * Defines the interface which needs to be implemented
- * by clock providers.
- */
-
-class ClockProviderBase {
-
-    constructor() {
-        callback.addToInstance(this);
-    }
-    now() {
-        throw new Error("not implemented");
-    }
-}
-callback.addToPrototype(ClockProviderBase.prototype);
-
-
-
-/************************************************
- * STATE PROVIDER BASE
- ************************************************/
-
-/*
-    Base class for all state providers
-
-    - object with collection of items
-    - could be local - or proxy to online source
-
-    represents a dynamic collection of items
-    {itv, type, ...data}
-*/
-
-class StateProviderBase {
-
-    constructor() {
-        callback.addToInstance(this);
-    }
-
-    /**
-     * update function
-     * called from cursor or layer objects
-     * for online implementation, this will
-     * typically result in a network request 
-     * to update some online item collection
-     */
-    update(items){
-        throw new Error("not implemented");
-    }
-
-    /**
-     * return array with all items in collection 
-     * - no requirement wrt order
-     */
-
-    get items() {
-        throw new Error("not implemented");
-    }
-
-    /**
-     * signal if items can be overlapping or not
-     */
-
-    get info () {
-        return {overlapping: true};
-    }
-}
-callback.addToPrototype(StateProviderBase.prototype);
-
-
-/************************************************
- * LAYER BASE
- ************************************************/
-
-class LayerBase {
-
-    constructor() {
-        this._index;
-
-        callback.addToInstance(this);
-        // define change event
-        eventify.addToInstance(this);
-        this.eventifyDefine("change", {init:true});
-    }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get index () {return this._index};
-    
-
-    list (options) {
-        return this._index.list(options);
-    }
-
-    sample (options) {
-        return this._index.sample(options);
-    }
-}
-callback.addToPrototype(LayerBase.prototype);
-eventify.addToPrototype(LayerBase.prototype);
-
-
-/************************************************
- * CURSOR BASE
- ************************************************/
-
-class CursorBase {
-
-    constructor () {
-        callback.addToInstance(this);
-        // define change event
-        eventify.addToInstance(this);
-        this.eventifyDefine("change", {init:true});
-    }
-    
-    /**********************************************************
-     * QUERY
-     **********************************************************/
-
-    query () {
-        throw new Error("Not implemented");
-    }
-
-    get index() {
-        throw new Error("Not implemented");
-    }
-
-    /*
-        Eventify: immediate events
-    */
-    eventifyInitEventArgs(name) {
-        if (name == "change") {
-            return [this.query()];
-        }
-    }
-
-    /**********************************************************
-     * BIND RELEASE (convenience)
-     **********************************************************/
-
-    bind(callback, delay, options={}) {
-        return bind(this, callback, delay, options);
-    }
-    release(handle) {
-        return release(handle);
-    }
-
-}
-callback.addToPrototype(CursorBase.prototype);
-eventify.addToPrototype(CursorBase.prototype);
-
-/************************************************
- * SOURCE PROPERTY
- ************************************************/
-
-/**
- * Functions for extending a class with support for 
- * external source on a named property.
- * 
- * option: mutable:true means that propery may be reset 
- * 
- * source object is assumed to support the callback interface
- */
-
-function propnames (propName) {
-    return {
-        prop: `__${propName}`,
-        init: `__${propName}_init`,
-        handle: `__${propName}_handle`,
-        change: `__${propName}_handle_change`,
-        detatch: `__${propName}_detatch`,
-        attatch: `__${propName}_attatch`,
-        check: `__${propName}_check`
-    }
-}
-
-function addToInstance (object, propName) {
-    const p = propnames(propName);
-    object[p.prop] = undefined;
-    object[p.init] = false;
-    object[p.handle] = undefined;
-}
-
-function addToPrototype (_prototype, propName, options={}) {
-
-    const p = propnames(propName);
-
-    function detatch() {
-        // unsubscribe from source change event
-        let {mutable=false} = options;
-        if (mutable && this[p.prop]) {
-            let handle = this[p.handle];
-            this[p.prop].remove_callback(handle);
-            this[p.handle] = undefined;
-        }
-        this[p.prop] = undefined;
-    }
-
-    function attatch(source) {
-        let {mutable=false} = options;
-        if (!this[p.init] || mutable) {
-            this[p.prop] = source;
-            this[p.init] = true;
-            // subscribe to callback from source
-            if (this[p.change]) {
-                const handler = this[p.change].bind(this);
-                this[p.handle] = source.add_callback(handler);
-                handler("reset"); 
-            }
-        } else {
-            throw new Error(`${propName} can not be reassigned`);
-        }
-    }
-
-    /**
-     * 
-     * object must implement
-     * __{propName}_handle_change() {}
-     * 
-     * object can implement
-     * __{propName}_check(source) {}
-     */
-
-    // getter and setter
-    Object.defineProperty(_prototype, propName, {
-        get: function () {
-            return this[p.prop];
-        },
-        set: function (src) {
-            if (this[p.check]) {
-                this[p.check](src);
-            }
-            if (src != this[p.prop]) {
-                this[p.detatch]();
-                this[p.attatch](src);
-            }
-        }
-
-    });
-
-    const api = {};
-    api[p.detatch] = detatch;
-    api[p.attatch] = attatch;
-
-    Object.assign(_prototype, api);
-}
-
-const METHODS = {assign, move, transition, interpolate: interpolate$1};
-
-
-function cmd (target) {
-    if (!(target instanceof StateProviderBase)) {
-        throw new Error(`target.src must be stateprovider ${target}`);
-    }
-    let entries = Object.entries(METHODS)
-        .map(([name, method]) => {
-            return [
-                name,
-                function(...args) { 
-                    let items = method.call(this, ...args);
-                    return target.update(items);  
-                }
-            ]
-        });
-    return Object.fromEntries(entries);
-}
-
-function assign(value) {
-    if (value == undefined) {
-        return [];
-    } else {
-        let item = {
-            itv: [-Infinity, Infinity, true, true],
-            type: "static",
-            args: {value}                 
-        };
-        return [item];
-    }
-}
-
-function move(vector) {
-    let item = {
-        itv: [-Infinity, Infinity, true, true],
-        type: "motion",
-        args: vector  
-    };
-    return [item];
-}
-
-function transition(v0, v1, t0, t1, easing) {
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            args: {value:v0}
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "transition",
-            args: {v0, v1, t0, t1, easing}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            args: {value: v1}
-        }
-    ];
-    return items;
-}
-
-function interpolate$1(tuples) {
-    let [v0, t0] = tuples[0];
-    let [v1, t1] = tuples[tuples.length-1];
-
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            args: {value:v0}
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "interpolation",
-            args: {tuples}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            args: {value: v1}
-        }
-    ];    
-    return items;
-}
-
 /*
     
     INTERVAL ENDPOINTS
@@ -1305,6 +966,429 @@ const interval = {
     from_input: interval_from_input
 };
 
+/***************************************************************
+    CLOCK PROVIDER BASE
+***************************************************************/
+
+/**
+ * Defines the interface which needs to be implemented
+ * by clock providers.
+ */
+
+class ClockProviderBase {
+
+    constructor() {
+        callback.addToInstance(this);
+    }
+    now() {
+        throw new Error("not implemented");
+    }
+}
+callback.addToPrototype(ClockProviderBase.prototype);
+
+
+
+/************************************************
+ * STATE PROVIDER BASE
+ ************************************************/
+
+/*
+    Base class for all state providers
+
+    - object with collection of items
+    - could be local - or proxy to online source
+
+    represents a dynamic collection of items
+    {itv, type, ...data}
+*/
+
+class StateProviderBase {
+
+    constructor() {
+        callback.addToInstance(this);
+    }
+
+    /**
+     * update function
+     * called from cursor or layer objects
+     * for online implementation, this will
+     * typically result in a network request 
+     * to update some online item collection
+     */
+    update(items){
+        throw new Error("not implemented");
+    }
+
+    /**
+     * return array with all items in collection 
+     * - no requirement wrt order
+     */
+
+    get items() {
+        throw new Error("not implemented");
+    }
+
+    /**
+     * signal if items can be overlapping or not
+     */
+
+    get info () {
+        return {overlapping: true};
+    }
+}
+callback.addToPrototype(StateProviderBase.prototype);
+
+
+/************************************************
+ * LAYER BASE
+ ************************************************/
+
+class LayerBase {
+
+    constructor() {
+        this._index;
+
+        callback.addToInstance(this);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+
+    /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    getCacheObject () {
+        throw new Error("Not implemented");     
+    }
+
+    get index () {return this._index};
+    
+
+    /*
+        Sample Layer by timeline offset increments
+        return list of tuples [value, offset]
+        options
+        - start
+        - stop
+        - step
+    */
+    sample(options={}) {
+        let {start=-Infinity, stop=Infinity, step=1} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+
+        start = endpoint.max(this.index.first(), start);
+        stop = endpoint.min(this.index.last(), stop);
+        const cache = this.getCacheObject();
+        return range(start[0], stop[0], step, {include_end:true})
+            .map((offset) => {
+                return [cache.query(offset).value, offset];
+            });
+    }
+}
+callback.addToPrototype(LayerBase.prototype);
+eventify.addToPrototype(LayerBase.prototype);
+
+
+/************************************************
+ * CURSOR BASE
+ ************************************************/
+
+class CursorBase {
+
+    constructor () {
+        callback.addToInstance(this);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+    
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+
+    query () {
+        throw new Error("Not implemented");
+    }
+
+    get index() {
+        throw new Error("Not implemented");
+    }
+
+    /*
+        Eventify: immediate events
+    */
+    eventifyInitEventArgs(name) {
+        if (name == "change") {
+            return [this.query()];
+        }
+    }
+
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay, options);
+    }
+    release(handle) {
+        return release(handle);
+    }
+
+}
+callback.addToPrototype(CursorBase.prototype);
+eventify.addToPrototype(CursorBase.prototype);
+
+/************************************************
+ * SOURCE PROPERTY
+ ************************************************/
+
+/**
+ * Functions for extending a class with support for 
+ * external source on a named property.
+ * 
+ * option: mutable:true means that propery may be reset 
+ * 
+ * source object is assumed to support the callback interface
+ */
+
+function propnames (propName) {
+    return {
+        prop: `__${propName}`,
+        init: `__${propName}_init`,
+        handle: `__${propName}_handle`,
+        change: `__${propName}_handle_change`,
+        detatch: `__${propName}_detatch`,
+        attatch: `__${propName}_attatch`,
+        check: `__${propName}_check`
+    }
+}
+
+function addToInstance (object, propName) {
+    const p = propnames(propName);
+    object[p.prop] = undefined;
+    object[p.init] = false;
+    object[p.handle] = undefined;
+}
+
+function addToPrototype (_prototype, propName, options={}) {
+
+    const p = propnames(propName);
+
+    function detatch() {
+        // unsubscribe from source change event
+        let {mutable=false} = options;
+        if (mutable && this[p.prop]) {
+            let handle = this[p.handle];
+            this[p.prop].remove_callback(handle);
+            this[p.handle] = undefined;
+        }
+        this[p.prop] = undefined;
+    }
+
+    function attatch(source) {
+        let {mutable=false} = options;
+        if (!this[p.init] || mutable) {
+            this[p.prop] = source;
+            this[p.init] = true;
+            // subscribe to callback from source
+            if (this[p.change]) {
+                const handler = this[p.change].bind(this);
+                this[p.handle] = source.add_callback(handler);
+                handler("reset"); 
+            }
+        } else {
+            throw new Error(`${propName} can not be reassigned`);
+        }
+    }
+
+    /**
+     * 
+     * object must implement
+     * __{propName}_handle_change() {}
+     * 
+     * object can implement
+     * __{propName}_check(source) {}
+     */
+
+    // getter and setter
+    Object.defineProperty(_prototype, propName, {
+        get: function () {
+            return this[p.prop];
+        },
+        set: function (src) {
+            if (this[p.check]) {
+                this[p.check](src);
+            }
+            if (src != this[p.prop]) {
+                this[p.detatch]();
+                this[p.attatch](src);
+            }
+        }
+
+    });
+
+    const api = {};
+    api[p.detatch] = detatch;
+    api[p.attatch] = attatch;
+
+    Object.assign(_prototype, api);
+}
+
+const METHODS = {assign, move, transition, interpolate: interpolate$1};
+
+
+function cmd (target) {
+    if (!(target instanceof StateProviderBase)) {
+        throw new Error(`target.src must be stateprovider ${target}`);
+    }
+    let entries = Object.entries(METHODS)
+        .map(([name, method]) => {
+            return [
+                name,
+                function(...args) { 
+                    let items = method.call(this, ...args);
+                    return target.update(items);  
+                }
+            ]
+        });
+    return Object.fromEntries(entries);
+}
+
+function assign(value) {
+    if (value == undefined) {
+        return [];
+    } else {
+        let item = {
+            itv: [-Infinity, Infinity, true, true],
+            type: "static",
+            args: {value}                 
+        };
+        return [item];
+    }
+}
+
+function move(vector) {
+    let item = {
+        itv: [-Infinity, Infinity, true, true],
+        type: "motion",
+        args: vector  
+    };
+    return [item];
+}
+
+function transition(v0, v1, t0, t1, easing) {
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "transition",
+            args: {v0, v1, t0, t1, easing}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];
+    return items;
+}
+
+function interpolate$1(tuples) {
+    let [v0, t0] = tuples[0];
+    let [v1, t1] = tuples[tuples.length-1];
+
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            args: {value:v0}
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "interpolation",
+            args: {tuples}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            args: {value: v1}
+        }
+    ];    
+    return items;
+}
+
+/***************************************************************
+    SIMPLE STATE PROVIDER (LOCAL)
+***************************************************************/
+
+/**
+ * Local Array with non-overlapping items.
+ */
+
+class StateProviderSimple extends StateProviderBase {
+
+    constructor(options={}) {
+        super();
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            this._items = check_input(items);
+        } else if (value != undefined) {
+            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
+        } else {
+            this._items = [];
+        }
+    }
+
+    update (items) {
+        return Promise.resolve()
+            .then(() => {
+                this._items = check_input(items);
+                this.notify_callbacks();
+            });
+    }
+
+    get items () {
+        return this._items.slice();
+    }
+
+    get info () {
+        return {dynamic: true, overlapping: false, local:true};
+    }
+}
+
+
+function check_input(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
+}
+
 /********************************************************************
 BASE SEGMENT
 *********************************************************************/
@@ -1551,9 +1635,9 @@ class InterpolationSegment extends BaseSegment {
 
 class NearbyCache {
 
-    constructor (nearbyIndex) {
+    constructor (layer) {
         // nearby index
-        this._index = nearbyIndex;
+        this._index = layer.index;
         // cached nearby object
         this._nearby = undefined;
         // cached segment
@@ -1664,69 +1748,6 @@ function load_segment(nearby) {
     if (center.length > 1) {
         throw new Error("ListSegments not yet supported");
     }
-}
-
-/***************************************************************
-    SIMPLE STATE PROVIDER (LOCAL)
-***************************************************************/
-
-/**
- * Local Array with non-overlapping items.
- */
-
-class StateProviderSimple extends StateProviderBase {
-
-    constructor(options={}) {
-        super();
-        // initialization
-        let {items, value} = options;
-        if (items != undefined) {
-            this._items = check_input(items);
-        } else if (value != undefined) {
-            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
-        } else {
-            this._items = [];
-        }
-    }
-
-    update (items) {
-        return Promise.resolve()
-            .then(() => {
-                this._items = check_input(items);
-                this.notify_callbacks();
-            });
-    }
-
-    get items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {dynamic: true, overlapping: false, local:true};
-    }
-}
-
-
-function check_input(items) {
-    if (!Array.isArray(items)) {
-        throw new Error("Input must be an array");
-    }
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
-    }
-    return items;
 }
 
 /*********************************************************************
@@ -1881,32 +1902,6 @@ function check_input(items) {
         }
         return results;
     }
-
-    /*
-        Sample NearbyIndex by timeline offset increments
-        return list of tuples [value, offset]
-        options
-        - start
-        - stop
-        - step
-    */
-    sample(options={}) {
-        let {start=-Infinity, stop=Infinity, step=1} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
-        }
-        start = [start, 0];
-        stop = [stop, 0];
-
-        start = endpoint.max(this.first(), start);
-        stop = endpoint.min(this.last(), stop);
-        const cache = new NearbyCache(this);
-        return range(start[0], stop[0], step, {include_end:true})
-            .map((offset) => {
-                return [cache.query(offset).value, offset];
-            });
-    }
-
 }
 
 /**
@@ -2074,27 +2069,6 @@ function find_index(target, arr, value_func) {
   	return [false, left]; // Return the index where target should be inserted
 }
 
-class QueryObject {
-
-    constructor (layer) {
-        this._layer = layer;
-        this._cache = new NearbyCache(this._layer.index);
-    }
-
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
-
-    dirty() {
-        this._cache.dirty();
-    }
-}
-
-
-
 /************************************************
  * LAYER
  ************************************************/
@@ -2116,8 +2090,8 @@ class Layer extends LayerBase {
         addToInstance(this, "src");
         // index
         this._index;
-        // query object
-        this._query_objects = [];
+        // cache objects
+        this._cache_objects = [];
 
         // initialise with stateprovider
         let {src, ...opts} = options;
@@ -2134,10 +2108,10 @@ class Layer extends LayerBase {
      * QUERY API
      **********************************************************/
 
-    getQueryObject () {
-        const query_object = new QueryObject(layer);
-        this._query_objects.push(query_object);
-        return query_object;
+    getCacheObject () {
+        const cache_object = new NearbyCache(this);
+        this._cache_objects.push(cache_object);
+        return cache_object;
     }
     
     /*
@@ -2162,8 +2136,8 @@ class Layer extends LayerBase {
         if (this._index == undefined) {
             this._index = new NearbyIndexSimple(this.src);
         } else {
-            for (query_object of this._query_objects) {
-                query_object.dirty();
+            for (let cache_object of this._cache_objects) {
+                cache_object.dirty();
             }
         }
         this.notify_callbacks();
@@ -2247,7 +2221,7 @@ class LocalEpochProvider extends ClockProviderBase {
 const LOCAL_EPOCH_PROVIDER = new LocalEpochProvider();
 
 /************************************************
- * CLOCK CURSORS
+ * CLOCK CURSOR
  ************************************************/
 
 /**
@@ -2259,19 +2233,10 @@ const LOCAL_EPOCH_PROVIDER = new LocalEpochProvider();
 
 class ClockCursor extends CursorBase {
 
-    constructor (options={}) {
+    constructor (src) {
         super();
-
         // src
         addToInstance(this, "src");
-
-        // options
-        let {src, epoch=false} = options;
-        
-        if (src == undefined) {
-            // initialise state provider
-            src = (epoch) ? LOCAL_EPOCH_PROVIDER : LOCAL_CLOCK_PROVIDER;
-        }
         this.src = src;
     }
 
@@ -2314,11 +2279,9 @@ class ClockCursor extends CursorBase {
 }
 addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
-// singleton
-
-const localClockCursor = new ClockCursor({epoch:false});
-const epochClockCursor = new ClockCursor({epoch:true});
-
+// singleton clock cursors
+const localClockCursor = new ClockCursor(LOCAL_CLOCK_PROVIDER);
+const epochClockCursor = new ClockCursor(LOCAL_EPOCH_PROVIDER);
 
 
 /************************************************
@@ -2344,7 +2307,7 @@ class Cursor extends CursorBase {
         addToInstance(this, "src");
         // index
         this._index;
-        // cache
+        // cursor maintains a cashe object for querying src layer
         this._cache;
         // timeout
         this._tid;
@@ -2407,7 +2370,7 @@ class Cursor extends CursorBase {
                 // reset cursor index to layer index
                 if (this._index != this.src.index) {
                     this._index = this.src.index;
-                    this._cache = new NearbyCache(this._index);
+                    this._cache = this.src.getCacheObject();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
@@ -2530,8 +2493,9 @@ class Cursor extends CursorBase {
         const {value:current_pos} = ctrl_vector;
 
         // nearby.center - low and high
-        this.cache.refresh(ctrl_vector.value);
-        const src_nearby = this.cache.nearby;
+        this._cache.refresh(ctrl_vector.value);
+        // TODO - should I get it from the cache?
+        const src_nearby = this._cache.nearby;
         const [low, high] = src_nearby.itv.slice(0,2);
 
         // ctrl must be dynamic
@@ -2550,6 +2514,7 @@ class Cursor extends CursorBase {
             this.ctrl instanceof Cursor && 
             this.ctrl.ctrl instanceof ClockCursor
         ) {
+            // TODO - this only works if src of ctrl is a regular layer
             const ctrl_nearby = this.ctrl.cache.nearby;
 
             if (!isFinite(low) && !isFinite(high)) {

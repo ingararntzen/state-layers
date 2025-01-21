@@ -1,5 +1,3 @@
-
-
 import { 
     ClockProviderBase,
     StateProviderBase,
@@ -8,14 +6,12 @@ import {
 } from "./bases.js";
 import * as sourceprop from "./sourceprop.js";
 import { cmd } from "./cmd.js";
-import { NearbyCache } from "./nearbycache.js";
 import { Layer } from "./layers.js";
-import { LOCAL_EPOCH_PROVIDER, LOCAL_CLOCK_PROVIDER } from "./clockproviders.js";
-
+import { LOCAL_CLOCK_PROVIDER, LOCAL_EPOCH_PROVIDER } from "./clockproviders.js";
 
 
 /************************************************
- * CLOCK CURSORS
+ * CLOCK CURSOR
  ************************************************/
 
 /**
@@ -27,19 +23,10 @@ import { LOCAL_EPOCH_PROVIDER, LOCAL_CLOCK_PROVIDER } from "./clockproviders.js"
 
 class ClockCursor extends CursorBase {
 
-    constructor (options={}) {
+    constructor (src) {
         super();
-
         // src
         sourceprop.addToInstance(this, "src");
-
-        // options
-        let {src, epoch=false} = options;
-        
-        if (src == undefined) {
-            // initialise state provider
-            src = (epoch) ? LOCAL_EPOCH_PROVIDER : LOCAL_CLOCK_PROVIDER;
-        }
         this.src = src;
     }
 
@@ -82,11 +69,9 @@ class ClockCursor extends CursorBase {
 }
 sourceprop.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
-// singleton
-
-const localClockCursor = new ClockCursor({epoch:false});
-const epochClockCursor = new ClockCursor({epoch:true})
-
+// singleton clock cursors
+const localClockCursor = new ClockCursor(LOCAL_CLOCK_PROVIDER);
+const epochClockCursor = new ClockCursor(LOCAL_EPOCH_PROVIDER);
 
 
 /************************************************
@@ -112,7 +97,7 @@ export class Cursor extends CursorBase {
         sourceprop.addToInstance(this, "src");
         // index
         this._index;
-        // cache
+        // cursor maintains a cashe object for querying src layer
         this._cache;
         // timeout
         this._tid;
@@ -175,7 +160,7 @@ export class Cursor extends CursorBase {
                 // reset cursor index to layer index
                 if (this._index != this.src.index) {
                     this._index = this.src.index;
-                    this._cache = new NearbyCache(this._index);
+                    this._cache = this.src.getCacheObject();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
@@ -298,8 +283,9 @@ export class Cursor extends CursorBase {
         const {value:current_pos} = ctrl_vector;
 
         // nearby.center - low and high
-        this.cache.refresh(ctrl_vector.value);
-        const src_nearby = this.cache.nearby;
+        this._cache.refresh(ctrl_vector.value);
+        // TODO - should I get it from the cache?
+        const src_nearby = this._cache.nearby;
         const [low, high] = src_nearby.itv.slice(0,2);
 
         // ctrl must be dynamic
@@ -318,6 +304,7 @@ export class Cursor extends CursorBase {
             this.ctrl instanceof Cursor && 
             this.ctrl.ctrl instanceof ClockCursor
         ) {
+            // TODO - this only works if src of ctrl is a regular layer
             const ctrl_nearby = this.ctrl.cache.nearby;
 
             if (!isFinite(low) && !isFinite(high)) {

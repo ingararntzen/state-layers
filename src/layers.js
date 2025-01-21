@@ -8,26 +8,6 @@ import { NearbyIndexMerge } from "./nearbyindex_merge.js";
 
 
 
-class QueryObject {
-
-    constructor (layer) {
-        this._layer = layer;
-        this._cache = new NearbyCache(this._layer.index);
-    }
-
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
-
-    dirty() {
-        this._cache.dirty();
-    }
-}
-
-
 
 /************************************************
  * LAYER
@@ -50,8 +30,8 @@ export class Layer extends LayerBase {
         sourceprop.addToInstance(this, "src");
         // index
         this._index;
-        // query object
-        this._query_objects = [];
+        // cache objects
+        this._cache_objects = [];
 
         // initialise with stateprovider
         let {src, ...opts} = options;
@@ -68,10 +48,10 @@ export class Layer extends LayerBase {
      * QUERY API
      **********************************************************/
 
-    getQueryObject () {
-        const query_object = new QueryObject(layer);
-        this._query_objects.push(query_object);
-        return query_object;
+    getCacheObject () {
+        const cache_object = new NearbyCache(this);
+        this._cache_objects.push(cache_object);
+        return cache_object;
     }
     
     /*
@@ -96,8 +76,8 @@ export class Layer extends LayerBase {
         if (this._index == undefined) {
             this._index = new NearbyIndexSimple(this.src)
         } else {
-            for (query_object of this._query_objects) {
-                query_object.dirty();
+            for (let cache_object of this._cache_objects) {
+                cache_object.dirty();
             }
         }
         this.notify_callbacks();
@@ -126,6 +106,35 @@ Layer.fromArray = fromArray;
  * MERGE LAYER
  ************************************************/
 
+class MergeLayerCacheObject {
+
+    constructor (layer) {
+        this._layer = layer;
+        this._cache_objects = layer.sources.map((layer) => layer.getCacheObject());
+    }
+
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        return this._cache_objects.map((cache_object) => cache_object.query(offset));
+    }
+
+    dirty() {
+        // Noop - as long as queryobject is stateless
+    }
+
+    refresh(offset) {
+        // Noop - as long as queryobject is stateless
+    }
+
+    nearby(offset) {
+
+    }
+
+
+}
+
 
 export class MergeLayer extends LayerBase {
 
@@ -137,13 +146,24 @@ export class MergeLayer extends LayerBase {
 
         // layers
         let {sources} = options;
-        this.set_sources(sources);
+        this.sources = sources;
+
+        // subscribe to callbacks from sources
     }
+
+
 
     /**********************************************************
      * QUERY API
      **********************************************************/
 
+    getCacheObject () {
+        const cache_object = new MergeLayerCacheObject(this);
+        this._cache_objects.push(cache_object);
+        return cache_object;
+    }
+
+    /*
     query(offset) {
         if (offset == undefined) {
             throw new Error("Layer: query offset can not be undefined");
@@ -154,12 +174,17 @@ export class MergeLayer extends LayerBase {
         // TODO - apply function to arrive at single value for layer.
         return values;
     }
+    */
 
     /**********************************************************
      * UPDATE API
      **********************************************************/
-    set_sources (sources) {
-        this._sources.push(...sources);
+    
+    get sources () {
+        return this._sources;
+    }
+    set sources (sources) {
+        this._sources = sources;
         let indexes = sources.map((layer) => layer.index);
         this._index = new NearbyIndexMerge(indexes);
     }

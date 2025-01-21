@@ -178,7 +178,7 @@ describe('MergeTest', () => {
             [0.3]
         ];
 
-        let entries = layer.list({start:0, end:20});
+        let entries = layer.index.list({start:0, end:20});
         
         for (let [idx, items] of entries.entries()) {
             let values = new Set(items.map((item) => item.value));
