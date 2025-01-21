@@ -164,13 +164,9 @@ export class Cursor extends CursorBase {
                 }
             }
             if (origin == "src" || origin == "ctrl") {
-                // refresh cache
+                // reevaluate the cache
                 this._cache.dirty();
-                let {value:offset} = this.ctrl.query();
-                if (typeof offset !== 'number') {
-                    throw new Error(`warning: ctrl state must be number ${offset}`);
-                }        
-                this._cache.refresh(offset); 
+                this._refresh();
             }
             this.notify_callbacks();
             // trigger change event for cursor
@@ -366,13 +362,17 @@ export class Cursor extends CursorBase {
     /**********************************************************
      * QUERY API
      **********************************************************/
-
-    query () {
+    _refresh () {
         let {value:offset} = this.ctrl.query();
         if (typeof offset !== 'number') {
             throw new Error(`warning: ctrl state must be number ${offset}`);
         }
         let refreshed = this._cache.refresh(offset);
+        return [offset, refreshed];
+    }
+
+    query () {
+        let [offset, refreshed] = this._refresh();
         if (refreshed) {
             this.__handle_change("query");
         }
