@@ -718,6 +718,28 @@ function release(handle) {
     }
 }
 
+/***************************************************************
+    CLOCK PROVIDER BASE
+***************************************************************/
+
+/**
+ * Defines the interface which needs to be implemented
+ * by clock providers.
+ */
+
+class ClockProviderBase {
+
+    constructor() {
+        callback.addToInstance(this);
+    }
+    now() {
+        throw new Error("not implemented");
+    }
+}
+callback.addToPrototype(ClockProviderBase.prototype);
+
+
+
 /************************************************
  * STATE PROVIDER BASE
  ************************************************/
@@ -777,7 +799,6 @@ class LayerBase {
 
     constructor() {
         this._index;
-        this._cache;
 
         callback.addToInstance(this);
         // define change event
@@ -789,15 +810,8 @@ class LayerBase {
      * QUERY API
      **********************************************************/
 
-    get cache () {return this._cache};
     get index () {return this._index};
     
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
 
     list (options) {
         return this._index.list(options);
@@ -2060,6 +2074,27 @@ function find_index(target, arr, value_func) {
   	return [false, left]; // Return the index where target should be inserted
 }
 
+class QueryObject {
+
+    constructor (layer) {
+        this._layer = layer;
+        this._cache = new NearbyCache(this._layer.index);
+    }
+
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        return this._cache.query(offset);
+    }
+
+    dirty() {
+        this._cache.dirty();
+    }
+}
+
+
+
 /************************************************
  * LAYER
  ************************************************/
@@ -2081,8 +2116,8 @@ class Layer extends LayerBase {
         addToInstance(this, "src");
         // index
         this._index;
-        // cache
-        this._cache;
+        // query object
+        this._query_objects = [];
 
         // initialise with stateprovider
         let {src, ...opts} = options;
@@ -2096,6 +2131,25 @@ class Layer extends LayerBase {
     }
 
     /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    getQueryObject () {
+        const query_object = new QueryObject(layer);
+        this._query_objects.push(query_object);
+        return query_object;
+    }
+    
+    /*
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        return this._cache.query(offset);
+    }
+    */
+
+    /**********************************************************
      * SRC (stateprovider)
      **********************************************************/
 
@@ -2107,9 +2161,10 @@ class Layer extends LayerBase {
     __src_handle_change() {
         if (this._index == undefined) {
             this._index = new NearbyIndexSimple(this.src);
-            this._cache = new NearbyCache(this._index);
         } else {
-            this._cache.dirty();
+            for (query_object of this._query_objects) {
+                query_object.dirty();
+            }
         }
         this.notify_callbacks();
         // trigger change event for cursor
@@ -2131,18 +2186,76 @@ function fromArray (array) {
 
 Layer.fromArray = fromArray;
 
-/************************************************
- * CLOCKS
- ************************************************/
+/***************************************************************
+    CLOCKS
+***************************************************************/
 
-// CLOCK (counting seconds since page load)
-const CLOCK = function () {
+/**
+ * clocks counting in seconds
+ */
+
+const local_clock = function () {
     return performance.now()/1000.0;
 };
+
+const local_epoch = function () {
+    return new Date()/1000.0;
+};
+
+
+/***************************************************************
+    LOCAL CLOCK PROVIDER
+***************************************************************/
+
+/**
+ * Local high performance clock
+ */
+
+class LocalClockProvider extends ClockProviderBase {
+    now () { 
+        return local_clock();
+    }
+}
+// singleton
+const LOCAL_CLOCK_PROVIDER = new LocalClockProvider();
+
+
+/***************************************************************
+    LOCAL EPOCH CLOCK PROVIDER
+***************************************************************/
+
+/**
+ * Local Epoch Clock Provider is computed from local high
+ * performance clock. This makes for a better resolution than
+ * the system epoch clock, and protects the clock from system 
+ * clock adjustments during the session.
+ */
+
+class LocalEpochProvider extends ClockProviderBase {
+
+    constructor () {
+        super();
+        this._t0 = local_clock();
+        this._t0_epoch = local_epoch();
+    }
+    now () {
+        return this._t0_epoch + (local_clock() - this._t0);            
+    }
+}
+
+// singleton
+const LOCAL_EPOCH_PROVIDER = new LocalEpochProvider();
 
 /************************************************
  * CLOCK CURSORS
  ************************************************/
+
+/**
+ * Convenience wrapping around a clock provider.
+ * - makes it easy to visualize a clock like any other cursor
+ * - allows cursor.ctrl to always be cursor type
+ * - allows cursors to be driven by online clocks 
+ */
 
 class ClockCursor extends CursorBase {
 
@@ -2153,19 +2266,11 @@ class ClockCursor extends CursorBase {
         addToInstance(this, "src");
 
         // options
-        let {src} = options;
+        let {src, epoch=false} = options;
         
         if (src == undefined) {
             // initialise state provider
-            const t0 = CLOCK();
-            const items = [{
-                itv: [-Infinity, Infinity, true, true],
-                type: "motion",
-                args: {position: t0, velocity: 1.0, timestamp: t0}
-            }]; 
-            src = new Layer({items});
-        } else if (src instanceof StateProviderBase) {
-            src = new Layer({src});
+            src = (epoch) ? LOCAL_EPOCH_PROVIDER : LOCAL_CLOCK_PROVIDER;
         }
         this.src = src;
     }
@@ -2175,31 +2280,44 @@ class ClockCursor extends CursorBase {
      **********************************************************/
 
     __src_check(src) {
-        if (!(src instanceof LayerBase)) {
-            throw new Error(`"src" must be Layer ${src}`);
+        if (!(src instanceof ClockProviderBase)) {
+            throw new Error(`"src" must be ClockProvider ${src}`);
         }
-        // TODO - check restrictions on Layer specific to
-        // ClockCursor - must be a single motion segment
     }    
     __src_handle_change(reason) {
-        // ClockCursors never change - by definition
-        // so we ignore changes in state,
-        // but we do not ignore switching between clocks,
-        // signalled through the reason flag.
+        /**
+         * Local ClockProviders never change 
+         * do change - in the sense that and signal change through
+         * this callback.
+         * 
+         * Currently we ignore such changes, on the assumtion
+         * that these changes are small and that
+         * there is no need to inform the application about it.
+         * 
+         * However, we we do not ignore switching between clocks,
+         * which may happen if one switches from a local clock
+         * to an online source. Note however that switching clocks
+         * make most sense if the clocks are within the same time domain
+         * for example, switching from local epoch to global epoch,
+         * whi
+         */
+        // 
         if (reason == "reset") {
             this.notify_callbacks();
         }
     }
 
     query () {
-        let ts = CLOCK(); 
-        return this.src.query(ts);
+        let ts =  this.src.now();
+        return {value:ts, dynamic:true, offset:ts}
     }
 }
 addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
+// singleton
 
-const local_clock = new ClockCursor();
+const localClockCursor = new ClockCursor({epoch:false});
+const epochClockCursor = new ClockCursor({epoch:true});
 
 
 
@@ -2237,7 +2355,8 @@ class Cursor extends CursorBase {
 
         // initialise ctrl
         if (ctrl == undefined) {
-            ctrl = local_clock;
+            let {epoch=false} = options;
+            ctrl = (epoch) ? epochClockCursor : localClockCursor;
         }
         this.ctrl = ctrl;
 

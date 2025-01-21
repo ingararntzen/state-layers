@@ -1,23 +1,29 @@
 
 
-import { CursorBase, LayerBase, StateProviderBase } from "./bases.js";
+import { 
+    ClockProviderBase,
+    StateProviderBase,
+    CursorBase, 
+    LayerBase
+} from "./bases.js";
 import * as sourceprop from "./sourceprop.js";
 import { cmd } from "./cmd.js";
 import { NearbyCache } from "./nearbycache.js";
 import { Layer } from "./layers.js";
+import { LOCAL_EPOCH_PROVIDER, LOCAL_CLOCK_PROVIDER } from "./clockproviders.js";
 
-/************************************************
- * CLOCKS
- ************************************************/
 
-// CLOCK (counting seconds since page load)
-const CLOCK = function () {
-    return performance.now()/1000.0;
-}
 
 /************************************************
  * CLOCK CURSORS
  ************************************************/
+
+/**
+ * Convenience wrapping around a clock provider.
+ * - makes it easy to visualize a clock like any other cursor
+ * - allows cursor.ctrl to always be cursor type
+ * - allows cursors to be driven by online clocks 
+ */
 
 class ClockCursor extends CursorBase {
 
@@ -28,19 +34,11 @@ class ClockCursor extends CursorBase {
         sourceprop.addToInstance(this, "src");
 
         // options
-        let {src} = options;
+        let {src, epoch=false} = options;
         
         if (src == undefined) {
             // initialise state provider
-            const t0 = CLOCK();
-            const items = [{
-                itv: [-Infinity, Infinity, true, true],
-                type: "motion",
-                args: {position: t0, velocity: 1.0, timestamp: t0}
-            }]; 
-            src = new Layer({items});
-        } else if (src instanceof StateProviderBase) {
-            src = new Layer({src})
+            src = (epoch) ? LOCAL_EPOCH_PROVIDER : LOCAL_CLOCK_PROVIDER;
         }
         this.src = src;
     }
@@ -50,31 +48,44 @@ class ClockCursor extends CursorBase {
      **********************************************************/
 
     __src_check(src) {
-        if (!(src instanceof LayerBase)) {
-            throw new Error(`"src" must be Layer ${src}`);
+        if (!(src instanceof ClockProviderBase)) {
+            throw new Error(`"src" must be ClockProvider ${src}`);
         }
-        // TODO - check restrictions on Layer specific to
-        // ClockCursor - must be a single motion segment
     }    
     __src_handle_change(reason) {
-        // ClockCursors never change - by definition
-        // so we ignore changes in state,
-        // but we do not ignore switching between clocks,
-        // signalled through the reason flag.
+        /**
+         * Local ClockProviders never change 
+         * do change - in the sense that and signal change through
+         * this callback.
+         * 
+         * Currently we ignore such changes, on the assumtion
+         * that these changes are small and that
+         * there is no need to inform the application about it.
+         * 
+         * However, we we do not ignore switching between clocks,
+         * which may happen if one switches from a local clock
+         * to an online source. Note however that switching clocks
+         * make most sense if the clocks are within the same time domain
+         * for example, switching from local epoch to global epoch,
+         * whi
+         */
+        // 
         if (reason == "reset") {
             this.notify_callbacks();
         }
     }
 
     query () {
-        let ts = CLOCK(); 
-        return this.src.query(ts);
+        let ts =  this.src.now();
+        return {value:ts, dynamic:true, offset:ts}
     }
 }
 sourceprop.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
 
+// singleton
 
-export const local_clock = new ClockCursor();
+const localClockCursor = new ClockCursor({epoch:false});
+const epochClockCursor = new ClockCursor({epoch:true})
 
 
 
@@ -112,7 +123,8 @@ export class Cursor extends CursorBase {
 
         // initialise ctrl
         if (ctrl == undefined) {
-            ctrl = local_clock;
+            let {epoch=false} = options;
+            ctrl = (epoch) ? epochClockCursor : localClockCursor;
         }
         this.ctrl = ctrl;
 

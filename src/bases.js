@@ -2,6 +2,29 @@ import { eventify } from "./eventify.js";
 import { callback } from "./util.js";
 import { bind, release } from "./monitor.js";
 
+
+/***************************************************************
+    CLOCK PROVIDER BASE
+***************************************************************/
+
+/**
+ * Defines the interface which needs to be implemented
+ * by clock providers.
+ */
+
+export class ClockProviderBase {
+
+    constructor() {
+        callback.addToInstance(this);
+    }
+    now() {
+        throw new Error("not implemented");
+    }
+}
+callback.addToPrototype(ClockProviderBase.prototype);
+
+
+
 /************************************************
  * STATE PROVIDER BASE
  ************************************************/
