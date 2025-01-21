@@ -28,8 +28,6 @@ export class Layer extends LayerBase {
 
         // src
         sourceprop.addToInstance(this, "src");
-        // index
-        this._index;
         // cache objects
         this._cache_objects = [];
 
@@ -106,6 +104,9 @@ Layer.fromArray = fromArray;
  * MERGE LAYER
  ************************************************/
 
+
+
+
 class MergeLayerCacheObject {
 
     constructor (layer) {
@@ -117,7 +118,14 @@ class MergeLayerCacheObject {
         if (offset == undefined) {
             throw new Error("Layer: query offset can not be undefined");
         }
-        return this._cache_objects.map((cache_object) => cache_object.query(offset));
+        const vector = this._cache_objects.map((cache_object) => {
+            return cache_object.query(offset);
+        });
+        const valueFunc = this._layer.valueFunc;
+        const dynamic = vector.map((v) => v.dynamic).some(e => e == true);
+        const values = vector.map((v) => v.value);
+        const value = (valueFunc) ? valueFunc(values) : values;
+        return {value, dynamic, offset};
     }
 
     dirty() {
@@ -128,8 +136,8 @@ class MergeLayerCacheObject {
         // Noop - as long as queryobject is stateless
     }
 
-    nearby(offset) {
-
+    get nearby() {
+        throw new Error("not implemented")
     }
 
 
@@ -141,13 +149,21 @@ export class MergeLayer extends LayerBase {
     constructor (options={}) {
         super();
 
+        this._cache_objects = [];
+
+        // value func
+        let {valueFunc=undefined} = options;
+        if (typeof valueFunc == "function") {
+            this._valueFunc = valueFunc
+        }
+
         // sources (layers)
-        this._sources = [];
-
-        // layers
+        this._sources;
         let {sources} = options;
-        this.sources = sources;
-
+        if (sources) {
+            this.sources = sources;
+        }
+ 
         // subscribe to callbacks from sources
     }
 
@@ -156,6 +172,10 @@ export class MergeLayer extends LayerBase {
     /**********************************************************
      * QUERY API
      **********************************************************/
+
+    get valueFunc () {
+        return this._valueFunc;
+    }
 
     getCacheObject () {
         const cache_object = new MergeLayerCacheObject(this);

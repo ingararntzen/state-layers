@@ -150,7 +150,7 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test('TestMergeLayer', () => {
+    test('TestMergeLayer List', () => {
 
         // Datasource 1
         const items_1 = [
@@ -188,6 +188,63 @@ describe('MergeTest', () => {
             }
         }
     });
+
+
+    test('TestMergeLayer valueFunc', () => {
+
+        // Datasource 1
+        const items_1 = [
+            {type: "static", itv: [1, 5, true, false], args:{value: 0.8}},
+            {type: "static", itv: [10, 15, true, false], args:{value: 0.6}},
+        ];
+        const layer_1 = new Layer({items:items_1});
+
+        // Datasource 2
+        const items_2 = [
+            {type: "static", itv: [2.5, 7.5, true, false], args:{value: 0.1}},
+            {type: "static", itv: [12.5, 17.5, true, false], args:{value: 0.3}},
+        ];
+        const layer_2 = new Layer({items:items_2});
+
+        // valueFunc
+        function valueFunc(values) {
+            return values
+                .filter(e => e != undefined)
+                .reduce((acc, current) => acc + current, 0);
+        }
+
+        // Merge
+        let layer = new MergeLayer({sources:[layer_1, layer_2], valueFunc});
+
+
+        const expected = [
+            [ 0.8, 1 ],
+            [ 0.8, 2 ],
+            [ 0.9, 3 ],
+            [ 0.9, 4 ],
+            [ 0.1, 5 ],
+            [ 0.1, 6 ],
+            [ 0.1, 7 ],
+            [ 0, 8 ],
+            [ 0, 9 ],
+            [ 0.6, 10 ],
+            [ 0.6, 11 ],
+            [ 0.6, 12 ],
+            [ 0.8999999999999999, 13 ],
+            [ 0.8999999999999999, 14 ],
+            [ 0.3, 15 ],
+            [ 0.3, 16 ],
+            [ 0.3, 17 ],
+            [ 0, 17.5 ]
+        ]
+            
+        let tups = layer.sample({start:0, end:20});
+        expect(tups).toStrictEqual(expected)
+
+    });
+
+
+
 
     // Add more test cases as needed
 });

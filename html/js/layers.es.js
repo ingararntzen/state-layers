@@ -1705,9 +1705,6 @@ class NearbyCache {
     ***************************************************/
 
     query(offset) {
-        if (offset == undefined) {
-            throw new Error("cache query offset cannot be undefined")
-        }
         this.refresh(offset);
         if (!this._segment) {
             this._segment = load_segment(this._nearby);
@@ -2088,8 +2085,6 @@ class Layer extends LayerBase {
 
         // src
         addToInstance(this, "src");
-        // index
-        this._index;
         // cache objects
         this._cache_objects = [];
 
