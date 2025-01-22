@@ -182,7 +182,7 @@ export class Cursor extends CursorBase {
      * PROBLEM:
      * 
      * During playback (cursor.ctrl is dynamic), there is a need to 
-     * detect the passing from one segment interval
+     * detect the passing from one segment interval of src
      * to the next - ideally at precisely the correct time
      * 
      * nearby.itv (derived from cursor.src) gives the 
@@ -276,34 +276,44 @@ export class Cursor extends CursorBase {
 
         // ctrl 
         const ctrl_vector = this.ctrl.query();
-        const {value:current_pos} = ctrl_vector;
-
-        // nearby.center - low and high
-        this._cache.refresh(ctrl_vector.value);
-        // TODO - should I get it from the cache?
-        const src_nearby = this._cache.nearby;
-        const [low, high] = src_nearby.itv.slice(0,2);
+        const {value:current_pos, offset:current_ts} = ctrl_vector;
 
         // ctrl must be dynamic
         if (!ctrl_vector.dynamic) {
+            // no future event to detect
             return;
         }
+
+        // get nearby from src - use value from ctrl
+        const src_nearby = this.src.index.nearby(current_pos);
+        const [low, high] = src_nearby.itv.slice(0,2);
 
         // approach [1]
         if (this.ctrl instanceof ClockCursor) {
             if (isFinite(high)) {
-                this.__set_timeout(high, current_pos, 1.0);
+                this.__set_timeout(high, current_pos, 1.0, current_ts);
+                return;
             }
+            // no future event to detect
             return;
         } 
         if (
             this.ctrl instanceof Cursor && 
             this.ctrl.ctrl instanceof ClockCursor
         ) {
-            // TODO - this only works if src of ctrl is a regular layer
-            const ctrl_nearby = this.ctrl.cache.nearby;
+            /** 
+             * Ctrl has many possible behaviors
+             * Since Ctrl is not a ClockCursor - 
+             * it has an index - use this to figure out which
+             * behaviour is current.
+             * 
+            */
+            
+            // use the same offset that was used in the ctrl.query
+            const ctrl_nearby = this.ctrl.index.nearby(current_ts);
 
             if (!isFinite(low) && !isFinite(high)) {
+                // no future event to detect
                 return;
             }
             if (ctrl_nearby.center.length == 1) {
@@ -314,13 +324,13 @@ export class Cursor extends CursorBase {
                         // figure out which boundary we hit first
                         let target_pos = (velocity > 0) ? high : low;
                         if (isFinite(target_pos)) {
-                            this.__set_timeout(target_pos, current_pos, velocity);
+                            this.__set_timeout(target_pos, current_pos, velocity, current_ts);
                             return;                           
-                        } else {
-                            // no need for timeout
-                            return;
-                        }
+                        } 
+                        // no future event to detect
+                        return;
                     }
+                    // acceleration - possible event to detect
                 } else if (ctrl_item.type == "transition") {
                     const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.args;
                     if (easing == "linear") {
@@ -328,24 +338,55 @@ export class Cursor extends CursorBase {
                         let velocity = (p1-p0)/(t1-t0);
                         // figure out which boundary we hit first
                         const target_pos = (velocity > 0) ? Math.min(high, p1) : Math.max(low, p1);
-                        this.__set_timeout(target_pos, current_pos, velocity);
+                        this.__set_timeout(target_pos, current_pos, 
+                            velocity, current_ts);
+                        //
                         return;
                     }
+                    // other easing - possible event to detect
                 }
+                // other type (interpolation) - possible event to detect
             }
+            // more than one segment - possible event to detect
         }
 
-        // approach [3]
+        // possible event to detect - approach [3]
         this.__set_polling();
     }
 
-    __set_timeout(target_pos, current_pos, velocity) {
-        const delta_sec = (target_pos - current_pos)/velocity;
+    /**
+     * set timeout
+     * - protects against too early callbacks by rescheduling
+     * timeout if neccessary.
+     * - adds a millisecond to original timeout to avoid
+     * frequent rescheduling 
+     */
+
+    __set_timeout(target_pos, current_pos, velocity, current_ts) {
+        const delta_sec = (target_pos - current_pos) / velocity;
+        const target_ts = current_ts + delta_sec;
         this._tid = setTimeout(() => {
-            // TODO - guarantee that timeout is not too early
-            this.__handle_change("timeout");
-        }, delta_sec*1000);
+            this.__handle_timeout(target_ts);
+        }, delta_sec*1000 + 1);
     }
+
+    __handle_timeout(target_ts) {
+        const {offset:ts} = this.ctrl.query();
+        const remaining_sec = target_ts - ts; 
+        if (remaining_sec <= 0) {
+            // done
+            this.__handle_change("timeout");
+        } else {
+            // reschedule timeout
+            this._tid = setTimeout(() => {
+                this.__handle_timeout(target_ts)
+            }, remaining_sec*1000);
+        }
+    }
+
+    /**
+     * set polling
+     */
 
     __set_polling() {
         this._pid = setInterval(() => {
@@ -356,8 +397,6 @@ export class Cursor extends CursorBase {
     __handle_poll() {
         this.query();
     }
-
-
 
     /**********************************************************
      * QUERY API
