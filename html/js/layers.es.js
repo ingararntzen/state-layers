@@ -2109,15 +2109,6 @@ class Layer extends LayerBase {
         return cache_object;
     }
     
-    /*
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        return this._cache.query(offset);
-    }
-    */
-
     /**********************************************************
      * SRC (stateprovider)
      **********************************************************/
