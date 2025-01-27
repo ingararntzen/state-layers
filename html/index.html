@@ -4,19 +4,46 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="./js/layers.iife.js"></script>
     <script type="module">
-        // Test ES6 module import
-        import { sum } from './js/layers.es.js';
-        console.log(sum(2, 3));
-        document.getElementById('es-result').textContent = sum(2, 3);
-        // Test classic namespace import
-        document.getElementById('iife-result').textContent = LAYERS.sum(2, 3);
-    </script>
+
+        function render_html (selector, to_value) {
+            let elems = document.querySelector(selector);
+            return function (state) {
+                elems.innerHTML = to_value(state);
+            }
+        }
+
+        import { MediaControl } from './js/layers.es.js';
+        const mc = new MediaControl({position:0});
+
+        mc.bind(render_html("#offset", ({value}) => `${value}`), 200);
+
+        document.querySelector("#resetBtn").onclick = () => {
+            mc.update({position:0});
+        }
+        document.querySelector("#playBtn").onclick = () => {
+            mc.update({velocity:1});
+        }
+        document.querySelector("#pauseBtn").onclick = () => {
+            mc.update({velocity:0});
+        }
+
+
+</script>
 </head>
 <body>
-    <h1>Hello, Layers!</h1>
-    <p>Module import (es) <span id="es-result"></span>.</p>    
-    <p>Classic namespace import (iife) <span id="iife-result"></span>.</p>
+    <h1>Hello, MediaClock!</h1>
+
+    <h3> Value </h3>
+
+    <p>
+        <button id="resetBtn">Reset</button>
+        <button id="playBtn">Play</button>
+        <button id="pauseBtn">Pause</button>
+    </p>
+    <p>
+        <div id="offset"></div>
+    </p>
+    
 </body>
 </html>

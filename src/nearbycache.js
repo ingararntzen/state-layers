@@ -12,7 +12,7 @@ import * as segment from "./segments.js";
     queries to a NearbyIndex to nearby offsets.
 
     The cache state includes the nearby state from the 
-    index, and also the cached segments corresponding
+    index, and also segments corresponding
     to that state. This way, on a cache hit, the 
     query may be satisfied directly from the cache.
 
@@ -105,15 +105,15 @@ export class NearbyCache {
     LOAD SEGMENT
 *********************************************************************/
 
-function create_segment(itv, type, args) {
+function create_segment(itv, type, data) {
     if (type == "static") {
-        return new segment.StaticSegment(itv, args);
+        return new segment.StaticSegment(itv, data);
     } else if (type == "transition") {
-        return new segment.TransitionSegment(itv, args);
+        return new segment.TransitionSegment(itv, data);
     } else if (type == "interpolation") {
-        return new segment.InterpolationSegment(itv, args);
+        return new segment.InterpolationSegment(itv, data);
     } else if (type == "motion") {
-        return new segment.MotionSegment(itv, args);
+        return new segment.MotionSegment(itv, data);
     } else {
         console.log("unrecognized segment type", type);
     }
@@ -122,11 +122,11 @@ function create_segment(itv, type, args) {
 function load_segment(nearby) {
     let {itv, center} = nearby;
     if (center.length == 0) {
-        return create_segment(itv, "static", {value:undefined});
+        return create_segment(itv, "static", undefined);
     }
     if (center.length == 1) {
-        let {type="static", args} = center[0];
-        return create_segment(itv, type, args);
+        let {type="static", data} = center[0];
+        return create_segment(itv, type, data);
     }
     if (center.length > 1) {
         throw new Error("ListSegments not yet supported");

@@ -1,8 +1,6 @@
 import { endpoint, interval } from "./intervals.js";
 import { NearbyIndexBase } from "./nearbyindex.js";
 
-
-
 function cmp_ascending(p1, p2) {
     return endpoint.cmp(p1, p2)
 }
@@ -10,7 +8,6 @@ function cmp_ascending(p1, p2) {
 function cmp_descending(p1, p2) {
     return endpoint.cmp(p2, p1)
 }
-
 
 /**
  * Merging NearbyIndexes into one.
@@ -115,10 +112,6 @@ export class NearbyIndexMerge extends NearbyIndexBase {
         }
 
         return result;
-
-
     }
-
-
 };
 

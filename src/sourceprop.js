@@ -78,7 +78,7 @@ export function addToPrototype (_prototype, propName, options={}) {
         },
         set: function (src) {
             if (this[p.check]) {
-                this[p.check](src)
+                src = this[p.check](src)
             }
             if (src != this[p.prop]) {
                 this[p.detatch]();

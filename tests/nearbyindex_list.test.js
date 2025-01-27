@@ -1,6 +1,6 @@
 /* global describe, test, expect */
 
-import { StateProviderSimple } from '../src/stateprovider_simple.js';
+import { LocalStateProvider } from '../src/stateprovider_simple.js';
 import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
 
 // Add your test cases here
@@ -18,7 +18,7 @@ describe('NearbyIndexList', () => {
             return {itv};
         })
 
-        const src = new StateProviderSimple({items});
+        const src = new LocalStateProvider({items});
         const index = new NearbyIndexSimple(src);
 
         let result = index.list();

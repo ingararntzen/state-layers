@@ -1,5 +1,7 @@
+import { CLOCK } from "./util.js";
 import { 
     ClockProviderBase,
+    MotionProviderBase,
     StateProviderBase,
     CursorBase, 
     LayerBase
@@ -7,71 +9,21 @@ import {
 import * as sourceprop from "./sourceprop.js";
 import { cmd } from "./cmd.js";
 import { Layer } from "./layers.js";
-import { LOCAL_CLOCK_PROVIDER, LOCAL_EPOCH_PROVIDER } from "./clockproviders.js";
+import { LocalStateProvider } from "./stateprovider_simple.js";
+import { MotionStateProvider } from "./stateprovider_motion.js";
 
 
 /************************************************
- * CLOCK CURSOR
+ * LOCAL CLOCK PROVIDER
  ************************************************/
 
-/**
- * Convenience wrapping around a clock provider.
- * - makes it easy to visualize a clock like any other cursor
- * - allows cursor.ctrl to always be cursor type
- * - allows cursors to be driven by online clocks 
- */
-
-class ClockCursor extends CursorBase {
-
-    constructor (src) {
-        super();
-        // src
-        sourceprop.addToInstance(this, "src");
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRC (stateprovider)
-     **********************************************************/
-
-    __src_check(src) {
-        if (!(src instanceof ClockProviderBase)) {
-            throw new Error(`"src" must be ClockProvider ${src}`);
-        }
-    }    
-    __src_handle_change(reason) {
-        /**
-         * Local ClockProviders never change 
-         * do change - in the sense that and signal change through
-         * this callback.
-         * 
-         * Currently we ignore such changes, on the assumtion
-         * that these changes are small and that
-         * there is no need to inform the application about it.
-         * 
-         * However, we we do not ignore switching between clocks,
-         * which may happen if one switches from a local clock
-         * to an online source. Note however that switching clocks
-         * make most sense if the clocks are within the same time domain
-         * for example, switching from local epoch to global epoch,
-         * whi
-         */
-        // 
-        if (reason == "reset") {
-            this.notify_callbacks();
-        }
-    }
-
-    query () {
-        let ts =  this.src.now();
-        return {value:ts, dynamic:true, offset:ts}
+class LocalClockProvider extends ClockProviderBase {
+    now () {
+        return CLOCK.now();
     }
 }
-sourceprop.addToPrototype(ClockCursor.prototype, "src", {mutable:true});
+const localClockProvider = new LocalClockProvider();
 
-// singleton clock cursors
-const localClockCursor = new ClockCursor(LOCAL_CLOCK_PROVIDER);
-const epochClockCursor = new ClockCursor(LOCAL_EPOCH_PROVIDER);
 
 
 /************************************************
@@ -81,7 +33,7 @@ const epochClockCursor = new ClockCursor(LOCAL_EPOCH_PROVIDER);
 /**
  * 
  * Cursor is a variable
- * - has mutable ctrl cursor (default local clock)
+ * - has mutable ctrl cursor (default LocalClockProvider)
  * - has mutable state provider (src) (default state undefined)
  * - methods for assign, move, transition, intepolation
  * 
@@ -107,19 +59,9 @@ export class Cursor extends CursorBase {
         let {src, ctrl, ...opts} = options;
 
         // initialise ctrl
-        if (ctrl == undefined) {
-            let {epoch=false} = options;
-            ctrl = (epoch) ? epochClockCursor : localClockCursor;
-        }
-        this.ctrl = ctrl;
-
-        // initialise state
-        if (src == undefined) {
-            src = new Layer(opts);
-        } else if (src instanceof StateProviderBase) {
-            src = new Layer({src});
-        }
-        this.src = src
+        this.ctrl = ctrl || localClockProvider;
+        // initialise src
+        this.src = src || new LocalStateProvider(opts);
     }
 
     /**********************************************************
@@ -127,7 +69,11 @@ export class Cursor extends CursorBase {
      **********************************************************/
 
     __ctrl_check(ctrl) {
-        if (!(ctrl instanceof CursorBase)) {
+        if (ctrl instanceof ClockProviderBase) {
+            return ctrl;
+        } else if (ctrl instanceof CursorBase) {
+            return ctrl;
+        } else {
             throw new Error(`"ctrl" must be cursor ${ctrl}`)
         }
     }
@@ -140,7 +86,14 @@ export class Cursor extends CursorBase {
      **********************************************************/
 
     __src_check(src) {
-        if (!(src instanceof LayerBase)) {
+        if (src instanceof StateProviderBase) {
+            return new Layer({src});
+        } else if (src instanceof LayerBase) {
+            return src;
+        } else  if (src instanceof MotionProviderBase) {
+            src = new MotionStateProvider(src);
+            return new Layer({src});
+        } else {
             throw new Error(`"src" must be Layer ${src}`);
         }
     }    
@@ -152,25 +105,27 @@ export class Cursor extends CursorBase {
      * CALLBACK
      **********************************************************/
 
-    __handle_change(origin, reason) {
+    __handle_change(origin, msg) {
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {
+            let state;
             if (origin == "src") {
-                // reset cursor index to layer index
-                if (this._index != this.src.index) {
-                    this._index = this.src.index;
+                if (this._cache == undefined) {
                     this._cache = this.src.getCacheObject();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
-                // reevaluate the cache
+                // force cache reevaluate
                 this._cache.dirty();
-                this._refresh();
+                state = this._refresh()[0];
+            } else if (origin == "query") {
+                state = msg 
             }
+            state = state || this.query();
             this.notify_callbacks();
             // trigger change event for cursor
-            this.eventifyTrigger("change", this.query());
+            this.eventifyTrigger("change", state);
             // detect future change event - if needed
             this.__detect_future_change();
         }
@@ -262,7 +217,7 @@ export class Cursor extends CursorBase {
      *      &&
      *      (b) ctrl.nearby.center[0].type == ("motion") || ("transition" && easing=="linear")
      *      &&
-     *      (c) ctrl.nearby.center[0].args.velocity != 0.0
+     *      (c) ctrl.nearby.center[0].data.velocity != 0.0
      *      && 
      *      (d) future intersecton point with cache.nearby.itv 
      *          is not -Infinity or Infinity
@@ -275,7 +230,7 @@ export class Cursor extends CursorBase {
     __detect_future_change() {
 
         // ctrl 
-        const ctrl_vector = this.ctrl.query();
+        const ctrl_vector = this._get_ctrl_state();
         const {value:current_pos, offset:current_ts} = ctrl_vector;
 
         // ctrl must be dynamic
@@ -289,7 +244,7 @@ export class Cursor extends CursorBase {
         const [low, high] = src_nearby.itv.slice(0,2);
 
         // approach [1]
-        if (this.ctrl instanceof ClockCursor) {
+        if (this.ctrl instanceof ClockProviderBase) {
             if (isFinite(high)) {
                 this.__set_timeout(high, current_pos, 1.0, current_ts);
                 return;
@@ -297,18 +252,15 @@ export class Cursor extends CursorBase {
             // no future event to detect
             return;
         } 
-        if (
-            this.ctrl instanceof Cursor && 
-            this.ctrl.ctrl instanceof ClockCursor
-        ) {
+        if (this.ctrl.ctrl instanceof ClockProviderBase) {
             /** 
-             * Ctrl has many possible behaviors
-             * Since Ctrl is not a ClockCursor - 
-             * it has an index - use this to figure out which
+             * this.ctrl 
+             * 
+             * has many possible behaviors
+             * this.ctrl has an index use this to figure out which
              * behaviour is current.
              * 
             */
-            
             // use the same offset that was used in the ctrl.query
             const ctrl_nearby = this.ctrl.index.nearby(current_ts);
 
@@ -319,7 +271,7 @@ export class Cursor extends CursorBase {
             if (ctrl_nearby.center.length == 1) {
                 const ctrl_item = ctrl_nearby.center[0];
                 if (ctrl_item.type == "motion") {
-                    const {velocity, acceleration=0.0} = ctrl_item.args;
+                    const {velocity, acceleration=0.0} = ctrl_item.data;
                     if (acceleration == 0.0) {
                         // figure out which boundary we hit first
                         let target_pos = (velocity > 0) ? high : low;
@@ -332,7 +284,7 @@ export class Cursor extends CursorBase {
                     }
                     // acceleration - possible event to detect
                 } else if (ctrl_item.type == "transition") {
-                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.args;
+                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.data;
                     if (easing == "linear") {
                         // linear transtion
                         let velocity = (p1-p0)/(t1-t0);
@@ -371,7 +323,7 @@ export class Cursor extends CursorBase {
     }
 
     __handle_timeout(target_ts) {
-        const {offset:ts} = this.ctrl.query();
+        const ts = this._get_ctrl_state().offset;
         const remaining_sec = target_ts - ts; 
         if (remaining_sec <= 0) {
             // done
@@ -401,26 +353,39 @@ export class Cursor extends CursorBase {
     /**********************************************************
      * QUERY API
      **********************************************************/
-    _refresh () {
-        let {value:offset} = this.ctrl.query();
-        if (typeof offset !== 'number') {
-            throw new Error(`warning: ctrl state must be number ${offset}`);
+
+    _get_ctrl_state () {
+        if (this.ctrl instanceof ClockProviderBase) {
+            let ts = this.ctrl.now();
+            return {value:ts, dynamic:true, offset:ts};
+        } else {
+            let state = this.ctrl.query();
+            // TODO - protect against non-float values
+            if (typeof state.value !== 'number') {
+                throw new Error(`warning: ctrl state must be number ${state.value}`);
+            }
+            return state;
         }
+    }
+
+    _refresh () {
+        const offset = this._get_ctrl_state().value;        
         let refreshed = this._cache.refresh(offset);
-        return [offset, refreshed];
+        let state = this._cache.query(offset);
+        return [state, refreshed];
     }
 
     query () {
-        let [offset, refreshed] = this._refresh();
+        let [state, refreshed] = this._refresh();
         if (refreshed) {
-            this.__handle_change("query");
+            this.__handle_change("query", state);
         }
-        return this._cache.query(offset);
+        return state;
     }
 
     get value () {return this.query().value};
     get cache () {return this._cache};
-    get index () {return this._index};
+    get index () {return this.src.index};
 
     /**********************************************************
      * UPDATE API

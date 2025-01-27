@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
-import {NearbyIndexSimple} from '../src/nearbyindex_simple.js';
-import { StateProviderSimple } from '../src/stateprovider_simple.js';
+import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
+import { LocalStateProvider } from '../src/stateprovider_simple.js';
 
 // Add your test cases here
 describe('SimpleNearbyIndex', () => {
@@ -18,7 +18,8 @@ describe('SimpleNearbyIndex', () => {
             return {itv};
         })
 
-        const index = new NearbyIndexSimple({items});
+        const src = new LocalStateProvider({items});
+        const index = new NearbyIndexSimple(src);
         expect(index).toBeInstanceOf(NearbyIndexSimple);
 
         // FIRST ITEM
@@ -94,7 +95,6 @@ describe('SimpleNearbyIndex', () => {
     });
 
 
-
     test('should handle -Infinity and Infinity correctly', () => {
 
         const intervals = [
@@ -108,7 +108,8 @@ describe('SimpleNearbyIndex', () => {
             return {itv};
         });
 
-        const index = new NearbyIndexSimple({items});
+        const src = new LocalStateProvider({items});
+        const index = new NearbyIndexSimple(src);
 
         // Test -Infinity
         let nearby = index.nearby(-Infinity);
@@ -125,7 +126,7 @@ describe('SimpleNearbyIndex', () => {
     // Add more test cases as needed
     test('should update the index with one item and check nearby.center', () => {
 
-        const src = new StateProviderSimple();
+        const src = new LocalStateProvider();
         const index = new NearbyIndexSimple(src);
 
         // Check nearby.center before update

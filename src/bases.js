@@ -1,30 +1,101 @@
 import { eventify } from "./eventify.js";
 import { callback } from "./util.js";
 import { bind, release } from "./monitor.js";
-
 import { endpoint } from "./intervals.js";
 import { range } from "./util.js";
 
 
-/***************************************************************
-    CLOCK PROVIDER BASE
-***************************************************************/
+/************************************************
+ * CLOCK PROVIDER BASE
+ ************************************************/
 
 /**
- * Defines the interface which needs to be implemented
- * by clock providers.
+ * Base class for ClockProviders
+ * 
+ * Clock Providers implement the callback
+ * interface to be compatible with other state
+ * providers, even though they are not required to
+ * provide any callbacks after clock adjustments
  */
 
 export class ClockProviderBase {
-
     constructor() {
         callback.addToInstance(this);
     }
-    now() {
+    now () {
         throw new Error("not implemented");
     }
 }
 callback.addToPrototype(ClockProviderBase.prototype);
+
+
+/**
+ * Base class for MotionProviders
+ * 
+ * This is a convenience class offering a simpler way
+ * of implementing state provider which deal exclusively
+ * with motion segments.
+ * 
+ * Motionproviders do not deal with items, but with simpler
+ * statements of motion state
+ * 
+ * state = {
+ *      position: 0,
+ *      velocity: 0,
+ *      acceleration: 0,
+ *      timestamp: 0
+ *      range: [undefined, undefined]
+ * }
+ * 
+ * Internally, MotionProvider will be wrapped so that they
+ * become proper StateProviders.
+ */
+
+export class MotionProviderBase {
+
+    constructor(options={}) {
+        callback.addToInstance(this);
+        let {state} = options;
+        if (state = undefined) {
+            this._state = {
+                position: 0,
+                velocity: 0,
+                acceleration: 0,
+                timestamp: 0,
+                range: [undefined, undefined]
+            }
+        } else {
+            this._state = state;
+        }
+    }
+
+    /**
+     * set motion state
+     * 
+     * implementations of online motion providers will
+     * use this to send an update request,
+     * and set _state on response and then call notify_callbaks
+     * If the proxy wants to set the state immediatedly - 
+     * it should be done using a Promise - to break the control flow.
+     * 
+     * return Promise.resolve()
+     *      .then(() => {
+     *           this._state = state;
+     *           this.notify_callbacks();
+     *       });
+     * 
+     */
+    set_state (state) {
+        throw new Error("not implemented");
+    }
+
+    // return current motion state
+    get_state () {
+        return {...this._state};
+    }
+}
+callback.addToPrototype(MotionProviderBase.prototype);
+
 
 
 
@@ -33,13 +104,10 @@ callback.addToPrototype(ClockProviderBase.prototype);
  ************************************************/
 
 /*
-    Base class for all state providers
+    Base class for StateProviders
 
-    - object with collection of items
-    - could be local - or proxy to online source
-
-    represents a dynamic collection of items
-    {itv, type, ...data}
+    - collection of items
+    - {key, itv, type, data}
 */
 
 export class StateProviderBase {
@@ -50,12 +118,14 @@ export class StateProviderBase {
 
     /**
      * update function
-     * called from cursor or layer objects
-     * for online implementation, this will
-     * typically result in a network request 
-     * to update some online item collection
+     * 
+     * If ItemsProvider is a proxy to an online
+     * Items collection, update requests will 
+     * imply a network request
+     * 
+     * options - support reset flag 
      */
-    update(items){
+    update(items, options={}){
         throw new Error("not implemented");
     }
 
@@ -64,7 +134,7 @@ export class StateProviderBase {
      * - no requirement wrt order
      */
 
-    get items() {
+    get_items() {
         throw new Error("not implemented");
     }
 
@@ -77,6 +147,7 @@ export class StateProviderBase {
     }
 }
 callback.addToPrototype(StateProviderBase.prototype);
+
 
 
 /************************************************

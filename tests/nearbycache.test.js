@@ -1,6 +1,6 @@
 /* global describe, test, expect */
 
-import { StateProviderSimple } from '../src/stateprovider_simple.js';
+import { LocalStateProvider } from '../src/stateprovider_simple.js';
 import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
 import { NearbyCache} from '../src/nearbycache.js';
 
@@ -15,10 +15,10 @@ test('query returns 1 from nearby cache', () => {
     const items = [
         {
             itv: [-Infinity, Infinity, true, true],
-            args : {value:1}
+            data : 1
         }
     ];
-    const src = new StateProviderSimple({items});
+    const src = new LocalStateProvider({items});
     // Connect it with a simple nearby index
     const index = new NearbyIndexSimple(src);
     // Put a nearby cache in front of it

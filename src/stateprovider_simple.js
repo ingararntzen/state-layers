@@ -2,29 +2,35 @@ import { StateProviderBase } from "./bases.js";
 import { endpoint } from "./intervals.js";
 
 /***************************************************************
-    SIMPLE STATE PROVIDER (LOCAL)
+    LOCAL STATE PROVIDER
 ***************************************************************/
 
 /**
  * Local Array with non-overlapping items.
  */
 
-export class StateProviderSimple extends StateProviderBase {
+export class LocalStateProvider extends StateProviderBase {
 
     constructor(options={}) {
         super();
         // initialization
         let {items, value} = options;
         if (items != undefined) {
+            // initialize from items
             this._items = check_input(items);
         } else if (value != undefined) {
-            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
+            // initialize from value
+            this._items = [{
+                itv:[-Infinity, Infinity, true, true], 
+                type: "static",
+                data:value
+            }];
         } else {
             this._items = [];
         }
     }
 
-    update (items) {
+    update (items, options) {
         return Promise.resolve()
             .then(() => {
                 this._items = check_input(items);
@@ -32,12 +38,12 @@ export class StateProviderSimple extends StateProviderBase {
             });
     }
 
-    get items () {
+    get_items () {
         return this._items.slice();
     }
 
     get info () {
-        return {dynamic: true, overlapping: false, local:true};
+        return {overlapping: false};
     }
 }
 
@@ -63,4 +69,7 @@ function check_input(items) {
     }
     return items;
 }
+
+
+
 

@@ -1,5 +1,116 @@
 
 (function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
+/***************************************************************
+    CLOCKS
+***************************************************************/
+
+/**
+ * clocks counting in seconds
+ */
+
+const local = function () {
+    return performance.now()/1000.0;
+};
+
+const epoch = function () {
+    return new Date()/1000.0;
+};
+
+/**
+ * the clock gives epoch values, but is implemented
+ * using a high performance local clock for better
+ * time resolution and protection against system 
+ * time adjustments.
+ */
+
+const CLOCK = function () {
+    const t0_local = local();
+    const t0_epoch = epoch();
+    return {
+        now: function () {
+            return t0_epoch + (local() - t0_local)
+        }
+    }
+}();
+
+
+// ovverride modulo to behave better for negative numbers
+function mod(n, m) {
+    return ((n % m) + m) % m;
+}
+function divmod(x, base) {
+    let n = Math.floor(x / base);
+    let r = mod(x, base);
+    return [n, r];
+}
+
+
+/*
+    similar to range function in python
+*/
+
+function range (start, end, step = 1, options={}) {
+    const result = [];
+    const {include_end=false} = options;
+    if (step === 0) {
+        throw new Error('Step cannot be zero.');
+    }
+    if (start < end) {
+        for (let i = start; i < end; i += step) {
+          result.push(i);
+        }
+    } else if (start > end) {
+        for (let i = start; i > end; i -= step) {
+          result.push(i);
+        }
+    }
+    if (include_end) {
+        result.push(end);
+    }
+    return result;
+}
+
+
+
+/*
+    This adds basic (synchronous) callback support to an object.
+*/
+
+const callback = function () {
+
+    function addToInstance(object) {
+        object.__callback_callbacks = [];
+    }
+
+    function add_callback (handler) {
+        let handle = {
+            handler: handler
+        };
+        this.__callback_callbacks.push(handle);
+        return handle;
+    }
+    function remove_callback (handle) {
+        let index = this.__callback_callbacks.indexof(handle);
+        if (index > -1) {
+            this.__callback_callbacks.splice(index, 1);
+        }
+    }
+    function notify_callbacks (eArg) {
+        this.__callback_callbacks.forEach(function(handle) {
+            handle.handler(eArg);
+        });
+    }
+
+    function addToPrototype (_prototype) {
+        const api = {
+            add_callback, remove_callback, notify_callbacks
+        };
+        Object.assign(_prototype, api);
+    }
+
+    return {addToInstance, addToPrototype}
+}();
+
 /*
 	Copyright 2020
 	Author : Ingar Arntzen
@@ -321,83 +432,6 @@ class EventVariable {
 	}
 }
 eventifyPrototype(EventVariable.prototype);
-
-// ovverride modulo to behave better for negative numbers
-function mod(n, m) {
-    return ((n % m) + m) % m;
-}
-function divmod(x, base) {
-    let n = Math.floor(x / base);
-    let r = mod(x, base);
-    return [n, r];
-}
-
-
-/*
-    similar to range function in python
-*/
-
-function range (start, end, step = 1, options={}) {
-    const result = [];
-    const {include_end=false} = options;
-    if (step === 0) {
-        throw new Error('Step cannot be zero.');
-    }
-    if (start < end) {
-        for (let i = start; i < end; i += step) {
-          result.push(i);
-        }
-    } else if (start > end) {
-        for (let i = start; i > end; i -= step) {
-          result.push(i);
-        }
-    }
-    if (include_end) {
-        result.push(end);
-    }
-    return result;
-}
-
-
-
-/*
-    This adds basic (synchronous) callback support to an object.
-*/
-
-const callback = function () {
-
-    function addToInstance(object) {
-        object.__callback_callbacks = [];
-    }
-
-    function add_callback (handler) {
-        let handle = {
-            handler: handler
-        };
-        this.__callback_callbacks.push(handle);
-        return handle;
-    }
-    function remove_callback (handle) {
-        let index = this.__callback_callbacks.indexof(handle);
-        if (index > -1) {
-            this.__callback_callbacks.splice(index, 1);
-        }
-    }
-    function notify_callbacks (eArg) {
-        this.__callback_callbacks.forEach(function(handle) {
-            handle.handler(eArg);
-        });
-    }
-
-    function addToPrototype (_prototype) {
-        const api = {
-            add_callback, remove_callback, notify_callbacks
-        };
-        Object.assign(_prototype, api);
-    }
-
-    return {addToInstance, addToPrototype}
-}();
 
 /*
     Timeout Monitor
@@ -966,25 +1000,97 @@ const interval = {
     from_input: interval_from_input
 };
 
-/***************************************************************
-    CLOCK PROVIDER BASE
-***************************************************************/
+/************************************************
+ * CLOCK PROVIDER BASE
+ ************************************************/
 
 /**
- * Defines the interface which needs to be implemented
- * by clock providers.
+ * Base class for ClockProviders
+ * 
+ * Clock Providers implement the callback
+ * interface to be compatible with other state
+ * providers, even though they are not required to
+ * provide any callbacks after clock adjustments
  */
 
 class ClockProviderBase {
-
     constructor() {
         callback.addToInstance(this);
     }
-    now() {
+    now () {
         throw new Error("not implemented");
     }
 }
 callback.addToPrototype(ClockProviderBase.prototype);
+
+
+/**
+ * Base class for MotionProviders
+ * 
+ * This is a convenience class offering a simpler way
+ * of implementing state provider which deal exclusively
+ * with motion segments.
+ * 
+ * Motionproviders do not deal with items, but with simpler
+ * statements of motion state
+ * 
+ * state = {
+ *      position: 0,
+ *      velocity: 0,
+ *      acceleration: 0,
+ *      timestamp: 0
+ *      range: [undefined, undefined]
+ * }
+ * 
+ * Internally, MotionProvider will be wrapped so that they
+ * become proper StateProviders.
+ */
+
+class MotionProviderBase {
+
+    constructor(options={}) {
+        callback.addToInstance(this);
+        let {state} = options;
+        if (state = undefined) {
+            this._state = {
+                position: 0,
+                velocity: 0,
+                acceleration: 0,
+                timestamp: 0,
+                range: [undefined, undefined]
+            };
+        } else {
+            this._state = state;
+        }
+    }
+
+    /**
+     * set motion state
+     * 
+     * implementations of online motion providers will
+     * use this to send an update request,
+     * and set _state on response and then call notify_callbaks
+     * If the proxy wants to set the state immediatedly - 
+     * it should be done using a Promise - to break the control flow.
+     * 
+     * return Promise.resolve()
+     *      .then(() => {
+     *           this._state = state;
+     *           this.notify_callbacks();
+     *       });
+     * 
+     */
+    set_state (state) {
+        throw new Error("not implemented");
+    }
+
+    // return current motion state
+    get_state () {
+        return {...this._state};
+    }
+}
+callback.addToPrototype(MotionProviderBase.prototype);
+
 
 
 
@@ -993,13 +1099,10 @@ callback.addToPrototype(ClockProviderBase.prototype);
  ************************************************/
 
 /*
-    Base class for all state providers
+    Base class for StateProviders
 
-    - object with collection of items
-    - could be local - or proxy to online source
-
-    represents a dynamic collection of items
-    {itv, type, ...data}
+    - collection of items
+    - {key, itv, type, data}
 */
 
 class StateProviderBase {
@@ -1010,12 +1113,14 @@ class StateProviderBase {
 
     /**
      * update function
-     * called from cursor or layer objects
-     * for online implementation, this will
-     * typically result in a network request 
-     * to update some online item collection
+     * 
+     * If ItemsProvider is a proxy to an online
+     * Items collection, update requests will 
+     * imply a network request
+     * 
+     * options - support reset flag 
      */
-    update(items){
+    update(items, options={}){
         throw new Error("not implemented");
     }
 
@@ -1024,7 +1129,7 @@ class StateProviderBase {
      * - no requirement wrt order
      */
 
-    get items() {
+    get_items() {
         throw new Error("not implemented");
     }
 
@@ -1037,6 +1142,7 @@ class StateProviderBase {
     }
 }
 callback.addToPrototype(StateProviderBase.prototype);
+
 
 
 /************************************************
@@ -1222,7 +1328,7 @@ function addToPrototype (_prototype, propName, options={}) {
         },
         set: function (src) {
             if (this[p.check]) {
-                this[p.check](src);
+                src = this[p.check](src);
             }
             if (src != this[p.prop]) {
                 this[p.detatch]();
@@ -1266,7 +1372,7 @@ function assign(value) {
         let item = {
             itv: [-Infinity, Infinity, true, true],
             type: "static",
-            args: {value}                 
+            data: value                 
         };
         return [item];
     }
@@ -1276,7 +1382,7 @@ function move(vector) {
     let item = {
         itv: [-Infinity, Infinity, true, true],
         type: "motion",
-        args: vector  
+        data: vector  
     };
     return [item];
 }
@@ -1286,17 +1392,17 @@ function transition(v0, v1, t0, t1, easing) {
         {
             itv: [-Infinity, t0, true, false],
             type: "static",
-            args: {value:v0}
+            data: v0
         },
         {
             itv: [t0, t1, true, false],
             type: "transition",
-            args: {v0, v1, t0, t1, easing}
+            data: {v0, v1, t0, t1, easing}
         },
         {
             itv: [t1, Infinity, true, true],
             type: "static",
-            args: {value: v1}
+            data: v1
         }
     ];
     return items;
@@ -1310,46 +1416,52 @@ function interpolate$1(tuples) {
         {
             itv: [-Infinity, t0, true, false],
             type: "static",
-            args: {value:v0}
+            data: v0
         },
         {
             itv: [t0, t1, true, false],
             type: "interpolation",
-            args: {tuples}
+            data: tuples
         },
         {
             itv: [t1, Infinity, true, true],
             type: "static",
-            args: {value: v1}
+            data: v1
         }
     ];    
     return items;
 }
 
 /***************************************************************
-    SIMPLE STATE PROVIDER (LOCAL)
+    LOCAL STATE PROVIDER
 ***************************************************************/
 
 /**
  * Local Array with non-overlapping items.
  */
 
-class StateProviderSimple extends StateProviderBase {
+class LocalStateProvider extends StateProviderBase {
 
     constructor(options={}) {
         super();
         // initialization
         let {items, value} = options;
         if (items != undefined) {
+            // initialize from items
             this._items = check_input(items);
         } else if (value != undefined) {
-            this._items = [{itv:[-Infinity, Infinity, true, true], args:{value}}];
+            // initialize from value
+            this._items = [{
+                itv:[-Infinity, Infinity, true, true], 
+                type: "static",
+                data:value
+            }];
         } else {
             this._items = [];
         }
     }
 
-    update (items) {
+    update (items, options) {
         return Promise.resolve()
             .then(() => {
                 this._items = check_input(items);
@@ -1357,12 +1469,12 @@ class StateProviderSimple extends StateProviderBase {
             });
     }
 
-    get items () {
+    get_items () {
         return this._items.slice();
     }
 
     get info () {
-        return {dynamic: true, overlapping: false, local:true};
+        return {overlapping: false};
     }
 }
 
@@ -1439,9 +1551,9 @@ class BaseSegment {
 
 class StaticSegment extends BaseSegment {
 
-	constructor(itv, args) {
+	constructor(itv, data) {
         super(itv);
-		this._value = args.value;
+		this._value = data;
 	}
 
 	state() {
@@ -1460,25 +1572,39 @@ class StaticSegment extends BaseSegment {
 
 class MotionSegment extends BaseSegment {
     
-    constructor(itv, args) {
+    constructor(itv, data) {
         super(itv);
         const {
-            position:p0, velocity:v0, timestamp:t0
-        } = args;
+            position:p0=0, 
+            velocity:v0=0, 
+            acceleration:a0=0, 
+            timestamp:t0=0
+        } = data;
         // create motion transition
-        const a0 = 0;
-        this._velocity = v0;
-        this._position = function (ts) {
+        this._pos_func = function (ts) {
             let d = ts - t0;
             return p0 + v0*d + 0.5*a0*d*d;
-        };   
+        };
+        this._vel_func = function (ts) {
+            let d = ts - t0;
+            return v0 + a0*d;
+        };
+        this._acc_func = function (ts) {
+            return a0;
+        };
     }
 
     state(offset) {
+        let pos = this._pos_func(offset);
+        let vel = this._vel_func(offset);
+        let acc = this._acc_func(offset);
         return {
-            value: this._position(offset), 
-            rate: this._velocity, 
-            dynamic: this._velocity != 0
+            position: pos,
+            velocity: vel,
+            acceleration: acc,
+            timestamp: offset,
+            value: pos,
+            dynamic: (vel != 0 || acc != 0 )
         }
     }
 }
@@ -1511,9 +1637,9 @@ function easeinout (ts) {
 
 class TransitionSegment extends BaseSegment {
 
-	constructor(itv, args) {
+	constructor(itv, data) {
 		super(itv);
-        let {v0, v1, easing} = args;
+        let {v0, v1, easing} = data;
         let [t0, t1] = this._itv.slice(0,2);
 
         // create the transition function
@@ -1604,10 +1730,10 @@ function interpolate(tuples) {
 
 class InterpolationSegment extends BaseSegment {
 
-    constructor(itv, args) {
+    constructor(itv, tuples) {
         super(itv);
         // setup interpolation function
-        this._trans = interpolate(args.tuples);
+        this._trans = interpolate(tuples);
     }
 
     state(offset) {
@@ -1626,7 +1752,7 @@ class InterpolationSegment extends BaseSegment {
     queries to a NearbyIndex to nearby offsets.
 
     The cache state includes the nearby state from the 
-    index, and also the cached segments corresponding
+    index, and also segments corresponding
     to that state. This way, on a cache hit, the 
     query may be satisfied directly from the cache.
 
@@ -1719,15 +1845,15 @@ class NearbyCache {
     LOAD SEGMENT
 *********************************************************************/
 
-function create_segment(itv, type, args) {
+function create_segment(itv, type, data) {
     if (type == "static") {
-        return new StaticSegment(itv, args);
+        return new StaticSegment(itv, data);
     } else if (type == "transition") {
-        return new TransitionSegment(itv, args);
+        return new TransitionSegment(itv, data);
     } else if (type == "interpolation") {
-        return new InterpolationSegment(itv, args);
+        return new InterpolationSegment(itv, data);
     } else if (type == "motion") {
-        return new MotionSegment(itv, args);
+        return new MotionSegment(itv, data);
     } else {
         console.log("unrecognized segment type", type);
     }
@@ -1736,11 +1862,11 @@ function create_segment(itv, type, args) {
 function load_segment(nearby) {
     let {itv, center} = nearby;
     if (center.length == 0) {
-        return create_segment(itv, "static", {value:undefined});
+        return create_segment(itv, "static", undefined);
     }
     if (center.length == 1) {
-        let {type="static", args} = center[0];
-        return create_segment(itv, type, args);
+        let {type="static", data} = center[0];
+        return create_segment(itv, type, data);
     }
     if (center.length > 1) {
         throw new Error("ListSegments not yet supported");
@@ -1969,7 +2095,7 @@ class NearbyIndexSimple extends NearbyIndexBase {
             prev: undefined,
             next: undefined
         };
-        let items = this._src.items;
+        let items = this._src.get_items();
         let indexes, item;
         const size = items.length;
         if (size == 0) {
@@ -2032,6 +2158,10 @@ class NearbyIndexSimple extends NearbyIndexBase {
     }
 }
 
+/*********************************************************************
+	UTILS
+*********************************************************************/
+
 
 /*
 	binary search for finding the correct insertion index into
@@ -2091,7 +2221,7 @@ class Layer extends LayerBase {
         // initialise with stateprovider
         let {src, ...opts} = options;
         if (src == undefined) {
-            src = new StateProviderSimple(opts);
+            src = new LocalStateProvider(opts);
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -2117,6 +2247,7 @@ class Layer extends LayerBase {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${src}`);
         }
+        return src;
     }    
     __src_handle_change() {
         if (this._index == undefined) {
@@ -2139,7 +2270,7 @@ function fromArray (array) {
         return { 
             itv: [index, index+1, true, false], 
             type: "static", 
-            args: {value:obj}};
+            data: obj};
     });
     return new Layer({items});
 }
@@ -2147,127 +2278,197 @@ function fromArray (array) {
 Layer.fromArray = fromArray;
 
 /***************************************************************
-    CLOCKS
+    MOTION STATE PROVIDER
 ***************************************************************/
 
 /**
- * clocks counting in seconds
+ * Wraps the simpler motion provider to ensure 
+ * checking of state and implement the StateProvider 
+ * interface.
  */
 
-const local_clock = function () {
-    return performance.now()/1000.0;
-};
+class MotionStateProvider extends StateProviderBase {
 
-const local_epoch = function () {
-    return new Date()/1000.0;
-};
-
-
-/***************************************************************
-    LOCAL CLOCK PROVIDER
-***************************************************************/
-
-/**
- * Local high performance clock
- */
-
-class LocalClockProvider extends ClockProviderBase {
-    now () { 
-        return local_clock();
-    }
-}
-// singleton
-const LOCAL_CLOCK_PROVIDER = new LocalClockProvider();
-
-
-/***************************************************************
-    LOCAL EPOCH CLOCK PROVIDER
-***************************************************************/
-
-/**
- * Local Epoch Clock Provider is computed from local high
- * performance clock. This makes for a better resolution than
- * the system epoch clock, and protects the clock from system 
- * clock adjustments during the session.
- */
-
-class LocalEpochProvider extends ClockProviderBase {
-
-    constructor () {
+    constructor(mp) {
         super();
-        this._t0 = local_clock();
-        this._t0_epoch = local_epoch();
+        if (!(mp instanceof MotionProviderBase)) {
+            throw new Error(`must be MotionProviderBase ${mp}`)
+        }
+        // motion provider
+        this._mp = mp;
+        // check initial state of motion provider
+        this._mp._state = check_state(this._mp._state);
+        // subscribe to callbacks
+        this._mp.add_callback(this._handle_callback.bind(this));
     }
-    now () {
-        return this._t0_epoch + (local_clock() - this._t0);            
+
+    _handle_callback() {
+        // Forward callback from wrapped motion provider
+        this.notify_callbacks();
+    }
+
+    /**
+     * update motion state
+     */
+
+    update(items, options={}) {
+        // TODO - items should be coverted to motion state
+        let state = state_from_items(items);
+        state = check_state(state);
+        // forward updates to wrapped motion provider
+        return this._mp.set_state(state);
+    }
+
+    get_state() {
+        // resolve state from wrapped motion provider
+        let state = this._mp.get_state();
+        state = check_state(state);
+        return items_from_state(state);
+    }
+
+    get info () {
+        return {overlapping: false};
     }
 }
 
-// singleton
-const LOCAL_EPOCH_PROVIDER = new LocalEpochProvider();
+
+/***************************************************************
+    UTIL
+***************************************************************/
+
+function check_state(state) {
+    let {
+        position=0, 
+        velocity=0, 
+        acceleration=0,
+        timestamp=0,
+        range=[undefined, undefined] 
+    } = state || {};
+    state = {
+        position, 
+        velocity,
+        acceleration,
+        timestamp,
+        range
+    };
+    // vector values must be finite numbers
+    const props = ["position", "velocity", "acceleration", "timestamp"];
+    for (let prop of props) {
+        let n = state[prop];
+        if (!isFiniteNumber(n)) {
+            throw new Error(`${prop} must be number ${n}`);
+        }
+    }
+
+    // range values can be undefined or a number
+    for (let n of range) {
+        if (!(n == undefined || isFiniteNumber(n))) {
+            throw new Error(`range value must be undefined or number ${n}`);
+        }
+    }
+    let [low, high] = range;
+    if (low != undefined && low != undefined) {
+        if (low >= high) {
+            throw new Error(`low > high [${low}, ${high}]`)
+        } 
+    }
+    return {position, velocity, acceleration, timestamp, range};
+}
+
+function isFiniteNumber(n) {
+    return (typeof n == "number") && isFinite(n);
+}
+
+/**
+ * convert item list into motion state
+ */
+
+function state_from_items(items) {
+    // pick one item of motion type
+    const item = items.find((item) => {
+        return item.type == "motion";
+    });
+    if (item != undefined) {
+        return item.data;
+    }
+}
+
+/**
+ * convert motion state into items list
+ */
+
+function items_from_state (state) {
+    // motion segment for calculation
+    let [low, high] = state.range;
+    const seg = new MotionSegment([low, high, true, true], state);
+    const {value:value_low} = seg.state(low);
+    const {value:value_high} = seg.state(high);
+
+    // set up items
+    if (low == undefined && high == undefined) {
+        return [{
+            itv:[-Infinity, Infinity, true, true], 
+            type: "motion",
+            args: state
+        }];
+    } else if (low == undefined) {
+        return [
+            {
+                itv:[-Infinity, high, true, true], 
+                type: "motion",
+                args: state
+            },
+            {
+                itv:[high, Infinity, false, true], 
+                type: "static",
+                args: value_high
+            },
+        ];
+    } else if (high == undefined) {
+        return [
+            {
+                itv:[-Infinity, low, true, false], 
+                type: "static",
+                args: value_low
+            },
+            {
+                itv:[low, Infinity, true, true], 
+                type: "motion",
+                args: state
+            },
+        ];
+    } else {
+        return [
+            {
+                itv:[-Infinity, low, true, false], 
+                type: "static",
+                args: value_low
+            },
+            {
+                itv:[low, high, true, true], 
+                type: "motion",
+                args: state
+            },
+            {
+                itv:[high, Infinity, false, true], 
+                type: "static",
+                args: value_high
+            },
+        ];
+    }
+}
 
 /************************************************
- * CLOCK CURSOR
+ * LOCAL CLOCK PROVIDER
  ************************************************/
 
-/**
- * Convenience wrapping around a clock provider.
- * - makes it easy to visualize a clock like any other cursor
- * - allows cursor.ctrl to always be cursor type
- * - allows cursors to be driven by online clocks 
- */
-
-class ClockCursor extends CursorBase {
-
-    constructor (src) {
-        super();
-        // src
-        addToInstance(this, "src");
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRC (stateprovider)
-     **********************************************************/
-
-    __src_check(src) {
-        if (!(src instanceof ClockProviderBase)) {
-            throw new Error(`"src" must be ClockProvider ${src}`);
-        }
-    }    
-    __src_handle_change(reason) {
-        /**
-         * Local ClockProviders never change 
-         * do change - in the sense that and signal change through
-         * this callback.
-         * 
-         * Currently we ignore such changes, on the assumtion
-         * that these changes are small and that
-         * there is no need to inform the application about it.
-         * 
-         * However, we we do not ignore switching between clocks,
-         * which may happen if one switches from a local clock
-         * to an online source. Note however that switching clocks
-         * make most sense if the clocks are within the same time domain
-         * for example, switching from local epoch to global epoch,
-         * whi
-         */
-        // 
-        if (reason == "reset") {
-            this.notify_callbacks();
-        }
-    }
-
-    query () {
-        let ts =  this.src.now();
-        return {value:ts, dynamic:true, offset:ts}
+class LocalClockProvider extends ClockProviderBase {
+    now () {
+        return CLOCK.now();
     }
 }
-addToPrototype(ClockCursor.prototype, "src", {mutable:true});
+const localClockProvider = new LocalClockProvider();
 
-// singleton clock cursors
-const localClockCursor = new ClockCursor(LOCAL_CLOCK_PROVIDER);
-const epochClockCursor = new ClockCursor(LOCAL_EPOCH_PROVIDER);
 
 
 /************************************************
@@ -2277,7 +2478,7 @@ const epochClockCursor = new ClockCursor(LOCAL_EPOCH_PROVIDER);
 /**
  * 
  * Cursor is a variable
- * - has mutable ctrl cursor (default local clock)
+ * - has mutable ctrl cursor (default LocalClockProvider)
  * - has mutable state provider (src) (default state undefined)
  * - methods for assign, move, transition, intepolation
  * 
@@ -2303,19 +2504,9 @@ class Cursor extends CursorBase {
         let {src, ctrl, ...opts} = options;
 
         // initialise ctrl
-        if (ctrl == undefined) {
-            let {epoch=false} = options;
-            ctrl = (epoch) ? epochClockCursor : localClockCursor;
-        }
-        this.ctrl = ctrl;
-
-        // initialise state
-        if (src == undefined) {
-            src = new Layer(opts);
-        } else if (src instanceof StateProviderBase) {
-            src = new Layer({src});
-        }
-        this.src = src;
+        this.ctrl = ctrl || localClockProvider;
+        // initialise src
+        this.src = src || new LocalStateProvider(opts);
     }
 
     /**********************************************************
@@ -2323,7 +2514,11 @@ class Cursor extends CursorBase {
      **********************************************************/
 
     __ctrl_check(ctrl) {
-        if (!(ctrl instanceof CursorBase)) {
+        if (ctrl instanceof ClockProviderBase) {
+            return ctrl;
+        } else if (ctrl instanceof CursorBase) {
+            return ctrl;
+        } else {
             throw new Error(`"ctrl" must be cursor ${ctrl}`)
         }
     }
@@ -2336,7 +2531,14 @@ class Cursor extends CursorBase {
      **********************************************************/
 
     __src_check(src) {
-        if (!(src instanceof LayerBase)) {
+        if (src instanceof StateProviderBase) {
+            return new Layer({src});
+        } else if (src instanceof LayerBase) {
+            return src;
+        } else  if (src instanceof MotionProviderBase) {
+            src = new MotionStateProvider(src);
+            return new Layer({src});
+        } else {
             throw new Error(`"src" must be Layer ${src}`);
         }
     }    
@@ -2348,25 +2550,27 @@ class Cursor extends CursorBase {
      * CALLBACK
      **********************************************************/
 
-    __handle_change(origin, reason) {
+    __handle_change(origin, msg) {
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {
+            let state;
             if (origin == "src") {
-                // reset cursor index to layer index
-                if (this._index != this.src.index) {
-                    this._index = this.src.index;
+                if (this._cache == undefined) {
                     this._cache = this.src.getCacheObject();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
-                // reevaluate the cache
+                // force cache reevaluate
                 this._cache.dirty();
-                this._refresh();
+                state = this._refresh()[0];
+            } else if (origin == "query") {
+                state = msg; 
             }
+            state = state || this.query();
             this.notify_callbacks();
             // trigger change event for cursor
-            this.eventifyTrigger("change", this.query());
+            this.eventifyTrigger("change", state);
             // detect future change event - if needed
             this.__detect_future_change();
         }
@@ -2458,7 +2662,7 @@ class Cursor extends CursorBase {
      *      &&
      *      (b) ctrl.nearby.center[0].type == ("motion") || ("transition" && easing=="linear")
      *      &&
-     *      (c) ctrl.nearby.center[0].args.velocity != 0.0
+     *      (c) ctrl.nearby.center[0].data.velocity != 0.0
      *      && 
      *      (d) future intersecton point with cache.nearby.itv 
      *          is not -Infinity or Infinity
@@ -2471,7 +2675,7 @@ class Cursor extends CursorBase {
     __detect_future_change() {
 
         // ctrl 
-        const ctrl_vector = this.ctrl.query();
+        const ctrl_vector = this._get_ctrl_state();
         const {value:current_pos, offset:current_ts} = ctrl_vector;
 
         // ctrl must be dynamic
@@ -2485,7 +2689,7 @@ class Cursor extends CursorBase {
         const [low, high] = src_nearby.itv.slice(0,2);
 
         // approach [1]
-        if (this.ctrl instanceof ClockCursor) {
+        if (this.ctrl instanceof ClockProviderBase) {
             if (isFinite(high)) {
                 this.__set_timeout(high, current_pos, 1.0, current_ts);
                 return;
@@ -2493,18 +2697,15 @@ class Cursor extends CursorBase {
             // no future event to detect
             return;
         } 
-        if (
-            this.ctrl instanceof Cursor && 
-            this.ctrl.ctrl instanceof ClockCursor
-        ) {
+        if (this.ctrl.ctrl instanceof ClockProviderBase) {
             /** 
-             * Ctrl has many possible behaviors
-             * Since Ctrl is not a ClockCursor - 
-             * it has an index - use this to figure out which
+             * this.ctrl 
+             * 
+             * has many possible behaviors
+             * this.ctrl has an index use this to figure out which
              * behaviour is current.
              * 
             */
-            
             // use the same offset that was used in the ctrl.query
             const ctrl_nearby = this.ctrl.index.nearby(current_ts);
 
@@ -2515,7 +2716,7 @@ class Cursor extends CursorBase {
             if (ctrl_nearby.center.length == 1) {
                 const ctrl_item = ctrl_nearby.center[0];
                 if (ctrl_item.type == "motion") {
-                    const {velocity, acceleration=0.0} = ctrl_item.args;
+                    const {velocity, acceleration=0.0} = ctrl_item.data;
                     if (acceleration == 0.0) {
                         // figure out which boundary we hit first
                         let target_pos = (velocity > 0) ? high : low;
@@ -2528,7 +2729,7 @@ class Cursor extends CursorBase {
                     }
                     // acceleration - possible event to detect
                 } else if (ctrl_item.type == "transition") {
-                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.args;
+                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.data;
                     if (easing == "linear") {
                         // linear transtion
                         let velocity = (p1-p0)/(t1-t0);
@@ -2567,7 +2768,7 @@ class Cursor extends CursorBase {
     }
 
     __handle_timeout(target_ts) {
-        const {offset:ts} = this.ctrl.query();
+        const ts = this._get_ctrl_state().offset;
         const remaining_sec = target_ts - ts; 
         if (remaining_sec <= 0) {
             // done
@@ -2597,26 +2798,39 @@ class Cursor extends CursorBase {
     /**********************************************************
      * QUERY API
      **********************************************************/
-    _refresh () {
-        let {value:offset} = this.ctrl.query();
-        if (typeof offset !== 'number') {
-            throw new Error(`warning: ctrl state must be number ${offset}`);
+
+    _get_ctrl_state () {
+        if (this.ctrl instanceof ClockProviderBase) {
+            let ts = this.ctrl.now();
+            return {value:ts, dynamic:true, offset:ts};
+        } else {
+            let state = this.ctrl.query();
+            // TODO - protect against non-float values
+            if (typeof state.value !== 'number') {
+                throw new Error(`warning: ctrl state must be number ${state.value}`);
+            }
+            return state;
         }
+    }
+
+    _refresh () {
+        const offset = this._get_ctrl_state().value;        
         let refreshed = this._cache.refresh(offset);
-        return [offset, refreshed];
+        let state = this._cache.query(offset);
+        return [state, refreshed];
     }
 
     query () {
-        let [offset, refreshed] = this._refresh();
+        let [state, refreshed] = this._refresh();
         if (refreshed) {
-            this.__handle_change("query");
+            this.__handle_change("query", state);
         }
-        return this._cache.query(offset);
+        return state;
     }
 
     get value () {return this.query().value};
     get cache () {return this._cache};
-    get index () {return this._index};
+    get index () {return this.src.index};
 
     /**********************************************************
      * UPDATE API

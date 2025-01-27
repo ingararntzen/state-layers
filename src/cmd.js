@@ -27,7 +27,7 @@ function assign(value) {
         let item = {
             itv: [-Infinity, Infinity, true, true],
             type: "static",
-            args: {value}                 
+            data: value                 
         }
         return [item];
     }
@@ -37,7 +37,7 @@ function move(vector) {
     let item = {
         itv: [-Infinity, Infinity, true, true],
         type: "motion",
-        args: vector  
+        data: vector  
     }
     return [item];
 }
@@ -47,17 +47,17 @@ function transition(v0, v1, t0, t1, easing) {
         {
             itv: [-Infinity, t0, true, false],
             type: "static",
-            args: {value:v0}
+            data: v0
         },
         {
             itv: [t0, t1, true, false],
             type: "transition",
-            args: {v0, v1, t0, t1, easing}
+            data: {v0, v1, t0, t1, easing}
         },
         {
             itv: [t1, Infinity, true, true],
             type: "static",
-            args: {value: v1}
+            data: v1
         }
     ]
     return items;
@@ -71,17 +71,17 @@ function interpolate(tuples) {
         {
             itv: [-Infinity, t0, true, false],
             type: "static",
-            args: {value:v0}
+            data: v0
         },
         {
             itv: [t0, t1, true, false],
             type: "interpolation",
-            args: {tuples}
+            data: tuples
         },
         {
             itv: [t1, Infinity, true, true],
             type: "static",
-            args: {value: v1}
+            data: v1
         }
     ]    
     return items;

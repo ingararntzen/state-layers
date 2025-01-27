@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
 import { NearbyIndexMerge } from "../src/nearbyindex_merge.js";
-import { StateProviderSimple } from "../src/stateprovider_simple.js";
+import { LocalStateProvider } from "../src/stateprovider_simple.js";
 import { NearbyIndexSimple } from "../src/nearbyindex_simple.js";
 import { Layer, MergeLayer } from "../src/layers.js";
 
@@ -14,9 +14,9 @@ function runtest(layers, expected) {
     // make indexes for all layers
     const indexes = layers.map((layer_intervals) => {
         const items = layer_intervals.map((itv) => {
-            return {itv, type: "static", args: DATA};
+            return {itv, type: "static", data: DATA};
         });
-        const src = new StateProviderSimple({items});
+        const src = new LocalStateProvider({items});
         return new NearbyIndexSimple (src);
     });
     let index = new NearbyIndexMerge(indexes);
@@ -194,15 +194,15 @@ describe('MergeTest', () => {
 
         // Datasource 1
         const items_1 = [
-            {type: "static", itv: [1, 5, true, false], args:{value: 0.8}},
-            {type: "static", itv: [10, 15, true, false], args:{value: 0.6}},
+            {type: "static", itv: [1, 5, true, false], data:0.8},
+            {type: "static", itv: [10, 15, true, false], data:0.6},
         ];
         const layer_1 = new Layer({items:items_1});
 
         // Datasource 2
         const items_2 = [
-            {type: "static", itv: [2.5, 7.5, true, false], args:{value: 0.1}},
-            {type: "static", itv: [12.5, 17.5, true, false], args:{value: 0.3}},
+            {type: "static", itv: [2.5, 7.5, true, false], data:0.1},
+            {type: "static", itv: [12.5, 17.5, true, false], data:0.3},
         ];
         const layer_2 = new Layer({items:items_2});
 

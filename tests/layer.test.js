@@ -7,8 +7,8 @@ describe('NearbyIndexList', () => {
     test('should sample values of layer', () => {
 
         const items = [
-            {itv: [2, 4, true, false], args: {value: 0.5}},
-            {itv: [6, 8, true, false], args: {value: 1.0}},
+            {itv: [2, 4, true, false], data: 0.5},
+            {itv: [6, 8, true, false], data: 1.0},
         ];
         const layer = new Layer({items});
         let result = layer.sample();

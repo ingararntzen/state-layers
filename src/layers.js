@@ -1,7 +1,7 @@
 
 import { LayerBase, StateProviderBase } from "./bases.js";
 import * as sourceprop from "./sourceprop.js";
-import { StateProviderSimple } from "./stateprovider_simple.js";
+import { LocalStateProvider } from "./stateprovider_simple.js";
 import { NearbyIndexSimple } from "./nearbyindex_simple.js";
 import { NearbyCache } from "./nearbycache.js";
 import { NearbyIndexMerge } from "./nearbyindex_merge.js";
@@ -34,7 +34,7 @@ export class Layer extends LayerBase {
         // initialise with stateprovider
         let {src, ...opts} = options;
         if (src == undefined) {
-            src = new StateProviderSimple(opts);
+            src = new LocalStateProvider(opts);
         }
         if (!(src instanceof StateProviderBase)) {
             throw new Error("src must be StateproviderBase")
@@ -60,6 +60,7 @@ export class Layer extends LayerBase {
         if (!(src instanceof StateProviderBase)) {
             throw new Error(`"src" must be state provider ${src}`);
         }
+        return src;
     }    
     __src_handle_change() {
         if (this._index == undefined) {
@@ -82,7 +83,7 @@ function fromArray (array) {
         return { 
             itv: [index, index+1, true, false], 
             type: "static", 
-            args: {value:obj}};
+            data: obj};
     });
     return new Layer({items});
 }

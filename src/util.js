@@ -1,5 +1,36 @@
 
+/***************************************************************
+    CLOCKS
+***************************************************************/
 
+/**
+ * clocks counting in seconds
+ */
+
+const local = function () {
+    return performance.now()/1000.0;
+}
+
+const epoch = function () {
+    return new Date()/1000.0;
+}
+
+/**
+ * the clock gives epoch values, but is implemented
+ * using a high performance local clock for better
+ * time resolution and protection against system 
+ * time adjustments.
+ */
+
+export const CLOCK = function () {
+    const t0_local = local();
+    const t0_epoch = epoch();
+    return {
+        now: function () {
+            return t0_epoch + (local() - t0_local)
+        }
+    }
+}();
 
 
 // ovverride modulo to behave better for negative numbers

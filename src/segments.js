@@ -74,9 +74,9 @@ export class LayersSegment extends BaseSegment {
 
 export class StaticSegment extends BaseSegment {
 
-	constructor(itv, args) {
+	constructor(itv, data) {
         super(itv);
-		this._value = args.value;
+		this._value = data;
 	}
 
 	state() {
@@ -95,25 +95,39 @@ export class StaticSegment extends BaseSegment {
 
 export class MotionSegment extends BaseSegment {
     
-    constructor(itv, args) {
+    constructor(itv, data) {
         super(itv);
         const {
-            position:p0, velocity:v0, timestamp:t0
-        } = args;
+            position:p0=0, 
+            velocity:v0=0, 
+            acceleration:a0=0, 
+            timestamp:t0=0
+        } = data;
         // create motion transition
-        const a0 = 0;
-        this._velocity = v0;
-        this._position = function (ts) {
+        this._pos_func = function (ts) {
             let d = ts - t0;
             return p0 + v0*d + 0.5*a0*d*d;
-        };   
+        };
+        this._vel_func = function (ts) {
+            let d = ts - t0;
+            return v0 + a0*d;
+        }
+        this._acc_func = function (ts) {
+            return a0;
+        }
     }
 
     state(offset) {
+        let pos = this._pos_func(offset);
+        let vel = this._vel_func(offset);
+        let acc = this._acc_func(offset);
         return {
-            value: this._position(offset), 
-            rate: this._velocity, 
-            dynamic: this._velocity != 0
+            position: pos,
+            velocity: vel,
+            acceleration: acc,
+            timestamp: offset,
+            value: pos,
+            dynamic: (vel != 0 || acc != 0 )
         }
     }
 }
@@ -146,9 +160,9 @@ function easeinout (ts) {
 
 export class TransitionSegment extends BaseSegment {
 
-	constructor(itv, args) {
+	constructor(itv, data) {
 		super(itv);
-        let {v0, v1, easing} = args;
+        let {v0, v1, easing} = data;
         let [t0, t1] = this._itv.slice(0,2);
 
         // create the transition function
@@ -239,10 +253,10 @@ function interpolate(tuples) {
 
 export class InterpolationSegment extends BaseSegment {
 
-    constructor(itv, args) {
+    constructor(itv, tuples) {
         super(itv);
         // setup interpolation function
-        this._trans = interpolate(args.tuples);
+        this._trans = interpolate(tuples);
     }
 
     state(offset) {
