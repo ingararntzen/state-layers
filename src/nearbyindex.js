@@ -1,6 +1,4 @@
 import { endpoint } from "./intervals.js";
-import { range } from "./util.js";
-import { NearbyCache } from "./nearbycache.js";
 
 /*********************************************************************
     NEARBY INDEX

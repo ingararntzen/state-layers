@@ -112,13 +112,12 @@ export class Cursor extends CursorBase {
             let state;
             if (origin == "src") {
                 if (this._cache == undefined) {
-                    this._cache = this.src.getCacheObject();
+                    this._cache = this.src.getQueryObject();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
                 // force cache reevaluate
                 this._cache.dirty();
-                state = this._refresh()[0];
             } else if (origin == "query") {
                 state = msg 
             }

@@ -29,15 +29,13 @@ export class Layer extends LayerBase {
         // src
         sourceprop.addToInstance(this, "src");
         // cache objects
+        this._cache = new NearbyCache(this);
         this._cache_objects = [];
 
         // initialise with stateprovider
         let {src, ...opts} = options;
         if (src == undefined) {
             src = new LocalStateProvider(opts);
-        }
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error("src must be StateproviderBase")
         }
         this.src = src;
     }
@@ -46,12 +44,16 @@ export class Layer extends LayerBase {
      * QUERY API
      **********************************************************/
 
-    getCacheObject () {
+    getQueryObject () {
         const cache_object = new NearbyCache(this);
         this._cache_objects.push(cache_object);
         return cache_object;
     }
     
+    query (offset) {
+        return this._cache.query(offset);
+    }
+
     /**********************************************************
      * SRC (stateprovider)
      **********************************************************/
@@ -66,6 +68,7 @@ export class Layer extends LayerBase {
         if (this._index == undefined) {
             this._index = new NearbyIndexSimple(this.src)
         } else {
+            this._cache.dirty();
             for (let cache_object of this._cache_objects) {
                 cache_object.dirty();
             }
@@ -103,7 +106,9 @@ class MergeLayerCacheObject {
 
     constructor (layer) {
         this._layer = layer;
-        this._cache_objects = layer.sources.map((layer) => layer.getCacheObject());
+        this._cache_objects = layer.sources.map((layer) => {
+            return layer.getQueryObject()
+        });
     }
 
     query(offset) {
@@ -169,7 +174,7 @@ export class MergeLayer extends LayerBase {
         return this._valueFunc;
     }
 
-    getCacheObject () {
+    getQueryObject () {
         const cache_object = new MergeLayerCacheObject(this);
         this._cache_objects.push(cache_object);
         return cache_object;

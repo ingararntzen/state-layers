@@ -1164,7 +1164,7 @@ class LayerBase {
      * QUERY API
      **********************************************************/
 
-    getCacheObject () {
+    getQueryObject () {
         throw new Error("Not implemented");     
     }
 
@@ -1189,7 +1189,7 @@ class LayerBase {
 
         start = endpoint.max(this.index.first(), start);
         stop = endpoint.min(this.index.last(), stop);
-        const cache = this.getCacheObject();
+        const cache = this.getQueryObject();
         return range(start[0], stop[0], step, {include_end:true})
             .map((offset) => {
                 return [cache.query(offset).value, offset];
@@ -1499,6 +1499,329 @@ function check_input(items) {
         }
     }
     return items;
+}
+
+/*********************************************************************
+    NEARBY INDEX
+*********************************************************************/
+
+/**
+ * Abstract superclass for NearbyIndexe.
+ * 
+ * Superclass used to check that a class implements the nearby() method, 
+ * and provide some convenience methods.
+ * 
+ * NEARBY INDEX
+ * 
+ * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
+ * given that
+ * (i) each entriy is associated with an interval and,
+ * (ii) entries are non-overlapping.
+ * Each ITEM must be associated with an interval on the timeline 
+ * 
+ * NEARBY
+ * The nearby method returns information about the neighborhood around endpoint. 
+ * 
+ * Primary use is for iteration 
+ * 
+ * Returns {
+ *      center: list of ITEMS covering endpoint,
+ *      itv: interval where nearby returns identical {center}
+ *      left:
+ *          first interval endpoint to the left 
+ *          which will produce different {center}
+ *          always a high-endpoint or undefined
+ *      right:
+ *          first interval endpoint to the right
+ *          which will produce different {center}
+ *          always a low-endpoint or undefined         
+ *      prev:
+ *          first interval endpoint to the left 
+ *          which will produce different && non-empty {center}
+ *          always a high-endpoint or undefined if no more intervals to the left
+ *      next:
+ *          first interval endpoint to the right
+ *          which will produce different && non-empty {center}
+ *          always a low-endpoint or undefined if no more intervals to the right
+ * }
+ * 
+ * 
+ * The nearby state is well-defined for every timeline position.
+ * 
+ * 
+ * NOTE left/right and prev/next are mostly the same. The only difference is 
+ * that prev/next will skip over regions where there are no intervals. This
+ * ensures practical iteration of items as prev/next will only be undefined  
+ * at the end of iteration.
+ * 
+ * INTERVALS
+ * 
+ * [low, high, lowInclusive, highInclusive]
+ * 
+ * This representation ensures that the interval endpoints are ordered and allows
+ * intervals to be exclusive or inclusive, yet cover the entire real line 
+ * 
+ * [a,b], (a,b), [a,b), [a, b) are all valid intervals
+ * 
+ * 
+ * INTERVAL ENDPOINTS
+ * 
+ * interval endpoints are defined by [value, sign], for example
+ * 
+ * 4) -> [4,-1] - endpoint is on the left of 4
+ * [4, 4, 4] -> [4, 0] - endpoint is at 4 
+ * (4 -> [4, 1] - endpoint is on the right of 4)
+ * 
+ * / */
+
+ class NearbyIndexBase {
+
+
+    /* 
+        Nearby method
+    */
+    nearby(offset) {
+        throw new Error("Not implemented");
+    }
+
+
+    /*
+        return low point of leftmost entry
+    */
+    first() {
+        let {center, right} = this.nearby([-Infinity, 0]);
+        return (center.length > 0) ? [-Infinity, 0] : right;
+    }
+
+    /*
+        return high point of rightmost entry
+    */
+    last() {
+        let {left, center} = this.nearby([Infinity, 0]);
+        return (center.length > 0) ? [Infinity, 0] : left
+    }
+
+    /*
+        List items of NearbyIndex (order left to right)
+        interval defines [start, end] offset on the timeline.
+        Returns list of item-lists.
+        options
+        - start
+        - stop
+    */
+    list(options={}) {
+        let {start=-Infinity, stop=Infinity} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+        let current = start;
+        let nearby;
+        const results = [];
+        let limit = 5;
+        while (limit) {
+            if (endpoint.gt(current, stop)) {
+                // exhausted
+                break;
+            }
+            nearby = this.nearby(current);
+            if (nearby.center.length == 0) {
+                // center empty (typically first iteration)
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // no entries - already exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            } else {
+                results.push(nearby.center);
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // last entry - mark iteractor exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            }
+            limit--;
+        }
+        return results;
+    }
+}
+
+/**
+ * 
+ * Nearby Index Simple
+ * 
+ * - items are assumed to be non-overlapping on the timeline, 
+ * - implying that nearby.center will be a list of at most one ITEM. 
+ * - exception will be raised if overlapping ITEMS are found
+ * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
+ * 
+ *  
+ */
+
+
+// get interval low point
+function get_low_value(item) {
+    return item.itv[0];
+}
+
+// get interval low endpoint
+function get_low_endpoint(item) {
+    return endpoint.from_interval(item.itv)[0]
+}
+
+// get interval high endpoint
+function get_high_endpoint(item) {
+    return endpoint.from_interval(item.itv)[1]
+}
+
+
+class NearbyIndexSimple extends NearbyIndexBase {
+
+    constructor(src) {
+        super();
+        this._src = src;
+    }
+
+    get src () {return this._src;}
+
+    /*
+        nearby by offset
+        
+        returns {left, center, right}
+
+        binary search based on offset
+        1) found, idx
+            offset matches value of interval.low of an item
+            idx gives the index of this item in the array
+        2) not found, idx
+            offset is either covered by item at (idx-1),
+            or it is not => between entries
+            in this case - idx gives the index where an item
+            should be inserted - if it had low == offset
+    */
+    nearby(offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
+        }
+        if (!Array.isArray(offset)) {
+            throw new Error("Endpoint must be an array");
+        }
+        const result = {
+            center: [],
+            itv: [-Infinity, Infinity, true, true],
+            left: undefined,
+            right: undefined,
+            prev: undefined,
+            next: undefined
+        };
+        let items = this._src.get_items();
+        let indexes, item;
+        const size = items.length;
+        if (size == 0) {
+            return result; 
+        }
+        let [found, idx] = find_index(offset[0], items, get_low_value);
+        if (found) {
+            // search offset matches item low exactly
+            // check that it indeed covered by item interval
+            item = items[idx];
+            if (interval.covers_endpoint(item.itv, offset)) {
+                indexes = {left:idx-1, center:idx, right:idx+1};
+            }
+        }
+        if (indexes == undefined) {
+            // check prev item
+            item = items[idx-1];
+            if (item != undefined) {
+                // check if search offset is covered by item interval
+                if (interval.covers_endpoint(item.itv, offset)) {
+                    indexes = {left:idx-2, center:idx-1, right:idx};
+                } 
+            }
+        }	
+        if (indexes == undefined) {
+            // prev item either does not exist or is not relevant
+            indexes = {left:idx-1, center:-1, right:idx};
+        }
+
+        // center
+        if (0 <= indexes.center && indexes.center < size) {
+            result.center =  [items[indexes.center]];
+        }
+        // prev/next
+        if (0 <= indexes.left && indexes.left < size) {
+            result.prev =  get_high_endpoint(items[indexes.left]);
+        }
+        if (0 <= indexes.right && indexes.right < size) {
+            result.next =  get_low_endpoint(items[indexes.right]);
+        }        
+        // left/right
+        let low, high;
+        if (result.center.length > 0) {
+            let itv = result.center[0].itv;
+            [low, high] = endpoint.from_interval(itv);
+            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
+            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+            result.itv = result.center[0].itv;
+        } else {
+            result.left = result.prev;
+            result.right = result.next;
+            // interval
+            let left = result.left;
+            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
+            let right = result.right;
+            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
+            result.itv = interval.from_endpoints(low, high);
+        }
+        return result;
+    }
+}
+
+/*********************************************************************
+	UTILS
+*********************************************************************/
+
+
+/*
+	binary search for finding the correct insertion index into
+	the sorted array (ascending) of items
+	
+	array contains objects, and value func retreaves a value
+	from each object.
+
+	return [found, index]
+*/
+
+function find_index(target, arr, value_func) {
+
+    function default_value_func(el) {
+        return el;
+    }
+    
+    let left = 0;
+	let right = arr.length - 1;
+	value_func = value_func || default_value_func;
+	while (left <= right) {
+		const mid = Math.floor((left + right) / 2);
+		let mid_value = value_func(arr[mid]);
+		if (mid_value === target) {
+			return [true, mid]; // Target already exists in the array
+		} else if (mid_value < target) {
+			  left = mid + 1; // Move search range to the right
+		} else {
+			  right = mid - 1; // Move search range to the left
+		}
+	}
+  	return [false, left]; // Return the index where target should be inserted
 }
 
 /********************************************************************
@@ -1873,329 +2196,6 @@ function load_segment(nearby) {
     }
 }
 
-/*********************************************************************
-    NEARBY INDEX
-*********************************************************************/
-
-/**
- * Abstract superclass for NearbyIndexe.
- * 
- * Superclass used to check that a class implements the nearby() method, 
- * and provide some convenience methods.
- * 
- * NEARBY INDEX
- * 
- * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
- * given that
- * (i) each entriy is associated with an interval and,
- * (ii) entries are non-overlapping.
- * Each ITEM must be associated with an interval on the timeline 
- * 
- * NEARBY
- * The nearby method returns information about the neighborhood around endpoint. 
- * 
- * Primary use is for iteration 
- * 
- * Returns {
- *      center: list of ITEMS covering endpoint,
- *      itv: interval where nearby returns identical {center}
- *      left:
- *          first interval endpoint to the left 
- *          which will produce different {center}
- *          always a high-endpoint or undefined
- *      right:
- *          first interval endpoint to the right
- *          which will produce different {center}
- *          always a low-endpoint or undefined         
- *      prev:
- *          first interval endpoint to the left 
- *          which will produce different && non-empty {center}
- *          always a high-endpoint or undefined if no more intervals to the left
- *      next:
- *          first interval endpoint to the right
- *          which will produce different && non-empty {center}
- *          always a low-endpoint or undefined if no more intervals to the right
- * }
- * 
- * 
- * The nearby state is well-defined for every timeline position.
- * 
- * 
- * NOTE left/right and prev/next are mostly the same. The only difference is 
- * that prev/next will skip over regions where there are no intervals. This
- * ensures practical iteration of items as prev/next will only be undefined  
- * at the end of iteration.
- * 
- * INTERVALS
- * 
- * [low, high, lowInclusive, highInclusive]
- * 
- * This representation ensures that the interval endpoints are ordered and allows
- * intervals to be exclusive or inclusive, yet cover the entire real line 
- * 
- * [a,b], (a,b), [a,b), [a, b) are all valid intervals
- * 
- * 
- * INTERVAL ENDPOINTS
- * 
- * interval endpoints are defined by [value, sign], for example
- * 
- * 4) -> [4,-1] - endpoint is on the left of 4
- * [4, 4, 4] -> [4, 0] - endpoint is at 4 
- * (4 -> [4, 1] - endpoint is on the right of 4)
- * 
- * / */
-
- class NearbyIndexBase {
-
-
-    /* 
-        Nearby method
-    */
-    nearby(offset) {
-        throw new Error("Not implemented");
-    }
-
-
-    /*
-        return low point of leftmost entry
-    */
-    first() {
-        let {center, right} = this.nearby([-Infinity, 0]);
-        return (center.length > 0) ? [-Infinity, 0] : right;
-    }
-
-    /*
-        return high point of rightmost entry
-    */
-    last() {
-        let {left, center} = this.nearby([Infinity, 0]);
-        return (center.length > 0) ? [Infinity, 0] : left
-    }
-
-    /*
-        List items of NearbyIndex (order left to right)
-        interval defines [start, end] offset on the timeline.
-        Returns list of item-lists.
-        options
-        - start
-        - stop
-    */
-    list(options={}) {
-        let {start=-Infinity, stop=Infinity} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
-        }
-        start = [start, 0];
-        stop = [stop, 0];
-        let current = start;
-        let nearby;
-        const results = [];
-        let limit = 5;
-        while (limit) {
-            if (endpoint.gt(current, stop)) {
-                // exhausted
-                break;
-            }
-            nearby = this.nearby(current);
-            if (nearby.center.length == 0) {
-                // center empty (typically first iteration)
-                if (nearby.right == undefined) {
-                    // right undefined
-                    // no entries - already exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            } else {
-                results.push(nearby.center);
-                if (nearby.right == undefined) {
-                    // right undefined
-                    // last entry - mark iteractor exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            }
-            limit--;
-        }
-        return results;
-    }
-}
-
-/**
- * 
- * Nearby Index Simple
- * 
- * - items are assumed to be non-overlapping on the timeline, 
- * - implying that nearby.center will be a list of at most one ITEM. 
- * - exception will be raised if overlapping ITEMS are found
- * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
- * 
- *  
- */
-
-
-// get interval low point
-function get_low_value(item) {
-    return item.itv[0];
-}
-
-// get interval low endpoint
-function get_low_endpoint(item) {
-    return endpoint.from_interval(item.itv)[0]
-}
-
-// get interval high endpoint
-function get_high_endpoint(item) {
-    return endpoint.from_interval(item.itv)[1]
-}
-
-
-class NearbyIndexSimple extends NearbyIndexBase {
-
-    constructor(src) {
-        super();
-        this._src = src;
-    }
-
-    get src () {return this._src;}
-
-    /*
-        nearby by offset
-        
-        returns {left, center, right}
-
-        binary search based on offset
-        1) found, idx
-            offset matches value of interval.low of an item
-            idx gives the index of this item in the array
-        2) not found, idx
-            offset is either covered by item at (idx-1),
-            or it is not => between entries
-            in this case - idx gives the index where an item
-            should be inserted - if it had low == offset
-    */
-    nearby(offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (!Array.isArray(offset)) {
-            throw new Error("Endpoint must be an array");
-        }
-        const result = {
-            center: [],
-            itv: [-Infinity, Infinity, true, true],
-            left: undefined,
-            right: undefined,
-            prev: undefined,
-            next: undefined
-        };
-        let items = this._src.get_items();
-        let indexes, item;
-        const size = items.length;
-        if (size == 0) {
-            return result; 
-        }
-        let [found, idx] = find_index(offset[0], items, get_low_value);
-        if (found) {
-            // search offset matches item low exactly
-            // check that it indeed covered by item interval
-            item = items[idx];
-            if (interval.covers_endpoint(item.itv, offset)) {
-                indexes = {left:idx-1, center:idx, right:idx+1};
-            }
-        }
-        if (indexes == undefined) {
-            // check prev item
-            item = items[idx-1];
-            if (item != undefined) {
-                // check if search offset is covered by item interval
-                if (interval.covers_endpoint(item.itv, offset)) {
-                    indexes = {left:idx-2, center:idx-1, right:idx};
-                } 
-            }
-        }	
-        if (indexes == undefined) {
-            // prev item either does not exist or is not relevant
-            indexes = {left:idx-1, center:-1, right:idx};
-        }
-
-        // center
-        if (0 <= indexes.center && indexes.center < size) {
-            result.center =  [items[indexes.center]];
-        }
-        // prev/next
-        if (0 <= indexes.left && indexes.left < size) {
-            result.prev =  get_high_endpoint(items[indexes.left]);
-        }
-        if (0 <= indexes.right && indexes.right < size) {
-            result.next =  get_low_endpoint(items[indexes.right]);
-        }        
-        // left/right
-        let low, high;
-        if (result.center.length > 0) {
-            let itv = result.center[0].itv;
-            [low, high] = endpoint.from_interval(itv);
-            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
-            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
-            result.itv = result.center[0].itv;
-        } else {
-            result.left = result.prev;
-            result.right = result.next;
-            // interval
-            let left = result.left;
-            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
-            let right = result.right;
-            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
-            result.itv = interval.from_endpoints(low, high);
-        }
-        return result;
-    }
-}
-
-/*********************************************************************
-	UTILS
-*********************************************************************/
-
-
-/*
-	binary search for finding the correct insertion index into
-	the sorted array (ascending) of items
-	
-	array contains objects, and value func retreaves a value
-	from each object.
-
-	return [found, index]
-*/
-
-function find_index(target, arr, value_func) {
-
-    function default_value_func(el) {
-        return el;
-    }
-    
-    let left = 0;
-	let right = arr.length - 1;
-	value_func = value_func || default_value_func;
-	while (left <= right) {
-		const mid = Math.floor((left + right) / 2);
-		let mid_value = value_func(arr[mid]);
-		if (mid_value === target) {
-			return [true, mid]; // Target already exists in the array
-		} else if (mid_value < target) {
-			  left = mid + 1; // Move search range to the right
-		} else {
-			  right = mid - 1; // Move search range to the left
-		}
-	}
-  	return [false, left]; // Return the index where target should be inserted
-}
-
 /************************************************
  * LAYER
  ************************************************/
@@ -2216,15 +2216,13 @@ class Layer extends LayerBase {
         // src
         addToInstance(this, "src");
         // cache objects
+        this._cache = new NearbyCache(this);
         this._cache_objects = [];
 
         // initialise with stateprovider
         let {src, ...opts} = options;
         if (src == undefined) {
             src = new LocalStateProvider(opts);
-        }
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error("src must be StateproviderBase")
         }
         this.src = src;
     }
@@ -2233,12 +2231,16 @@ class Layer extends LayerBase {
      * QUERY API
      **********************************************************/
 
-    getCacheObject () {
+    getQueryObject () {
         const cache_object = new NearbyCache(this);
         this._cache_objects.push(cache_object);
         return cache_object;
     }
     
+    query (offset) {
+        return this._cache.query(offset);
+    }
+
     /**********************************************************
      * SRC (stateprovider)
      **********************************************************/
@@ -2253,6 +2255,7 @@ class Layer extends LayerBase {
         if (this._index == undefined) {
             this._index = new NearbyIndexSimple(this.src);
         } else {
+            this._cache.dirty();
             for (let cache_object of this._cache_objects) {
                 cache_object.dirty();
             }
@@ -2557,13 +2560,12 @@ class Cursor extends CursorBase {
             let state;
             if (origin == "src") {
                 if (this._cache == undefined) {
-                    this._cache = this.src.getCacheObject();
+                    this._cache = this.src.getQueryObject();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
                 // force cache reevaluate
                 this._cache.dirty();
-                state = this._refresh()[0];
             } else if (origin == "query") {
                 state = msg; 
             }

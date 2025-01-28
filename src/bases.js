@@ -169,7 +169,7 @@ export class LayerBase {
      * QUERY API
      **********************************************************/
 
-    getCacheObject () {
+    getQueryObject () {
         throw new Error("Not implemented");     
     }
 
@@ -194,7 +194,7 @@ export class LayerBase {
 
         start = endpoint.max(this.index.first(), start);
         stop = endpoint.min(this.index.last(), stop);
-        const cache = this.getCacheObject();
+        const cache = this.getQueryObject();
         return range(start[0], stop[0], step, {include_end:true})
             .map((offset) => {
                 return [cache.query(offset).value, offset];
