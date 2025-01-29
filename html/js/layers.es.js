@@ -1144,7 +1144,6 @@ class StateProviderBase {
 callback.addToPrototype(StateProviderBase.prototype);
 
 
-
 /************************************************
  * LAYER BASE
  ************************************************/
@@ -1429,75 +1428,6 @@ function interpolate$1(tuples) {
             data: v1
         }
     ];    
-    return items;
-}
-
-/***************************************************************
-    LOCAL STATE PROVIDER
-***************************************************************/
-
-/**
- * Local Array with non-overlapping items.
- */
-
-class LocalStateProvider extends StateProviderBase {
-
-    constructor(options={}) {
-        super();
-        // initialization
-        let {items, value} = options;
-        if (items != undefined) {
-            // initialize from items
-            this._items = check_input(items);
-        } else if (value != undefined) {
-            // initialize from value
-            this._items = [{
-                itv:[-Infinity, Infinity, true, true], 
-                type: "static",
-                data:value
-            }];
-        } else {
-            this._items = [];
-        }
-    }
-
-    update (items, options) {
-        return Promise.resolve()
-            .then(() => {
-                this._items = check_input(items);
-                this.notify_callbacks();
-            });
-    }
-
-    get_items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {overlapping: false};
-    }
-}
-
-
-function check_input(items) {
-    if (!Array.isArray(items)) {
-        throw new Error("Input must be an array");
-    }
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
-    }
     return items;
 }
 
@@ -2082,84 +2012,36 @@ class InterpolationSegment extends BaseSegment {
     The cache is marked as dirty when the Nearby indexes changes.
 */
 
-class NearbyCache {
 
-    constructor (layer) {
+
+class NearbyCache {
+    constructor(datasource) {
         // nearby index
-        this._index = layer.index;
+        this._index = datasource.index;
         // cached nearby object
         this._nearby = undefined;
         // cached segment
         this._segment = undefined;
-        // dirty flag
-        this._dirty = false;
     }
-
-    /**************************************************
-        Accessors for Cache state
-    ***************************************************/
-    
-    get nearby () {
-        return this._nearby;
-    }
-
-    load_segment () {
-        // lazy load segment
-        if (this._nearby && !this._segment) {
-            this._segment = load_segment(this._nearby);
-        }
-        return this._segment
-    }
-
-    /**************************************************
-        Dirty Cache
-    ***************************************************/
-
-    dirty() {
-        this._dirty = true;
-    }
-
-    /**************************************************
-        Refresh Cache
-    ***************************************************/
-
-    /*
-        refresh if necessary - else NOOP
-        - if nearby is not defined
-        - if offset is outside nearby.itv
-        - if cache is dirty
-    */
-    refresh (offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (this._nearby == undefined || this._dirty) {
-            return this._refresh(offset);
-        }
-        if (!interval.covers_endpoint(this._nearby.itv, offset)) {
-            return this._refresh(offset)
-        }
-        return false;
-    }
-
-    _refresh (offset) {
-        this._nearby = this._index.nearby(offset);
-        this._segment = undefined;
-        this._dirty = false;
-        return true;
-    }
-
-    /**************************************************
-        Query Cache
-    ***************************************************/
 
     query(offset) {
-        this.refresh(offset);
-        if (!this._segment) {
+        // check cache
+        if (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        ) {
+            // cache miss
+            this._nearby = this._index.nearby(offset);
             this._segment = load_segment(this._nearby);
         }
-        return this._segment.query(offset);
+        return this._segment.query(offset); 
     }
+
+    clear() {
+        this._nearby = undefined;
+        this._segment = undefined;
+    }
+
 }
 
 
@@ -2196,40 +2078,51 @@ function load_segment(nearby) {
     }
 }
 
-/************************************************
- * LAYER
- ************************************************/
-
 /**
+ * Datasource is an internal class, wrapping a 
+ * state provider so that it can be used as datasource
+ * for a Layer.
  * 
- * Layer
- * - has mutable state provider (src) (default state undefined)
- * - methods for list and sample
- * 
+ * Since datasources wrap stateproviders, they 
+ * maintain an index and a segment cache (nearby cache)
  */
 
-class Layer extends LayerBase {
+class Datasource {
 
-    constructor (options={}) {
-        super();
+    constructor (stateProvider, valueFunc) {
+        callback.addToInstance(this);
 
-        // src
-        addToInstance(this, "src");
+        // state provider
+        this._sp = stateProvider;
+        this._valueFunc = valueFunc;
+        // index
+        // TODO - NearbyIndex must use valueFunc
+        this._index = new NearbyIndexSimple(this._sp);
+
         // cache objects
         this._cache = new NearbyCache(this);
         this._cache_objects = [];
+    
+        // subscribe to callbacks
+        this._sp.add_callback(this._handle_callback.bind(this));        
+    }
 
-        // initialise with stateprovider
-        let {src, ...opts} = options;
-        if (src == undefined) {
-            src = new LocalStateProvider(opts);
+    _handle_callback() {
+        // change in state provider
+        this._cache.clear();
+        for (let cache_object of this._cache_objects) {
+            cache_object.clear();
         }
-        this.src = src;
+        // Forward callback from wrapped state provider
+        this.notify_callbacks();
     }
 
     /**********************************************************
      * QUERY API
      **********************************************************/
+
+    get index () {return this._index}
+    get valueFunc () {return this._valueFunc;}
 
     getQueryObject () {
         const cache_object = new NearbyCache(this);
@@ -2241,44 +2134,220 @@ class Layer extends LayerBase {
         return this._cache.query(offset);
     }
 
+
+}
+callback.addToPrototype(Datasource.prototype);
+
+/***************************************************************
+    LOCAL STATE PROVIDER
+***************************************************************/
+
+/**
+ * Local Array with non-overlapping items.
+ */
+
+class LocalStateProvider extends StateProviderBase {
+
+    constructor(options={}) {
+        super();
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            // initialize from items
+            this._items = check_input(items);
+        } else if (value != undefined) {
+            // initialize from value
+            this._items = [{
+                itv:[-Infinity, Infinity, true, true], 
+                type: "static",
+                data:value
+            }];
+        } else {
+            this._items = [];
+        }
+    }
+
+    update (items, options) {
+        return Promise.resolve()
+            .then(() => {
+                this._items = check_input(items);
+                this.notify_callbacks();
+            });
+    }
+
+    get_items () {
+        return this._items.slice();
+    }
+
+    get info () {
+        return {overlapping: false};
+    }
+}
+
+
+function check_input(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
+}
+
+/************************************************
+ * LAYER CACHE
+ ************************************************/
+
+class LayerCache {
+
+    constructor(layer) {
+        this._layer = layer;
+        this._itv;
+        this._state;
+        this._obj = layer.src.getQueryObject();
+        this._index = layer.index;
+    }
+
+    query(offset) {
+        const need_itv = (
+            this._itv == undefined ||
+            !interval.covers_point(this._itv, offset)
+        );
+        if (
+            !need_itv && 
+            this._state != undefined &&
+            !this._state.dynamic
+        ) {
+            // cache hit
+            return {...this._state, offset};
+        }
+        // cache miss
+        if (need_itv) {
+            this._itv = this._index.nearby(offset).itv;
+        }
+        const state = this._obj.query(offset);
+        // cache state only if not dynamic
+        if (!state.dynamic) {
+            this._state = state;
+        }
+        return state    
+    }
+
+    clear() {
+        this._itv = undefined;
+        this._state = undefined;
+    }
+}
+
+/************************************************
+ * LAYER
+ ************************************************/
+
+class Layer {
+
+    constructor(options={}) {
+
+        callback.addToInstance(this);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
+        // src
+        addToInstance(this, "src");
+        // index
+        this._index;
+        // cache
+        this._cache_objects = [];
+
+        // initialise with stateprovider
+        let {src, ...opts} = options;
+        if (src == undefined) {
+            src = new LocalStateProvider(opts);
+        }
+        this.src = src;
+    }
+
     /**********************************************************
-     * SRC (stateprovider)
+     * SRC (datasource)
      **********************************************************/
 
     __src_check(src) {
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${src}`);
+        if (src instanceof StateProviderBase) {
+            src = new Datasource(src);
+        }
+        if (!(src instanceof Datasource)) {
+            throw new Error(`"src" must be a datasource ${src}`);
         }
         return src;
     }    
-    __src_handle_change() {
-        if (this._index == undefined) {
-            this._index = new NearbyIndexSimple(this.src);
-        } else {
-            this._cache.dirty();
-            for (let cache_object of this._cache_objects) {
-                cache_object.dirty();
-            }
+    __src_handle_change(reason) {
+        if (reason == "reset") {
+            this._index = this.src.index;
+        }
+        for (let cache_object of this._cache_objects) {
+            cache_object.clear();
         }
         this.notify_callbacks();
         // trigger change event for cursor
         this.eventifyTrigger("change");   
     }
+
+    /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    get index () {return this._index};
+
+    getQueryObject () {
+        const cache_object = new LayerCache(this);
+        this._cache_objects.push(cache_object);
+        return cache_object;
+    }
+
+    query (offset) {
+        return this.src.query(offset);
+    }
+
+    /*
+        Sample Layer by timeline offset increments
+        return list of tuples [value, offset]
+        options
+        - start
+        - stop
+        - step
+    */
+    sample(options={}) {
+        let {start=-Infinity, stop=Infinity, step=1} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+
+        start = endpoint.max(this.index.first(), start);
+        stop = endpoint.min(this.index.last(), stop);
+        const cache = this.getQueryObject();
+        return range(start[0], stop[0], step, {include_end:true})
+            .map((offset) => {
+                return [cache.query(offset).value, offset];
+            });
+    }
 }
+callback.addToPrototype(Layer.prototype);
 addToPrototype(Layer.prototype, "src", {mutable:true});
-
-
-function fromArray (array) {
-    const items = array.map((obj, index) => {
-        return { 
-            itv: [index, index+1, true, false], 
-            type: "static", 
-            data: obj};
-    });
-    return new Layer({items});
-}
-
-Layer.fromArray = fromArray;
+eventify.addToPrototype(Layer.prototype);
 
 /***************************************************************
     MOTION STATE PROVIDER
@@ -2536,7 +2605,7 @@ class Cursor extends CursorBase {
     __src_check(src) {
         if (src instanceof StateProviderBase) {
             return new Layer({src});
-        } else if (src instanceof LayerBase) {
+        } else if (src instanceof Layer) {
             return src;
         } else  if (src instanceof MotionProviderBase) {
             src = new MotionStateProvider(src);

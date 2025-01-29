@@ -2,6 +2,9 @@ import { callback } from "./util.js";
 import { NearbyIndexSimple } from "./nearbyindex_simple";
 import { NearbyCache } from "./nearbycache";
 
+
+
+
 /**
  * Datasource is an internal class, wrapping a 
  * state provider so that it can be used as datasource
@@ -33,9 +36,9 @@ export class Datasource {
 
     _handle_callback() {
         // change in state provider
-        this._cache.dirty();
+        this._cache.clear();
         for (let cache_object of this._cache_objects) {
-            cache_object.dirty();
+            cache_object.clear();
         }
         // Forward callback from wrapped state provider
         this.notify_callbacks();

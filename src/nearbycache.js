@@ -19,15 +19,42 @@ import * as segment from "./segments.js";
     The cache is marked as dirty when the Nearby indexes changes.
 */
 
-export class NearbyCache {
 
-    constructor (layer) {
+
+export class NearbyCache {
+    constructor(datasource) {
         // nearby index
-        this._index = layer.index;
+        this._index = datasource.index;
         // cached nearby object
         this._nearby = undefined;
         // cached segment
         this._segment = undefined;
+    }
+
+    query(offset) {
+        // check cache
+        if (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        ) {
+            // cache miss
+            this._nearby = this._index.nearby(offset);
+            this._segment = load_segment(this._nearby);
+        }
+        return this._segment.query(offset); 
+    }
+
+    clear() {
+        this._nearby = undefined;
+        this._segment = undefined;
+    }
+
+}
+
+
+export class NearbyCache2 {
+
+    constructor (layer) {
         // dirty flag
         this._dirty = false;
     }

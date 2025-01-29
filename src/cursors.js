@@ -4,11 +4,10 @@ import {
     MotionProviderBase,
     StateProviderBase,
     CursorBase, 
-    LayerBase
 } from "./bases.js";
 import * as sourceprop from "./sourceprop.js";
 import { cmd } from "./cmd.js";
-import { Layer } from "./layers.js";
+import { Layer } from "./newlayer.js";
 import { LocalStateProvider } from "./stateprovider_simple.js";
 import { MotionStateProvider } from "./stateprovider_motion.js";
 
@@ -88,7 +87,7 @@ export class Cursor extends CursorBase {
     __src_check(src) {
         if (src instanceof StateProviderBase) {
             return new Layer({src});
-        } else if (src instanceof LayerBase) {
+        } else if (src instanceof Layer) {
             return src;
         } else  if (src instanceof MotionProviderBase) {
             src = new MotionStateProvider(src);

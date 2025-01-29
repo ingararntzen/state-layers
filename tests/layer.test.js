@@ -1,5 +1,5 @@
 /* global describe, test, expect */
-import { Layer } from '../src/layers.js';
+import { Layer } from '../src/newlayer.js';
 
 // Add your test cases here
 describe('NearbyIndexList', () => {

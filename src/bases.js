@@ -149,7 +149,6 @@ export class StateProviderBase {
 callback.addToPrototype(StateProviderBase.prototype);
 
 
-
 /************************************************
  * LAYER BASE
  ************************************************/

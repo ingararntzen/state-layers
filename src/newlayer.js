@@ -1,42 +1,49 @@
 import { eventify } from "./eventify.js";
 import { callback } from "./util.js";
 import * as sourceprop from "./sourceprop.js";
-import { interval } from "./intervals.js";
+import { interval, endpoint } from "./intervals.js";
 import { Datasource } from "./datasource.js";
 import { StateProviderBase } from "./bases.js";
 import { LocalStateProvider } from "./stateprovider_simple.js";
+import { range } from "./util.js";
 
 /************************************************
  * LAYER CACHE
  ************************************************/
 
-class LayerCache {
+export class LayerCache {
 
     constructor(layer) {
         this._layer = layer;
         this._itv;
         this._state;
+        this._obj = layer.src.getQueryObject();
+        this._index = layer.index;
     }
 
     query(offset) {
-        // check cache
+        const need_itv = (
+            this._itv == undefined ||
+            !interval.covers_point(this._itv, offset)
+        );
         if (
-            this._itv != undefined &&
-            interval.covers_endpoint(this._itv, offset)
+            !need_itv && 
+            this._state != undefined &&
+            !this._state.dynamic
         ) {
             // cache hit
-            return {...this._state, offset}
-        } else {
-            // cache miss
-            // lookup state
-            const state = this._layer.src.query(offset);
-            // update cache
-            if (!state.dynamic) {
-                this._state = state;
-                this._itv = this._layer.index.nearby(offset).itv;
-            }
-            return state;
-        } 
+            return {...this._state, offset};
+        }
+        // cache miss
+        if (need_itv) {
+            this._itv = this._index.nearby(offset).itv;
+        }
+        const state = this._obj.query(offset);
+        // cache state only if not dynamic
+        if (!state.dynamic) {
+            this._state = state;
+        }
+        return state    
     }
 
     clear() {
@@ -138,5 +145,6 @@ export class Layer {
             });
     }
 }
-callback.addToPrototype(LayerBase.prototype);
-eventify.addToPrototype(LayerBase.prototype);
+callback.addToPrototype(Layer.prototype);
+sourceprop.addToPrototype(Layer.prototype, "src", {mutable:true});
+eventify.addToPrototype(Layer.prototype);
