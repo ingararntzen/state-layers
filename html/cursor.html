@@ -19,10 +19,18 @@
 
         import { Cursor, Layer, cmd } from './js/layers.es.js';
 
+        const items = [
+            {itv: [0, 1, true, false], data: "red"},
+            {itv: [1, 2, true, false], data: "blue"},
+            {itv: [2, 3, true, false], data: "green"},
+            {itv: [3, 4, true, false], data: "yellow"},
+            {itv: [4, 5, true, false], data: "orange"},
+            {itv: [5, 6, true, false], data: "#4B0082"},
+            {itv: [6, 7, true, false], data: "violet"},
+        ];
+        const colors = new Layer({items})
 
-        const colors = Layer.fromArray([
-            "red", "blue", "green", "yellow", "orange", "#4B0082", "violet"
-        ]);
+
         const offset = new Cursor({value:0});
         const color = new Cursor({src:colors, ctrl:offset});
 

@@ -50,6 +50,7 @@ export class Datasource {
 
     get index () {return this._index}
     get valueFunc () {return this._valueFunc;}
+    get src () {return this._sp;}
 
     getQueryObject () {
         const cache_object = new NearbyCache(this);

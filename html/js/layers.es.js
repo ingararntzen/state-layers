@@ -2123,6 +2123,7 @@ class Datasource {
 
     get index () {return this._index}
     get valueFunc () {return this._valueFunc;}
+    get src () {return this._sp;}
 
     getQueryObject () {
         const cache_object = new NearbyCache(this);
@@ -2626,22 +2627,17 @@ class Cursor extends CursorBase {
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {
-            let state;
             if (origin == "src") {
                 if (this._cache == undefined) {
                     this._cache = this.src.getQueryObject();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
-                // force cache reevaluate
-                this._cache.dirty();
-            } else if (origin == "query") {
-                state = msg; 
+                this._cache.clear();
             }
-            state = state || this.query();
             this.notify_callbacks();
             // trigger change event for cursor
-            this.eventifyTrigger("change", state);
+            this.eventifyTrigger("change", this.query());
             // detect future change event - if needed
             this.__detect_future_change();
         }
@@ -2819,7 +2815,7 @@ class Cursor extends CursorBase {
         }
 
         // possible event to detect - approach [3]
-        this.__set_polling();
+        this.__set_polling(src_nearby.itv);
     }
 
     /**
@@ -2856,14 +2852,17 @@ class Cursor extends CursorBase {
      * set polling
      */
 
-    __set_polling() {
+    __set_polling(itv) {
         this._pid = setInterval(() => {
-            this.__handle_poll();
+            this.__handle_poll(itv);
         }, 100);
     }
 
-    __handle_poll() {
-        this.query();
+    __handle_poll(itv) {
+        let offset = this.query().value;
+        if (!interval.covers_point(itv, offset)) {
+            this.__handle_change("timeout");
+        }
     }
 
     /**********************************************************
@@ -2884,23 +2883,12 @@ class Cursor extends CursorBase {
         }
     }
 
-    _refresh () {
-        const offset = this._get_ctrl_state().value;        
-        let refreshed = this._cache.refresh(offset);
-        let state = this._cache.query(offset);
-        return [state, refreshed];
-    }
-
     query () {
-        let [state, refreshed] = this._refresh();
-        if (refreshed) {
-            this.__handle_change("query", state);
-        }
-        return state;
+        const offset = this._get_ctrl_state().value;  
+        return this._cache.query(offset);
     }
 
     get value () {return this.query().value};
-    get cache () {return this._cache};
     get index () {return this.src.index};
 
     /**********************************************************
@@ -2908,7 +2896,7 @@ class Cursor extends CursorBase {
      **********************************************************/
 
     assign(value) {
-        return cmd(this.src.src).assign(value);
+        return cmd(this.src.src.src).assign(value);
     }
     move ({position, velocity}) {
         let {value, offset:timestamp} = this.query();
@@ -2917,14 +2905,14 @@ class Cursor extends CursorBase {
         }
         position = (position != undefined) ? position : value;
         velocity = (velocity != undefined) ? velocity: 0;
-        return cmd(this.src.src).move({position, velocity, timestamp});
+        return cmd(this.src.src.src).move({position, velocity, timestamp});
     }
     transition ({target, duration, easing}) {
         let {value:v0, offset:t0} = this.query();
         if (typeof v0 !== 'number') {
             throw new Error(`warning: cursor state must be number ${v0}`);
         }
-        return cmd(this.src.src).transition(v0, target, t0, t0 + duration, easing);
+        return cmd(this.src.src.src).transition(v0, target, t0, t0 + duration, easing);
     }
     interpolate ({tuples, duration}) {
         let t0 = this.query().offset;
@@ -2933,7 +2921,7 @@ class Cursor extends CursorBase {
         tuples = tuples.map(([v,t]) => {
             return [v, t0 + t*duration];
         });
-        return cmd(this.src.src).interpolate(tuples);
+        return cmd(this.src.src.src).interpolate(tuples);
     }
 
 }
