@@ -1,6 +1,6 @@
 import { Cursor } from "./cursors.js";
-import { Layer } from "./newlayer.js";
+// import { Layer } from "./newlayer.js";
 import { cmd } from "./cmd.js";
-
-
-export { cmd, Cursor, Layer }
+import { merge } from "./ops/merge.js"
+import { InputLayer } from "./input_layer.js";
+export { cmd, Cursor, InputLayer, merge }

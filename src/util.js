@@ -71,46 +71,24 @@ export function range (start, end, step = 1, options={}) {
 }
 
 
+/**
+ * Create a single state from a list of states, using a stateFunc
+ * states:{value, dynamic, offset}
+ * 
+ * 
+ */
 
-/*
-    This adds basic (synchronous) callback support to an object.
-*/
-
-export const callback = function () {
-
-    function addToInstance(object) {
-        object.__callback_callbacks = [];
+export function toState(states, valueFunc, offset) {
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
+        /**
+            TODO - do something with valueFunc
+            const dynamic = states.map((v) => v.dynamic);
+            const values = states.map((v) => v.value);
+        
+            For now - just return the first state
+        */
     }
-
-    function add_callback (handler) {
-        let handle = {
-            handler: handler
-        }
-        this.__callback_callbacks.push(handle);
-        return handle;
-    };
-
-    function remove_callback (handle) {
-        let index = this.__callback_callbacks.indexof(handle);
-        if (index > -1) {
-            this.__callback_callbacks.splice(index, 1);
-        }
-    };
-
-    function notify_callbacks (eArg) {
-        this.__callback_callbacks.forEach(function(handle) {
-            handle.handler(eArg);
-        });
-    };
-
-
-    function addToPrototype (_prototype) {
-        const api = {
-            add_callback, remove_callback, notify_callbacks
-        }
-        Object.assign(_prototype, api);
-    }
-
-    return {addToInstance, addToPrototype}
-}();
-
+    let state = states[0];
+    return {...state, offset}; 
+}

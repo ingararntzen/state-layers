@@ -1,9 +1,8 @@
 import { eventify } from "./eventify.js";
-import { callback } from "./util.js";
 import { bind, release } from "./monitor.js";
 import { endpoint } from "./intervals.js";
 import { range } from "./util.js";
-
+import * as callback from "./api_callback.js";
 
 /************************************************
  * CLOCK PROVIDER BASE

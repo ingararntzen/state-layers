@@ -21,7 +21,7 @@ import * as segment from "./segments.js";
 
 
 
-export class NearbyCache {
+export class DatasourceCache {
     constructor(datasource) {
         // nearby index
         this._index = datasource.index;
@@ -49,81 +49,6 @@ export class NearbyCache {
         this._segment = undefined;
     }
 
-}
-
-
-export class NearbyCache2 {
-
-    constructor (layer) {
-        // dirty flag
-        this._dirty = false;
-    }
-
-    /**************************************************
-        Accessors for Cache state
-    ***************************************************/
-    
-    get nearby () {
-        return this._nearby;
-    }
-
-    load_segment () {
-        // lazy load segment
-        if (this._nearby && !this._segment) {
-            this._segment = load_segment(this._nearby);
-        }
-        return this._segment
-    }
-
-    /**************************************************
-        Dirty Cache
-    ***************************************************/
-
-    dirty() {
-        this._dirty = true;
-    }
-
-    /**************************************************
-        Refresh Cache
-    ***************************************************/
-
-    /*
-        refresh if necessary - else NOOP
-        - if nearby is not defined
-        - if offset is outside nearby.itv
-        - if cache is dirty
-    */
-    refresh (offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (this._nearby == undefined || this._dirty) {
-            return this._refresh(offset);
-        }
-        if (!interval.covers_endpoint(this._nearby.itv, offset)) {
-            return this._refresh(offset)
-        }
-        return false;
-    }
-
-    _refresh (offset) {
-        this._nearby = this._index.nearby(offset);
-        this._segment = undefined;
-        this._dirty = false;
-        return true;
-    }
-
-    /**************************************************
-        Query Cache
-    ***************************************************/
-
-    query(offset) {
-        this.refresh(offset);
-        if (!this._segment) {
-            this._segment = load_segment(this._nearby);
-        }
-        return this._segment.query(offset);
-    }
 }
 
 

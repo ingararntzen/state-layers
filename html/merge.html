@@ -17,45 +17,21 @@
           return Math.floor(Math.random() * max);
         }
 
-        import { Cursor, Layer, cmd } from './js/layers.es.js';
+        import { InputLayer, merge } from './js/layers.es.js';
 
 
-        const colors = Layer.fromArray([
-            "red", "blue", "green", "yellow", "orange", "#4B0082", "violet"
-        ]);
-        const offset = new Cursor({value:0});
-        const color = new Cursor({src:colors, ctrl:offset});
+        const l1 = new InputLayer({items:[
+            {itv: [0, 1, true, false], data: 1},
+            {itv: [2, 3, true, false], data: 2},
+            {itv: [4, 5, true, false], data: 3},
+            {itv: [6, 7, true, false], data: 4},
+        ]});
 
-        offset.bind(render_html("#offset", ({value}) => `${value}`), 200);
-        color.bind(render_html("#color", ({value}) => `${value}`), 200);
-
-        document.querySelector("#valueBtn").onclick = () => {
-            offset.assign(getRandomInt(10))
-        }
-        document.querySelector("#resetBtn").onclick = () => {
-            offset.assign(0);
-        }
-        document.querySelector("#playBtn").onclick = () => {
-            offset.move({velocity:1});
-        }
-        document.querySelector("#pauseBtn").onclick = () => {
-            offset.move({velocity:0});
-        }
-        document.querySelector("#transBtn").onclick = () => {
-            offset.transition({target:4, duration:4});
-        }
-        document.querySelector("#interpolateBtn").onclick = () => {
-            const tuples = [
-                [4.0, 0.0],
-                [4.8, 0.2],
-                [5.2, 0.4],
-                [5.3, 0.6],
-                [4.7, 0.8],
-                [4.2, 1.0]
-            ];
-            offset.interpolate({tuples, duration:4});
-        }
-
+        const l2 = new InputLayer({items:[
+            {itv: [0.5, 1.5, true, false], data: 0.5},
+            {itv: [2.5, 3.5, true, false], data: 1.5},
+            {itv: [4.5, 5.5, true, false], data: 2.5},
+        ]});
 
 
 
@@ -63,25 +39,7 @@
 </script>
 </head>
 <body>
-    <h1>Hello, Cursor!</h1>
-
-    <h3> Value </h3>
-
-    <p>
-        <button id="valueBtn">SetValue</button>
-        <button id="resetBtn">Reset</button>
-        <button id="playBtn">Play</button>
-        <button id="pauseBtn">Pause</button>
-        <button id="transBtn">Transition</button>
-        <button id="interpolateBtn">Interpolate</button>
-    </p>
-    <p>
-        <div id="offset"></div>
-    </p>
-    <p>
-        <div id="color"></div>
-    </p>
-    
+    <h1>Hello, Merge!</h1>
 
 </body>
 </html>

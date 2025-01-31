@@ -1,123 +1,30 @@
 import { eventify } from "./eventify.js";
-import { callback } from "./util.js";
-import * as sourceprop from "./sourceprop.js";
 import { interval, endpoint } from "./intervals.js";
-import { Datasource } from "./datasource.js";
-import { StateProviderBase } from "./bases.js";
-import { LocalStateProvider } from "./stateprovider_simple.js";
 import { range } from "./util.js";
+import * as layersource from "./api_layersource.js";
+import * as callback from "./api_callback.js";
+import { toState } from "./util.js";
 
-/************************************************
- * LAYER CACHE
- ************************************************/
-
-export class LayerCache {
-
-    constructor(layer) {
-        this._layer = layer;
-        this._itv;
-        this._state;
-        this._obj = layer.src.getQueryObject();
-        this._index = layer.index;
-    }
-
-    query(offset) {
-        const need_itv = (
-            this._itv == undefined ||
-            !interval.covers_point(this._itv, offset)
-        );
-        if (
-            !need_itv && 
-            this._state != undefined &&
-            !this._state.dynamic
-        ) {
-            // cache hit
-            return {...this._state, offset};
-        }
-        // cache miss
-        if (need_itv) {
-            this._itv = this._index.nearby(offset).itv;
-        }
-        const state = this._obj.query(offset);
-        // cache state only if not dynamic
-        if (!state.dynamic) {
-            this._state = state;
-        }
-        return state    
-    }
-
-    clear() {
-        this._itv = undefined;
-        this._state = undefined;
-    }
-}
 
 /************************************************
  * LAYER
  ************************************************/
 
+/**
+ * Layer is base class for Layers
+ * defined by an index and a valueFunc
+ */
+
 export class Layer {
 
-    constructor(options={}) {
-
+    constructor(cacheClass, valueFunc) {
+        // callbacks
         callback.addToInstance(this);
+        // layer source api
+        layersource.addToInstance(this, cacheClass, valueFunc);
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
-        // src
-        sourceprop.addToInstance(this, "src");
-        // index
-        this._index;
-        // cache
-        this._cache_objects = [];
-
-        // initialise with stateprovider
-        let {src, ...opts} = options;
-        if (src == undefined) {
-            src = new LocalStateProvider(opts);
-        }
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRC (datasource)
-     **********************************************************/
-
-    __src_check(src) {
-        if (src instanceof StateProviderBase) {
-            src = new Datasource(src);
-        }
-        if (!(src instanceof Datasource)) {
-            throw new Error(`"src" must be a datasource ${src}`);
-        }
-        return src;
-    }    
-    __src_handle_change(reason) {
-        if (reason == "reset") {
-            this._index = this.src.index;
-        }
-        for (let cache_object of this._cache_objects) {
-            cache_object.clear();
-        }
-        this.notify_callbacks();
-        // trigger change event for cursor
-        this.eventifyTrigger("change");   
-    }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get index () {return this._index};
-
-    getQueryObject () {
-        const cache_object = new LayerCache(this);
-        this._cache_objects.push(cache_object);
-        return cache_object;
-    }
-
-    query (offset) {
-        return this.src.query(offset);
     }
 
     /*
@@ -135,10 +42,9 @@ export class Layer {
         }
         start = [start, 0];
         stop = [stop, 0];
-
         start = endpoint.max(this.index.first(), start);
         stop = endpoint.min(this.index.last(), stop);
-        const cache = this.getQueryObject();
+        const cache = this.getCache();
         return range(start[0], stop[0], step, {include_end:true})
             .map((offset) => {
                 return [cache.query(offset).value, offset];
@@ -146,5 +52,65 @@ export class Layer {
     }
 }
 callback.addToPrototype(Layer.prototype);
-sourceprop.addToPrototype(Layer.prototype, "src", {mutable:true});
+layersource.addToPrototype(Layer.prototype);
 eventify.addToPrototype(Layer.prototype);
+
+
+
+/************************************************
+ * LAYER CACHE
+ ************************************************/
+
+/**
+ * This implements a Cache to be used with Layer objects
+ * 
+ */
+
+export class LayerCache {
+
+    constructor(layer) {
+        this._layer = layer;
+        // cached nearby state
+        this._nearby;
+        // cached result
+        this._state;
+    }
+
+    /**
+     * query cache
+     */
+    query(offset) {
+        const need_nearby = (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        );
+        if (
+            !need_nearby && 
+            this._state != undefined &&
+            !this._state.dynamic
+        ) {
+            // cache hit
+            return {...this._state, offset};
+        }
+        // cache miss
+        if (need_nearby) {
+            this._nearby = this._layer.index.nearby(offset);
+        }
+        // perform actual query
+        const states = this._nearby.center.map((item) => item.src.query(offset));
+        const state = toState(states, this._layer.valueFunc)
+        // cache state only if not dynamic
+        this._state = (state.dynamic) ? undefined : state;
+        return state    
+    }
+
+    clear() {
+        this._itv = undefined;
+        this._state = undefined;
+    }
+}
+
+
+
+
+

@@ -71,45 +71,27 @@ function range (start, end, step = 1, options={}) {
 }
 
 
+/**
+ * Create a single state from a list of states, using a stateFunc
+ * states:{value, dynamic, offset}
+ * 
+ * 
+ */
 
-/*
-    This adds basic (synchronous) callback support to an object.
-*/
-
-const callback = function () {
-
-    function addToInstance(object) {
-        object.__callback_callbacks = [];
+function toState(states, valueFunc, offset) {
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
+        /**
+            TODO - do something with valueFunc
+            const dynamic = states.map((v) => v.dynamic);
+            const values = states.map((v) => v.value);
+        
+            For now - just return the first state
+        */
     }
-
-    function add_callback (handler) {
-        let handle = {
-            handler: handler
-        };
-        this.__callback_callbacks.push(handle);
-        return handle;
-    }
-    function remove_callback (handle) {
-        let index = this.__callback_callbacks.indexof(handle);
-        if (index > -1) {
-            this.__callback_callbacks.splice(index, 1);
-        }
-    }
-    function notify_callbacks (eArg) {
-        this.__callback_callbacks.forEach(function(handle) {
-            handle.handler(eArg);
-        });
-    }
-
-    function addToPrototype (_prototype) {
-        const api = {
-            add_callback, remove_callback, notify_callbacks
-        };
-        Object.assign(_prototype, api);
-    }
-
-    return {addToInstance, addToPrototype}
-}();
+    let state = states[0];
+    return {...state, offset}; 
+}
 
 /*
 	Copyright 2020
@@ -1000,6 +982,42 @@ const interval = {
     from_input: interval_from_input
 };
 
+/*
+    This decorates an object/prototype with basic (synchronous) callback support.
+*/
+
+const PREFIX$1 = "__callback";
+
+function addToInstance$2(object) {
+    object[`${PREFIX$1}_handlers`] = [];
+}
+
+function add_callback (handler) {
+    let handle = {
+        handler: handler
+    };
+    this[`${PREFIX$1}_handlers`].push(handle);
+    return handle;
+}
+function remove_callback (handle) {
+    let index = this[`${PREFIX$1}_handlers`].indexof(handle);
+    if (index > -1) {
+        this[`${PREFIX$1}_handlers`].splice(index, 1);
+    }
+}
+function notify_callbacks (eArg) {
+    this[`${PREFIX$1}_handlers`].forEach(function(handle) {
+        handle.handler(eArg);
+    });
+}
+
+function addToPrototype$2 (_prototype) {
+    const api = {
+        add_callback, remove_callback, notify_callbacks
+    };
+    Object.assign(_prototype, api);
+}
+
 /************************************************
  * CLOCK PROVIDER BASE
  ************************************************/
@@ -1015,13 +1033,13 @@ const interval = {
 
 class ClockProviderBase {
     constructor() {
-        callback.addToInstance(this);
+        addToInstance$2(this);
     }
     now () {
         throw new Error("not implemented");
     }
 }
-callback.addToPrototype(ClockProviderBase.prototype);
+addToPrototype$2(ClockProviderBase.prototype);
 
 
 /**
@@ -1049,7 +1067,7 @@ callback.addToPrototype(ClockProviderBase.prototype);
 class MotionProviderBase {
 
     constructor(options={}) {
-        callback.addToInstance(this);
+        addToInstance$2(this);
         let {state} = options;
         if (state = undefined) {
             this._state = {
@@ -1089,7 +1107,7 @@ class MotionProviderBase {
         return {...this._state};
     }
 }
-callback.addToPrototype(MotionProviderBase.prototype);
+addToPrototype$2(MotionProviderBase.prototype);
 
 
 
@@ -1108,7 +1126,7 @@ callback.addToPrototype(MotionProviderBase.prototype);
 class StateProviderBase {
 
     constructor() {
-        callback.addToInstance(this);
+        addToInstance$2(this);
     }
 
     /**
@@ -1141,7 +1159,7 @@ class StateProviderBase {
         return {overlapping: true};
     }
 }
-callback.addToPrototype(StateProviderBase.prototype);
+addToPrototype$2(StateProviderBase.prototype);
 
 
 /************************************************
@@ -1153,7 +1171,7 @@ class LayerBase {
     constructor() {
         this._index;
 
-        callback.addToInstance(this);
+        addToInstance$2(this);
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
@@ -1195,7 +1213,7 @@ class LayerBase {
             });
     }
 }
-callback.addToPrototype(LayerBase.prototype);
+addToPrototype$2(LayerBase.prototype);
 eventify.addToPrototype(LayerBase.prototype);
 
 
@@ -1206,7 +1224,7 @@ eventify.addToPrototype(LayerBase.prototype);
 class CursorBase {
 
     constructor () {
-        callback.addToInstance(this);
+        addToInstance$2(this);
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
@@ -1245,7 +1263,7 @@ class CursorBase {
     }
 
 }
-callback.addToPrototype(CursorBase.prototype);
+addToPrototype$2(CursorBase.prototype);
 eventify.addToPrototype(CursorBase.prototype);
 
 /************************************************
@@ -1273,14 +1291,14 @@ function propnames (propName) {
     }
 }
 
-function addToInstance (object, propName) {
+function addToInstance$1 (object, propName) {
     const p = propnames(propName);
     object[p.prop] = undefined;
     object[p.init] = false;
     object[p.handle] = undefined;
 }
 
-function addToPrototype (_prototype, propName, options={}) {
+function addToPrototype$1 (_prototype, propName, options={}) {
 
     const p = propnames(propName);
 
@@ -1431,327 +1449,174 @@ function interpolate$1(tuples) {
     return items;
 }
 
-/*********************************************************************
-    NEARBY INDEX
-*********************************************************************/
+/************************************************
+ * LAYER SOURCE INTERFACE
+ ************************************************/
 
 /**
- * Abstract superclass for NearbyIndexe.
+ * Decorate an object/prototype to implement 
+ * the LayerSource interface.
  * 
- * Superclass used to check that a class implements the nearby() method, 
- * and provide some convenience methods.
- * 
- * NEARBY INDEX
- * 
- * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
- * given that
- * (i) each entriy is associated with an interval and,
- * (ii) entries are non-overlapping.
- * Each ITEM must be associated with an interval on the timeline 
- * 
- * NEARBY
- * The nearby method returns information about the neighborhood around endpoint. 
- * 
- * Primary use is for iteration 
- * 
- * Returns {
- *      center: list of ITEMS covering endpoint,
- *      itv: interval where nearby returns identical {center}
- *      left:
- *          first interval endpoint to the left 
- *          which will produce different {center}
- *          always a high-endpoint or undefined
- *      right:
- *          first interval endpoint to the right
- *          which will produce different {center}
- *          always a low-endpoint or undefined         
- *      prev:
- *          first interval endpoint to the left 
- *          which will produce different && non-empty {center}
- *          always a high-endpoint or undefined if no more intervals to the left
- *      next:
- *          first interval endpoint to the right
- *          which will produce different && non-empty {center}
- *          always a low-endpoint or undefined if no more intervals to the right
- * }
- * 
- * 
- * The nearby state is well-defined for every timeline position.
- * 
- * 
- * NOTE left/right and prev/next are mostly the same. The only difference is 
- * that prev/next will skip over regions where there are no intervals. This
- * ensures practical iteration of items as prev/next will only be undefined  
- * at the end of iteration.
- * 
- * INTERVALS
- * 
- * [low, high, lowInclusive, highInclusive]
- * 
- * This representation ensures that the interval endpoints are ordered and allows
- * intervals to be exclusive or inclusive, yet cover the entire real line 
- * 
- * [a,b], (a,b), [a,b), [a, b) are all valid intervals
- * 
- * 
- * INTERVAL ENDPOINTS
- * 
- * interval endpoints are defined by [value, sign], for example
- * 
- * 4) -> [4,-1] - endpoint is on the left of 4
- * [4, 4, 4] -> [4, 0] - endpoint is at 4 
- * (4 -> [4, 1] - endpoint is on the right of 4)
- * 
- * / */
+ * - index
+ * - valueFunc
+ * - getCache
+ * - clearCaches
+ */
 
- class NearbyIndexBase {
+const PREFIX = "__layersource";
 
+function addToInstance (object, options={}) {
+    const {CacheClass, valueFunc} = options;
+    object[`${PREFIX}_index`];
+    object[`${PREFIX}_valueFunc`] = valueFunc;
+    object[`${PREFIX}_cacheClass`] = CacheClass;
+    object[`${PREFIX}_cache_objects`] = [];
+}
 
-    /* 
-        Nearby method
-    */
-    nearby(offset) {
-        throw new Error("Not implemented");
+function addToPrototype (_prototype) {
+
+    Object.defineProperty(_prototype, "index", {
+        get: function () {
+            return this[`${PREFIX}_index`];
+        }
+    });
+    Object.defineProperty(_prototype, "valueFunc", {
+        get: function () {
+            return this[`${PREFIX}_valueFunc`];
+        }
+    });
+
+    function getCache () {
+        const cache = new this[`${PREFIX}_cacheClass`](this);
+        this[`${PREFIX}_cache_objects`].push(cache);
+        return cache;
     }
 
+    function clearCaches () {
+        for (let cache of this[`${PREFIX}_cache_objects`]) {
+            cache.clear();
+        }
+    }
+    
+    Object.assign(_prototype, {getCache, clearCaches});
+}
 
-    /*
-        return low point of leftmost entry
-    */
-    first() {
-        let {center, right} = this.nearby([-Infinity, 0]);
-        return (center.length > 0) ? [-Infinity, 0] : right;
+/************************************************
+ * LAYER
+ ************************************************/
+
+/**
+ * Layer is base class for Layers
+ * defined by an index and a valueFunc
+ */
+
+class Layer {
+
+    constructor(cacheClass, valueFunc) {
+        // callbacks
+        addToInstance$2(this);
+        // layer source api
+        addToInstance(this, cacheClass);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
     }
 
     /*
-        return high point of rightmost entry
-    */
-    last() {
-        let {left, center} = this.nearby([Infinity, 0]);
-        return (center.length > 0) ? [Infinity, 0] : left
-    }
-
-    /*
-        List items of NearbyIndex (order left to right)
-        interval defines [start, end] offset on the timeline.
-        Returns list of item-lists.
+        Sample Layer by timeline offset increments
+        return list of tuples [value, offset]
         options
         - start
         - stop
+        - step
     */
-    list(options={}) {
-        let {start=-Infinity, stop=Infinity} = options;
+    sample(options={}) {
+        let {start=-Infinity, stop=Infinity, step=1} = options;
         if (start > stop) {
             throw new Error ("stop must be larger than start", start, stop)
         }
         start = [start, 0];
         stop = [stop, 0];
-        let current = start;
-        let nearby;
-        const results = [];
-        let limit = 5;
-        while (limit) {
-            if (endpoint.gt(current, stop)) {
-                // exhausted
-                break;
-            }
-            nearby = this.nearby(current);
-            if (nearby.center.length == 0) {
-                // center empty (typically first iteration)
-                if (nearby.right == undefined) {
-                    // right undefined
-                    // no entries - already exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            } else {
-                results.push(nearby.center);
-                if (nearby.right == undefined) {
-                    // right undefined
-                    // last entry - mark iteractor exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            }
-            limit--;
-        }
-        return results;
+        start = endpoint.max(this.index.first(), start);
+        stop = endpoint.min(this.index.last(), stop);
+        const cache = this.getCache();
+        return range(start[0], stop[0], step, {include_end:true})
+            .map((offset) => {
+                return [cache.query(offset).value, offset];
+            });
     }
 }
+addToPrototype$2(Layer.prototype);
+addToPrototype(Layer.prototype);
+eventify.addToPrototype(Layer.prototype);
+
+/***************************************************************
+    LOCAL STATE PROVIDER
+***************************************************************/
 
 /**
- * 
- * Nearby Index Simple
- * 
- * - items are assumed to be non-overlapping on the timeline, 
- * - implying that nearby.center will be a list of at most one ITEM. 
- * - exception will be raised if overlapping ITEMS are found
- * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
- * 
- *  
+ * Local Array with non-overlapping items.
  */
 
+class LocalStateProvider extends StateProviderBase {
 
-// get interval low point
-function get_low_value(item) {
-    return item.itv[0];
-}
-
-// get interval low endpoint
-function get_low_endpoint(item) {
-    return endpoint.from_interval(item.itv)[0]
-}
-
-// get interval high endpoint
-function get_high_endpoint(item) {
-    return endpoint.from_interval(item.itv)[1]
-}
-
-
-class NearbyIndexSimple extends NearbyIndexBase {
-
-    constructor(src) {
+    constructor(options={}) {
         super();
-        this._src = src;
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            // initialize from items
+            this._items = check_input(items);
+        } else if (value != undefined) {
+            // initialize from value
+            this._items = [{
+                itv:[-Infinity, Infinity, true, true], 
+                type: "static",
+                data:value
+            }];
+        } else {
+            this._items = [];
+        }
     }
 
-    get src () {return this._src;}
+    update (items, options) {
+        return Promise.resolve()
+            .then(() => {
+                this._items = check_input(items);
+                this.notify_callbacks();
+            });
+    }
 
-    /*
-        nearby by offset
-        
-        returns {left, center, right}
+    get_items () {
+        return this._items.slice();
+    }
 
-        binary search based on offset
-        1) found, idx
-            offset matches value of interval.low of an item
-            idx gives the index of this item in the array
-        2) not found, idx
-            offset is either covered by item at (idx-1),
-            or it is not => between entries
-            in this case - idx gives the index where an item
-            should be inserted - if it had low == offset
-    */
-    nearby(offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (!Array.isArray(offset)) {
-            throw new Error("Endpoint must be an array");
-        }
-        const result = {
-            center: [],
-            itv: [-Infinity, Infinity, true, true],
-            left: undefined,
-            right: undefined,
-            prev: undefined,
-            next: undefined
-        };
-        let items = this._src.get_items();
-        let indexes, item;
-        const size = items.length;
-        if (size == 0) {
-            return result; 
-        }
-        let [found, idx] = find_index(offset[0], items, get_low_value);
-        if (found) {
-            // search offset matches item low exactly
-            // check that it indeed covered by item interval
-            item = items[idx];
-            if (interval.covers_endpoint(item.itv, offset)) {
-                indexes = {left:idx-1, center:idx, right:idx+1};
-            }
-        }
-        if (indexes == undefined) {
-            // check prev item
-            item = items[idx-1];
-            if (item != undefined) {
-                // check if search offset is covered by item interval
-                if (interval.covers_endpoint(item.itv, offset)) {
-                    indexes = {left:idx-2, center:idx-1, right:idx};
-                } 
-            }
-        }	
-        if (indexes == undefined) {
-            // prev item either does not exist or is not relevant
-            indexes = {left:idx-1, center:-1, right:idx};
-        }
-
-        // center
-        if (0 <= indexes.center && indexes.center < size) {
-            result.center =  [items[indexes.center]];
-        }
-        // prev/next
-        if (0 <= indexes.left && indexes.left < size) {
-            result.prev =  get_high_endpoint(items[indexes.left]);
-        }
-        if (0 <= indexes.right && indexes.right < size) {
-            result.next =  get_low_endpoint(items[indexes.right]);
-        }        
-        // left/right
-        let low, high;
-        if (result.center.length > 0) {
-            let itv = result.center[0].itv;
-            [low, high] = endpoint.from_interval(itv);
-            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
-            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
-            result.itv = result.center[0].itv;
-        } else {
-            result.left = result.prev;
-            result.right = result.next;
-            // interval
-            let left = result.left;
-            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
-            let right = result.right;
-            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
-            result.itv = interval.from_endpoints(low, high);
-        }
-        return result;
+    get info () {
+        return {overlapping: false};
     }
 }
 
-/*********************************************************************
-	UTILS
-*********************************************************************/
 
-
-/*
-	binary search for finding the correct insertion index into
-	the sorted array (ascending) of items
-	
-	array contains objects, and value func retreaves a value
-	from each object.
-
-	return [found, index]
-*/
-
-function find_index(target, arr, value_func) {
-
-    function default_value_func(el) {
-        return el;
+function check_input(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
     }
-    
-    let left = 0;
-	let right = arr.length - 1;
-	value_func = value_func || default_value_func;
-	while (left <= right) {
-		const mid = Math.floor((left + right) / 2);
-		let mid_value = value_func(arr[mid]);
-		if (mid_value === target) {
-			return [true, mid]; // Target already exists in the array
-		} else if (mid_value < target) {
-			  left = mid + 1; // Move search range to the right
-		} else {
-			  right = mid - 1; // Move search range to the left
-		}
-	}
-  	return [false, left]; // Return the index where target should be inserted
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
 }
 
 /********************************************************************
@@ -1994,362 +1859,6 @@ class InterpolationSegment extends BaseSegment {
     }
 }
 
-/*********************************************************************
-    NEARBY CACHE
-*********************************************************************/
-
-/*
-    This implements a cache in front of a NearbyIndex.
-    
-    The purpose of caching is to optimize for repeated
-    queries to a NearbyIndex to nearby offsets.
-
-    The cache state includes the nearby state from the 
-    index, and also segments corresponding
-    to that state. This way, on a cache hit, the 
-    query may be satisfied directly from the cache.
-
-    The cache is marked as dirty when the Nearby indexes changes.
-*/
-
-
-
-class NearbyCache {
-    constructor(datasource) {
-        // nearby index
-        this._index = datasource.index;
-        // cached nearby object
-        this._nearby = undefined;
-        // cached segment
-        this._segment = undefined;
-    }
-
-    query(offset) {
-        // check cache
-        if (
-            this._nearby == undefined ||
-            !interval.covers_point(this._nearby.itv, offset)
-        ) {
-            // cache miss
-            this._nearby = this._index.nearby(offset);
-            this._segment = load_segment(this._nearby);
-        }
-        return this._segment.query(offset); 
-    }
-
-    clear() {
-        this._nearby = undefined;
-        this._segment = undefined;
-    }
-
-}
-
-
-
-/*********************************************************************
-    LOAD SEGMENT
-*********************************************************************/
-
-function create_segment(itv, type, data) {
-    if (type == "static") {
-        return new StaticSegment(itv, data);
-    } else if (type == "transition") {
-        return new TransitionSegment(itv, data);
-    } else if (type == "interpolation") {
-        return new InterpolationSegment(itv, data);
-    } else if (type == "motion") {
-        return new MotionSegment(itv, data);
-    } else {
-        console.log("unrecognized segment type", type);
-    }
-}
-
-function load_segment(nearby) {
-    let {itv, center} = nearby;
-    if (center.length == 0) {
-        return create_segment(itv, "static", undefined);
-    }
-    if (center.length == 1) {
-        let {type="static", data} = center[0];
-        return create_segment(itv, type, data);
-    }
-    if (center.length > 1) {
-        throw new Error("ListSegments not yet supported");
-    }
-}
-
-/**
- * Datasource is an internal class, wrapping a 
- * state provider so that it can be used as datasource
- * for a Layer.
- * 
- * Since datasources wrap stateproviders, they 
- * maintain an index and a segment cache (nearby cache)
- */
-
-class Datasource {
-
-    constructor (stateProvider, valueFunc) {
-        callback.addToInstance(this);
-
-        // state provider
-        this._sp = stateProvider;
-        this._valueFunc = valueFunc;
-        // index
-        // TODO - NearbyIndex must use valueFunc
-        this._index = new NearbyIndexSimple(this._sp);
-
-        // cache objects
-        this._cache = new NearbyCache(this);
-        this._cache_objects = [];
-    
-        // subscribe to callbacks
-        this._sp.add_callback(this._handle_callback.bind(this));        
-    }
-
-    _handle_callback() {
-        // change in state provider
-        this._cache.clear();
-        for (let cache_object of this._cache_objects) {
-            cache_object.clear();
-        }
-        // Forward callback from wrapped state provider
-        this.notify_callbacks();
-    }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get index () {return this._index}
-    get valueFunc () {return this._valueFunc;}
-    get src () {return this._sp;}
-
-    getQueryObject () {
-        const cache_object = new NearbyCache(this);
-        this._cache_objects.push(cache_object);
-        return cache_object;
-    }
-    
-    query (offset) {
-        return this._cache.query(offset);
-    }
-
-
-}
-callback.addToPrototype(Datasource.prototype);
-
-/***************************************************************
-    LOCAL STATE PROVIDER
-***************************************************************/
-
-/**
- * Local Array with non-overlapping items.
- */
-
-class LocalStateProvider extends StateProviderBase {
-
-    constructor(options={}) {
-        super();
-        // initialization
-        let {items, value} = options;
-        if (items != undefined) {
-            // initialize from items
-            this._items = check_input(items);
-        } else if (value != undefined) {
-            // initialize from value
-            this._items = [{
-                itv:[-Infinity, Infinity, true, true], 
-                type: "static",
-                data:value
-            }];
-        } else {
-            this._items = [];
-        }
-    }
-
-    update (items, options) {
-        return Promise.resolve()
-            .then(() => {
-                this._items = check_input(items);
-                this.notify_callbacks();
-            });
-    }
-
-    get_items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {overlapping: false};
-    }
-}
-
-
-function check_input(items) {
-    if (!Array.isArray(items)) {
-        throw new Error("Input must be an array");
-    }
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
-    }
-    return items;
-}
-
-/************************************************
- * LAYER CACHE
- ************************************************/
-
-class LayerCache {
-
-    constructor(layer) {
-        this._layer = layer;
-        this._itv;
-        this._state;
-        this._obj = layer.src.getQueryObject();
-        this._index = layer.index;
-    }
-
-    query(offset) {
-        const need_itv = (
-            this._itv == undefined ||
-            !interval.covers_point(this._itv, offset)
-        );
-        if (
-            !need_itv && 
-            this._state != undefined &&
-            !this._state.dynamic
-        ) {
-            // cache hit
-            return {...this._state, offset};
-        }
-        // cache miss
-        if (need_itv) {
-            this._itv = this._index.nearby(offset).itv;
-        }
-        const state = this._obj.query(offset);
-        // cache state only if not dynamic
-        if (!state.dynamic) {
-            this._state = state;
-        }
-        return state    
-    }
-
-    clear() {
-        this._itv = undefined;
-        this._state = undefined;
-    }
-}
-
-/************************************************
- * LAYER
- ************************************************/
-
-class Layer {
-
-    constructor(options={}) {
-
-        callback.addToInstance(this);
-        // define change event
-        eventify.addToInstance(this);
-        this.eventifyDefine("change", {init:true});
-        // src
-        addToInstance(this, "src");
-        // index
-        this._index;
-        // cache
-        this._cache_objects = [];
-
-        // initialise with stateprovider
-        let {src, ...opts} = options;
-        if (src == undefined) {
-            src = new LocalStateProvider(opts);
-        }
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRC (datasource)
-     **********************************************************/
-
-    __src_check(src) {
-        if (src instanceof StateProviderBase) {
-            src = new Datasource(src);
-        }
-        if (!(src instanceof Datasource)) {
-            throw new Error(`"src" must be a datasource ${src}`);
-        }
-        return src;
-    }    
-    __src_handle_change(reason) {
-        if (reason == "reset") {
-            this._index = this.src.index;
-        }
-        for (let cache_object of this._cache_objects) {
-            cache_object.clear();
-        }
-        this.notify_callbacks();
-        // trigger change event for cursor
-        this.eventifyTrigger("change");   
-    }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get index () {return this._index};
-
-    getQueryObject () {
-        const cache_object = new LayerCache(this);
-        this._cache_objects.push(cache_object);
-        return cache_object;
-    }
-
-    query (offset) {
-        return this.src.query(offset);
-    }
-
-    /*
-        Sample Layer by timeline offset increments
-        return list of tuples [value, offset]
-        options
-        - start
-        - stop
-        - step
-    */
-    sample(options={}) {
-        let {start=-Infinity, stop=Infinity, step=1} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
-        }
-        start = [start, 0];
-        stop = [stop, 0];
-
-        start = endpoint.max(this.index.first(), start);
-        stop = endpoint.min(this.index.last(), stop);
-        const cache = this.getQueryObject();
-        return range(start[0], stop[0], step, {include_end:true})
-            .map((offset) => {
-                return [cache.query(offset).value, offset];
-            });
-    }
-}
-callback.addToPrototype(Layer.prototype);
-addToPrototype(Layer.prototype, "src", {mutable:true});
-eventify.addToPrototype(Layer.prototype);
-
 /***************************************************************
     MOTION STATE PROVIDER
 ***************************************************************/
@@ -2562,9 +2071,9 @@ class Cursor extends CursorBase {
     constructor (options={}) {
         super();
         // ctrl
-        addToInstance(this, "ctrl");
+        addToInstance$1(this, "ctrl");
         // src
-        addToInstance(this, "src");
+        addToInstance$1(this, "src");
         // index
         this._index;
         // cursor maintains a cashe object for querying src layer
@@ -2925,7 +2434,583 @@ class Cursor extends CursorBase {
     }
 
 }
-addToPrototype(Cursor.prototype, "src", {mutable:true});
-addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
+addToPrototype$1(Cursor.prototype, "src", {mutable:true});
+addToPrototype$1(Cursor.prototype, "ctrl", {mutable:true});
 
-export { Cursor, Layer, cmd };
+/*********************************************************************
+    NEARBY INDEX
+*********************************************************************/
+
+/**
+ * Abstract superclass for NearbyIndexe.
+ * 
+ * Superclass used to check that a class implements the nearby() method, 
+ * and provide some convenience methods.
+ * 
+ * NEARBY INDEX
+ * 
+ * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
+ * given that
+ * (i) each entriy is associated with an interval and,
+ * (ii) entries are non-overlapping.
+ * Each ITEM must be associated with an interval on the timeline 
+ * 
+ * NEARBY
+ * The nearby method returns information about the neighborhood around endpoint. 
+ * 
+ * Primary use is for iteration 
+ * 
+ * Returns {
+ *      center: list of ITEMS covering endpoint,
+ *      itv: interval where nearby returns identical {center}
+ *      left:
+ *          first interval endpoint to the left 
+ *          which will produce different {center}
+ *          always a high-endpoint or undefined
+ *      right:
+ *          first interval endpoint to the right
+ *          which will produce different {center}
+ *          always a low-endpoint or undefined         
+ *      prev:
+ *          first interval endpoint to the left 
+ *          which will produce different && non-empty {center}
+ *          always a high-endpoint or undefined if no more intervals to the left
+ *      next:
+ *          first interval endpoint to the right
+ *          which will produce different && non-empty {center}
+ *          always a low-endpoint or undefined if no more intervals to the right
+ * }
+ * 
+ * 
+ * The nearby state is well-defined for every timeline position.
+ * 
+ * 
+ * NOTE left/right and prev/next are mostly the same. The only difference is 
+ * that prev/next will skip over regions where there are no intervals. This
+ * ensures practical iteration of items as prev/next will only be undefined  
+ * at the end of iteration.
+ * 
+ * INTERVALS
+ * 
+ * [low, high, lowInclusive, highInclusive]
+ * 
+ * This representation ensures that the interval endpoints are ordered and allows
+ * intervals to be exclusive or inclusive, yet cover the entire real line 
+ * 
+ * [a,b], (a,b), [a,b), [a, b) are all valid intervals
+ * 
+ * 
+ * INTERVAL ENDPOINTS
+ * 
+ * interval endpoints are defined by [value, sign], for example
+ * 
+ * 4) -> [4,-1] - endpoint is on the left of 4
+ * [4, 4, 4] -> [4, 0] - endpoint is at 4 
+ * (4 -> [4, 1] - endpoint is on the right of 4)
+ * 
+ * / */
+
+ class NearbyIndexBase {
+
+
+    /* 
+        Nearby method
+    */
+    nearby(offset) {
+        throw new Error("Not implemented");
+    }
+
+
+    /*
+        return low point of leftmost entry
+    */
+    first() {
+        let {center, right} = this.nearby([-Infinity, 0]);
+        return (center.length > 0) ? [-Infinity, 0] : right;
+    }
+
+    /*
+        return high point of rightmost entry
+    */
+    last() {
+        let {left, center} = this.nearby([Infinity, 0]);
+        return (center.length > 0) ? [Infinity, 0] : left
+    }
+
+    /*
+        List items of NearbyIndex (order left to right)
+        interval defines [start, end] offset on the timeline.
+        Returns list of item-lists.
+        options
+        - start
+        - stop
+    */
+    list(options={}) {
+        let {start=-Infinity, stop=Infinity} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+        let current = start;
+        let nearby;
+        const results = [];
+        let limit = 5;
+        while (limit) {
+            if (endpoint.gt(current, stop)) {
+                // exhausted
+                break;
+            }
+            nearby = this.nearby(current);
+            if (nearby.center.length == 0) {
+                // center empty (typically first iteration)
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // no entries - already exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            } else {
+                results.push(nearby.center);
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // last entry - mark iteractor exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            }
+            limit--;
+        }
+        return results;
+    }
+}
+
+/**
+ * Returns a Layer representing a layer
+ * representing the merging of sources.
+ */
+
+
+function merge (sources, valueFunc) {
+
+    const index = new MergeIndex(sources);
+
+    // create layer
+    return new Layer({index, valueFunc});
+}
+
+
+
+
+
+
+function cmp_ascending(p1, p2) {
+    return endpoint.cmp(p1, p2)
+}
+
+function cmp_descending(p1, p2) {
+    return endpoint.cmp(p2, p1)
+}
+
+/**
+ * Merging indexes from multiple sources into a single index.
+ * 
+ * A source is an object with an index.
+ * - layer
+ * - datasource
+ * 
+ * The merged index gives a temporal structure for the
+ * collection of sources, computing a list of
+ * sources which are defined at a given offset
+ * 
+ * nearby(offset).center is a list of items
+ * [{itv, src}]
+ * 
+ * Implementaion is stateless.
+ */
+
+class MergeIndex extends NearbyIndexBase {
+
+    constructor(sources) {
+        super();
+        this._sources = sources;
+    }
+
+    nearby(offset) {
+        // accumulate nearby from all sources
+        const prev_list = [], center_list = [], next_list = [];
+        for (let src of this._sources) {
+            let {itv, prev, center, next} = src.index.nearby(offset);
+            if (prev != undefined) prev_list.push(prev);            
+            if (next != undefined) next_list.push(next);
+            if (center > 0) {
+                center_list.push({itv, src});
+            }
+        }
+        
+        // find closest endpoint to the right (not in center)
+        next_list.sort(cmp_ascending);
+        const min_next_low = next_list[0] || [Infinity, 0];
+
+        // find closest endpoint to the left (not in center)
+        prev_list.sort(cmp_descending);
+        const max_prev_high = prev_list[0] || [-Infinity, 0];
+
+        // nearby
+        let low, high; 
+        const result = {
+            center: center_list, 
+        };
+
+        if (center_list.length == 0) {
+
+            // empty center
+            result.right = min_next_low;       
+            result.next = min_next_low;
+            result.left = max_prev_high;
+            result.prev = max_prev_high;
+
+        } else {
+
+            // non-empty center
+
+            // center high
+            let center_high_list = center_list.map((item) => {
+                return endpoint.from_interval(item.itv)[1];
+            }).sort(cmp_ascending);
+            let min_center_high = center_high_list[0];
+            let max_center_high = center_high_list.slice(-1)[0];
+            let multiple_center_high = !endpoint.eq(min_center_high, max_center_high);
+
+            // center low
+            let center_low_list = center_list.map((item) => {
+                return endpoint.from_interval(item.itv)[0]
+            }).sort(cmp_descending);
+            let max_center_low = center_low_list[0];
+            let min_center_low = center_low_list.slice(-1)[0];
+            let multiple_center_low = !endpoint.eq(max_center_low, min_center_low);
+
+            // next/right
+            if (endpoint.le(min_next_low, min_center_high)) {
+                result.right = min_next_low;
+            } else {
+                result.right = endpoint.flip(min_center_high, "low");
+            }
+            result.next = (multiple_center_high) ? result.right : min_next_low;
+
+            // prev/left
+            if (endpoint.ge(max_prev_high, max_center_low)) {
+                result.left = max_prev_high;
+            } else {
+                result.left = endpoint.flip(max_center_low, "high");
+            }
+            result.prev = (multiple_center_low) ? result.left : max_prev_high;    
+        }
+
+        // interval from left/right
+        low = endpoint.flip(result.left, "low");
+        high = endpoint.flip(result.right, "high");
+        result.itv = interval.from_endpoints(low, high);
+
+        // switch to undefined
+        if (result.prev[0] == -Infinity) {
+            result.prev = undefined;
+        }
+        if (result.left[0] == -Infinity) {
+            result.left = undefined;
+        }
+        if (result.next[0] == Infinity) {
+            result.next = undefined;
+        }
+        if (result.right[0] == Infinity) {
+            result.right = undefined;
+        }
+
+        return result;
+    }
+}
+
+/**
+ * 
+ * Nearby Index Simple
+ * 
+ * - items are assumed to be non-overlapping on the timeline, 
+ * - implying that nearby.center will be a list of at most one ITEM. 
+ * - exception will be raised if overlapping ITEMS are found
+ * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
+ * 
+ *  
+ */
+
+
+// get interval low point
+function get_low_value(item) {
+    return item.itv[0];
+}
+
+// get interval low endpoint
+function get_low_endpoint(item) {
+    return endpoint.from_interval(item.itv)[0]
+}
+
+// get interval high endpoint
+function get_high_endpoint(item) {
+    return endpoint.from_interval(item.itv)[1]
+}
+
+
+class NearbyIndexSimple extends NearbyIndexBase {
+
+    constructor(src) {
+        super();
+        this._src = src;
+    }
+
+    get src () {return this._src;}
+
+    /*
+        nearby by offset
+        
+        returns {left, center, right}
+
+        binary search based on offset
+        1) found, idx
+            offset matches value of interval.low of an item
+            idx gives the index of this item in the array
+        2) not found, idx
+            offset is either covered by item at (idx-1),
+            or it is not => between entries
+            in this case - idx gives the index where an item
+            should be inserted - if it had low == offset
+    */
+    nearby(offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
+        }
+        if (!Array.isArray(offset)) {
+            throw new Error("Endpoint must be an array");
+        }
+        const result = {
+            center: [],
+            itv: [-Infinity, Infinity, true, true],
+            left: undefined,
+            right: undefined,
+            prev: undefined,
+            next: undefined
+        };
+        let items = this._src.get_items();
+        let indexes, item;
+        const size = items.length;
+        if (size == 0) {
+            return result; 
+        }
+        let [found, idx] = find_index(offset[0], items, get_low_value);
+        if (found) {
+            // search offset matches item low exactly
+            // check that it indeed covered by item interval
+            item = items[idx];
+            if (interval.covers_endpoint(item.itv, offset)) {
+                indexes = {left:idx-1, center:idx, right:idx+1};
+            }
+        }
+        if (indexes == undefined) {
+            // check prev item
+            item = items[idx-1];
+            if (item != undefined) {
+                // check if search offset is covered by item interval
+                if (interval.covers_endpoint(item.itv, offset)) {
+                    indexes = {left:idx-2, center:idx-1, right:idx};
+                } 
+            }
+        }	
+        if (indexes == undefined) {
+            // prev item either does not exist or is not relevant
+            indexes = {left:idx-1, center:-1, right:idx};
+        }
+
+        // center
+        if (0 <= indexes.center && indexes.center < size) {
+            result.center =  [items[indexes.center]];
+        }
+        // prev/next
+        if (0 <= indexes.left && indexes.left < size) {
+            result.prev =  get_high_endpoint(items[indexes.left]);
+        }
+        if (0 <= indexes.right && indexes.right < size) {
+            result.next =  get_low_endpoint(items[indexes.right]);
+        }        
+        // left/right
+        let low, high;
+        if (result.center.length > 0) {
+            let itv = result.center[0].itv;
+            [low, high] = endpoint.from_interval(itv);
+            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
+            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+            result.itv = result.center[0].itv;
+        } else {
+            result.left = result.prev;
+            result.right = result.next;
+            // interval
+            let left = result.left;
+            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
+            let right = result.right;
+            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
+            result.itv = interval.from_endpoints(low, high);
+        }
+        return result;
+    }
+}
+
+/*********************************************************************
+	UTILS
+*********************************************************************/
+
+
+/*
+	binary search for finding the correct insertion index into
+	the sorted array (ascending) of items
+	
+	array contains objects, and value func retreaves a value
+	from each object.
+
+	return [found, index]
+*/
+
+function find_index(target, arr, value_func) {
+
+    function default_value_func(el) {
+        return el;
+    }
+    
+    let left = 0;
+	let right = arr.length - 1;
+	value_func = value_func || default_value_func;
+	while (left <= right) {
+		const mid = Math.floor((left + right) / 2);
+		let mid_value = value_func(arr[mid]);
+		if (mid_value === target) {
+			return [true, mid]; // Target already exists in the array
+		} else if (mid_value < target) {
+			  left = mid + 1; // Move search range to the right
+		} else {
+			  right = mid - 1; // Move search range to the left
+		}
+	}
+  	return [false, left]; // Return the index where target should be inserted
+}
+
+class InputLayer extends Layer {
+
+    constructor(options={}) {
+        let {src, valueFunc, ...opts} = options;
+        super(InputLayerCache, valueFunc);
+        // src
+        addToInstance$1(this, "src");
+
+        // initialise with stateprovider
+        if (src == undefined) {
+            src = new LocalStateProvider(opts);
+        }        
+        this.src = src;
+    }
+
+
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
+
+    __src_check(src) {
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error(`"src" must be state provider ${src}`);
+        }
+        return src;
+    }    
+    __src_handle_change() {
+        if (this._index == undefined) {
+            console.log("set index");
+            this._index = new NearbyIndexSimple(this.src);
+        } else {
+            this.clearCaches();
+        }
+        this.notify_callbacks();
+        // trigger change event for cursor
+        this.eventifyTrigger("change");   
+    }
+
+
+
+}
+addToPrototype$1(InputLayer.prototype, "src", {mutable:true});
+
+
+/*********************************************************************
+    INPUTLAYER CACHE
+*********************************************************************/
+
+/*
+    This implements a cache in front of a StateProvider    
+    - index contains segment items
+*/
+
+class InputLayerCache {
+    constructor(layer) {
+        // layer
+        this._layer = layer;
+        // cached nearby object
+        this._nearby = undefined;
+        // cached segment
+        this._segment = undefined;
+    }
+
+    query(offset) {
+        // check cache
+        if (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        ) {
+            // cache miss
+            this._nearby = this._layer.index.nearby(offset);
+            let {itv, center} = this._nearby;
+            this._segments = center.map((item) => {
+                return create_segment(itv, item);
+            });
+        }
+        // query
+        const states = this._segments.map((seg) => {
+            return seg.query(offset);
+        });
+        return toState(states, this._layer.valueFunc)
+    }
+
+    clear() {
+        this._nearby = undefined;
+        this._segment = undefined;
+    }
+}
+
+/*********************************************************************
+    LOAD SEGMENT
+*********************************************************************/
+
+function create_segment(itv, item) {
+    let {type, data} = item;
+    if (type == "static") {
+        return new StaticSegment(itv, data);
+    } else if (type == "transition") {
+        return new TransitionSegment(itv, data);
+    } else if (type == "interpolation") {
+        return new InterpolationSegment(itv, data);
+    } else if (type == "motion") {
+        return new MotionSegment(itv, data);
+    } else {
+        console.log("unrecognized segment type", type);
+    }
+}
+
+export { Cursor, InputLayer, cmd, merge };
