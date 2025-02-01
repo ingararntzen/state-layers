@@ -23,11 +23,11 @@ import { NearbyIndexSimple } from "./nearbyindex_simple";
 
 export class Layer {
 
-    constructor(CacheClass, valueFunc) {
+    constructor(queryOptions, CacheClass) {
         // callbacks
         callback.addToInstance(this);
         // layer query api
-        layerquery.addToInstance(this, CacheClass, valueFunc);
+        layerquery.addToInstance(this, queryOptions, CacheClass || LayerCache);
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
@@ -83,6 +83,7 @@ export class LayerCache {
         this._state;
         // src cache objects (src -> cache)
         this._cache_map = new Map();
+        this._caches;
     }
 
     /**
@@ -104,22 +105,22 @@ export class LayerCache {
         // cache miss
         if (need_nearby) {
             this._nearby = this._layer.index.nearby(offset);
+            this._caches = this._nearby.center
+                // map to layer
+                .map((item) => item.src)
+                // map to cache object
+                .map((layer) => {
+                    if (!this._cache_map.has(layer)) {
+                        this._cache_map.set(layer, layer.getCache());
+                    }
+                    return this._cache_map.get(layer);
+                });
         }
         // perform queries
-        const states = this._nearby.center
-            // map to cache object
-            .map((item) => {
-                if (!this._cache_map.has(item.src)) {
-                    this._cache_map.set(item.src, item.src.getCache());
-                }
-                return this._cache_map.get(item.src);
-            })
-            // map to query results
-            .map((cache) => {
-                return cache.query(offset);
-            });
-
-        const state = toState(states, this._layer.valueFunc)
+        const states = this._caches.map((cache) => {
+            return cache.query(offset);
+        });
+        const state = toState(this._caches, states, offset, this._layer.queryOptions)
         // cache state only if not dynamic
         this._state = (state.dynamic) ? undefined : state;
         return state    
@@ -128,7 +129,22 @@ export class LayerCache {
     clear() {
         this._itv = undefined;
         this._state = undefined;
+        this._caches = undefined;
+        this._cache_map = new Map();
     }
+}
+
+
+/*********************************************************************
+    SOURCE LAYER
+*********************************************************************/
+
+export function getLayer(options={}) {
+    let {src, items, ...opts} = options;
+    if (src == undefined) {
+        src = new LocalStateProvider({items})
+    }
+    return new SourceLayer(src, opts)
 }
 
 
@@ -144,16 +160,10 @@ export class LayerCache {
 
 export class SourceLayer extends Layer {
 
-    constructor(options={}) {
-        let {src, valueFunc, ...opts} = options;
-        super(SourceLayerCache, valueFunc);
+    constructor(src, options={}) {
+        super(options, SourceLayerCache);
         // src
         sourceprop.addToInstance(this, "src");
-
-        // initialise stateprovider
-        if (src == undefined) {
-            src = new LocalStateProvider(opts);
-        }        
         this.src = src;
     }
 
@@ -174,7 +184,6 @@ export class SourceLayer extends Layer {
             this.clearCaches();
         }
         this.notify_callbacks();
-        // trigger change event for cursor
         this.eventifyTrigger("change");   
     }
 }
@@ -219,7 +228,7 @@ export class SourceLayerCache {
         const states = this._segments.map((seg) => {
             return seg.query(offset);
         });
-        return toState(states, this._layer.valueFunc)
+        return toState(this._segments, states, offset, this._layer.queryOptions)
     }
 
     clear() {

@@ -17,21 +17,32 @@
           return Math.floor(Math.random() * max);
         }
 
-        import { InputLayer, merge } from './js/layers.es.js';
+        import { getLayer, merge } from './js/layers.es.js';
 
 
-        const l1 = new InputLayer({items:[
+        const l1 = getLayer({items:[
             {itv: [0, 1, true, false], data: 1},
             {itv: [2, 3, true, false], data: 2},
             {itv: [4, 5, true, false], data: 3},
             {itv: [6, 7, true, false], data: 4},
         ]});
 
-        const l2 = new InputLayer({items:[
+        const l2 = getLayer({items:[
             {itv: [0.5, 1.5, true, false], data: 0.5},
             {itv: [2.5, 3.5, true, false], data: 1.5},
             {itv: [4.5, 5.5, true, false], data: 2.5},
         ]});
+
+
+        const options= {
+            valueFunc(sources, states, offset) {
+                return states.reduce((acc, cur) => acc + cur.value, 0);
+            }
+        }
+        const l3 = merge([l1,l2], options);
+
+        let result = l3.sample();
+        console.log(result.map(([v,i]) => v));
 
 
 

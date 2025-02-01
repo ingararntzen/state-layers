@@ -72,23 +72,24 @@ export function range (start, end, step = 1, options={}) {
 
 
 /**
- * Create a single state from a list of states, using a stateFunc
- * states:{value, dynamic, offset}
- * 
+ * Create a single state from a list of states, using a valueFunc
+ * state:{value, dynamic, offset}
  * 
  */
 
-export function toState(states, valueFunc, offset) {
+export function toState(sources, states, offset, options={}) {
     if (states.length == 0) {
         return {value:undefined, dynamic:false, offset}
-        /**
-            TODO - do something with valueFunc
-            const dynamic = states.map((v) => v.dynamic);
-            const values = states.map((v) => v.value);
-        
-            For now - just return the first state
-        */
     }
+    let {valueFunc, stateFunc} = options; 
+    if (valueFunc != undefined) {
+        let value = valueFunc(sources, states, offset);
+        let dynamic = states.map((v) => v.dymamic).some(e=>e);
+        return {value, dynamic, offset};
+    } else if (stateFunc != undefined) {
+        return {...stateFunc(sources, states, offset), offset};
+    }
+    // fallback - just use first state
     let state = states[0];
     return {...state, offset}; 
 }

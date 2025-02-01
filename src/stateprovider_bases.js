@@ -1,6 +1,4 @@
 import * as callback from "./api_callback.js";
-import * as eventify from "./api_eventify.js";
-import { bind, release } from "./monitor.js";
 
 /************************************************
  * CLOCK PROVIDER BASE

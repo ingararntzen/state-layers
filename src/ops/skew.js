@@ -1,4 +1,4 @@
-import { LayerBase } from "../bases.js";
+import { LayerBase } from "../stateprovider_bases.js";
 import { NearbyIndexBase } from "../nearbyindex.js";
 
 

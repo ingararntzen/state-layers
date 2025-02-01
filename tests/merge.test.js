@@ -1,25 +1,23 @@
 /* global describe, test, expect */
 
-import { NearbyIndexMerge } from "../src/nearbyindex_merge.js";
-import { LocalStateProvider } from "../src/stateprovider_simple.js";
-import { NearbyIndexSimple } from "../src/nearbyindex_simple.js";
-import { Layer, MergeLayer } from "../src/layers.js";
-
+import { getLayer } from "../src/layers.js";
+import { MergeLayer, MergeIndex } from "../src/ops/merge.js"; 
 
 const DATA = "data";
 const OFFSET = 4;
 
 
-function runtest(layers, expected) {
-    // make indexes for all layers
-    const indexes = layers.map((layer_intervals) => {
-        const items = layer_intervals.map((itv) => {
-            return {itv, type: "static", data: DATA};
+function runtest(intervals, expected) {
+    // make layers
+    const layers = intervals.map((intervals) => { 
+        return getLayer({
+            items: intervals.map((itv) => {
+                return {itv, type: "static", data: DATA};
+            })
         });
-        const src = new LocalStateProvider({items});
-        return new NearbyIndexSimple (src);
     });
-    let index = new NearbyIndexMerge(indexes);
+
+    let index = new MergeIndex(layers);
     let result = index.nearby(OFFSET);
     expect(expected.itv).toStrictEqual(result.itv);
     expect(expected.left).toStrictEqual(result.left);
@@ -31,7 +29,7 @@ function runtest(layers, expected) {
 
 describe('MergeTest', () => {
 
-    test('EmptyCenter-NoLayersOnSides', () => {
+    test('EmptyCenter-EmptyOnSides', () => {
         const layers = [
             [], 
             []
@@ -47,7 +45,7 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test('EmptyCenter-LayersOnSides', () => {
+    test('EmptyCenter-NonemptyOnSides', () => {
         const layers = [
             [[-1, 1, true, false],], 
             [[8, 10, true, false],]
@@ -63,10 +61,10 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test('SingleCenter-NoLayersOnSides', () => {
+    test('SingleCenter-EmptyOnSides', () => {
 
         const layers = [
-            [[1, 8, true, false],]
+            [[1, 8, true, false]]
         ]
         const expected = {
             itv: [1, 8, true, false],
@@ -79,7 +77,7 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
     
-    test('SingleCenter-LayersOnSides-Gaps', () => {
+    test('SingleCenter-NonEmptyOnSides-Gaps', () => {
         const layers = [
             [[1, 8, true, false],],
             [[-10, 0, true, false]],
@@ -96,7 +94,7 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test('MultipleNonequalCenter-NoLayersOnSides', () => {
+    test('MultipleNonequalCenter-EmptyOnSides', () => {
         const layers = [
             [[1, 8, true, false]],
             [[0, 7, true, false]],
@@ -112,7 +110,7 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test('MultipleEqualCenter-LayersOnSides-Overlap-1', () => {
+    test('MultipleEqualCenter-NonEmptyOnSides-Overlap-1', () => {
         // prev/next closer to offset
         const layers = [
             [[1, 8, true, false]],
@@ -131,7 +129,7 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test('MultipleNonequalCenter-LayersOnSides-Overlap-2', () => {
+    test('MultipleNonequalCenter-NonemptyOnSides-Overlap-2', () => {
         // center closer to offset
         const layers = [
             [[1, 8, true, false]],
@@ -150,42 +148,38 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test('TestMergeLayer List', () => {
+    test.only('TestMergeLayer List', () => {
 
         // Datasource 1
         const items_1 = [
             {type: "static", itv: [1, 5, true, false], value: 0.8},
             {type: "static", itv: [10, 15, true, false], value: 0.6},
         ];
-        const layer_1 = new Layer({items:items_1});
+        const layer_1 = getLayer({items:items_1});
 
         // Datasource 2
         const items_2 = [
             {type: "static", itv: [2.5, 7.5, true, false], value: 0.1},
             {type: "static", itv: [12.5, 17.5, true, false], value: 0.3},
         ];
-        const layer_2 = new Layer({items:items_2});
+        const layer_2 = getLayer({items:items_2});
 
         // Merge
-        let layer = new MergeLayer({sources:[layer_1, layer_2]});
+        let layer = new MergeLayer([layer_1, layer_2]);
 
         const expected = [
-            [0.8],
-            [0.8, 0.1],
-            [0.1],
-            [0.6],
-            [0.6, 0.3],
-            [0.3]
+            [layer_1],
+            [layer_1, layer_2],
+            [layer_2],
+            [layer_1],
+            [layer_1, layer_2],
+            [layer_2]
         ];
 
-        let entries = layer.index.list({start:0, end:20});
-        
+        let entries = layer.index.list({start:0, end:20});        
         for (let [idx, items] of entries.entries()) {
-            let values = new Set(items.map((item) => item.value));
-            expect(values.size).toBe(expected[idx].length);            
-            for (let v of expected[idx]) {
-                expect(values.has(v))
-            }
+            let layers = items.map((item) => item.src);
+            expect(layers).toStrictEqual(expected[idx]);
         }
     });
 
@@ -197,14 +191,14 @@ describe('MergeTest', () => {
             {type: "static", itv: [1, 5, true, false], data:0.8},
             {type: "static", itv: [10, 15, true, false], data:0.6},
         ];
-        const layer_1 = new Layer({items:items_1});
+        const layer_1 = new getLayer({items:items_1});
 
         // Datasource 2
         const items_2 = [
             {type: "static", itv: [2.5, 7.5, true, false], data:0.1},
             {type: "static", itv: [12.5, 17.5, true, false], data:0.3},
         ];
-        const layer_2 = new Layer({items:items_2});
+        const layer_2 = getLayer({items:items_2});
 
         // valueFunc
         function valueFunc(values) {
@@ -214,7 +208,7 @@ describe('MergeTest', () => {
         }
 
         // Merge
-        let layer = new MergeLayer({sources:[layer_1, layer_2], valueFunc});
+        let layer = new MergeLayer([layer_1, layer_2], valueFunc);
 
 
         const expected = [

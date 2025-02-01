@@ -1,96 +1,135 @@
 
 (function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
-/***************************************************************
-    CLOCKS
-***************************************************************/
-
-/**
- * clocks counting in seconds
- */
-
-const local = function () {
-    return performance.now()/1000.0;
-};
-
-const epoch = function () {
-    return new Date()/1000.0;
-};
-
-/**
- * the clock gives epoch values, but is implemented
- * using a high performance local clock for better
- * time resolution and protection against system 
- * time adjustments.
- */
-
-const CLOCK = function () {
-    const t0_local = local();
-    const t0_epoch = epoch();
-    return {
-        now: function () {
-            return t0_epoch + (local() - t0_local)
-        }
-    }
-}();
-
-
-// ovverride modulo to behave better for negative numbers
-function mod(n, m) {
-    return ((n % m) + m) % m;
-}
-function divmod(x, base) {
-    let n = Math.floor(x / base);
-    let r = mod(x, base);
-    return [n, r];
-}
-
-
 /*
-    similar to range function in python
+    This decorates an object/prototype with basic (synchronous) callback support.
 */
 
-function range (start, end, step = 1, options={}) {
-    const result = [];
-    const {include_end=false} = options;
-    if (step === 0) {
-        throw new Error('Step cannot be zero.');
-    }
-    if (start < end) {
-        for (let i = start; i < end; i += step) {
-          result.push(i);
-        }
-    } else if (start > end) {
-        for (let i = start; i > end; i -= step) {
-          result.push(i);
-        }
-    }
-    if (include_end) {
-        result.push(end);
-    }
-    return result;
+const PREFIX$1 = "__callback";
+
+function addToInstance$2(object) {
+    object[`${PREFIX$1}_handlers`] = [];
 }
 
+function add_callback (handler) {
+    let handle = {
+        handler: handler
+    };
+    this[`${PREFIX$1}_handlers`].push(handle);
+    return handle;
+}
+function remove_callback (handle) {
+    let index = this[`${PREFIX$1}_handlers`].indexof(handle);
+    if (index > -1) {
+        this[`${PREFIX$1}_handlers`].splice(index, 1);
+    }
+}
+function notify_callbacks (eArg) {
+    this[`${PREFIX$1}_handlers`].forEach(function(handle) {
+        handle.handler(eArg);
+    });
+}
+
+function addToPrototype$2 (_prototype) {
+    const api = {
+        add_callback, remove_callback, notify_callbacks
+    };
+    Object.assign(_prototype, api);
+}
+
+/************************************************
+ * SOURCE PROPERTY
+ ************************************************/
 
 /**
- * Create a single state from a list of states, using a stateFunc
- * states:{value, dynamic, offset}
+ * Functions for extending a class with support for 
+ * external source on a named property.
  * 
+ * option: mutable:true means that propery may be reset 
  * 
+ * source object is assumed to support the callback interface
  */
 
-function toState(states, valueFunc, offset) {
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
-        /**
-            TODO - do something with valueFunc
-            const dynamic = states.map((v) => v.dynamic);
-            const values = states.map((v) => v.value);
-        
-            For now - just return the first state
-        */
+function propnames (propName) {
+    return {
+        prop: `__${propName}`,
+        init: `__${propName}_init`,
+        handle: `__${propName}_handle`,
+        change: `__${propName}_handle_change`,
+        detatch: `__${propName}_detatch`,
+        attatch: `__${propName}_attatch`,
+        check: `__${propName}_check`
     }
-    let state = states[0];
-    return {...state, offset}; 
+}
+
+function addToInstance$1 (object, propName) {
+    const p = propnames(propName);
+    object[p.prop] = undefined;
+    object[p.init] = false;
+    object[p.handle] = undefined;
+}
+
+function addToPrototype$1 (_prototype, propName, options={}) {
+
+    const p = propnames(propName);
+
+    function detatch() {
+        // unsubscribe from source change event
+        let {mutable=false} = options;
+        if (mutable && this[p.prop]) {
+            let handle = this[p.handle];
+            this[p.prop].remove_callback(handle);
+            this[p.handle] = undefined;
+        }
+        this[p.prop] = undefined;
+    }
+
+    function attatch(source) {
+        let {mutable=false} = options;
+        if (!this[p.init] || mutable) {
+            this[p.prop] = source;
+            this[p.init] = true;
+            // subscribe to callback from source
+            if (this[p.change]) {
+                const handler = this[p.change].bind(this);
+                this[p.handle] = source.add_callback(handler);
+                handler("reset"); 
+            }
+        } else {
+            throw new Error(`${propName} can not be reassigned`);
+        }
+    }
+
+    /**
+     * 
+     * object must implement
+     * __{propName}_handle_change() {}
+     * 
+     * object can implement
+     * __{propName}_check(source) {}
+     */
+
+    // getter and setter
+    Object.defineProperty(_prototype, propName, {
+        get: function () {
+            return this[p.prop];
+        },
+        set: function (src) {
+            if (this[p.check]) {
+                src = this[p.check](src);
+            }
+            if (src != this[p.prop]) {
+                this[p.detatch]();
+                this[p.attatch](src);
+            }
+        }
+
+    });
+
+    const api = {};
+    api[p.detatch] = detatch;
+    api[p.attatch] = attatch;
+
+    Object.assign(_prototype, api);
 }
 
 /*
@@ -377,14 +416,6 @@ function eventifyPrototype(_prototype) {
 	_prototype.on = on;
 	_prototype.off = off;
 }
-
-const eventify = function () {
-	return {
-		addToInstance: eventifyInstance,
-		addToPrototype: eventifyPrototype
-	}
-}();
-
 /*
 	Event Variable
 
@@ -414,6 +445,1700 @@ class EventVariable {
 	}
 }
 eventifyPrototype(EventVariable.prototype);
+
+/***************************************************************
+    CLOCKS
+***************************************************************/
+
+/**
+ * clocks counting in seconds
+ */
+
+const local = function () {
+    return performance.now()/1000.0;
+};
+
+const epoch = function () {
+    return new Date()/1000.0;
+};
+
+/**
+ * the clock gives epoch values, but is implemented
+ * using a high performance local clock for better
+ * time resolution and protection against system 
+ * time adjustments.
+ */
+
+const CLOCK = function () {
+    const t0_local = local();
+    const t0_epoch = epoch();
+    return {
+        now: function () {
+            return t0_epoch + (local() - t0_local)
+        }
+    }
+}();
+
+
+// ovverride modulo to behave better for negative numbers
+function mod(n, m) {
+    return ((n % m) + m) % m;
+}
+function divmod(x, base) {
+    let n = Math.floor(x / base);
+    let r = mod(x, base);
+    return [n, r];
+}
+
+
+/*
+    similar to range function in python
+*/
+
+function range (start, end, step = 1, options={}) {
+    const result = [];
+    const {include_end=false} = options;
+    if (step === 0) {
+        throw new Error('Step cannot be zero.');
+    }
+    if (start < end) {
+        for (let i = start; i < end; i += step) {
+          result.push(i);
+        }
+    } else if (start > end) {
+        for (let i = start; i > end; i -= step) {
+          result.push(i);
+        }
+    }
+    if (include_end) {
+        result.push(end);
+    }
+    return result;
+}
+
+
+/**
+ * Create a single state from a list of states, using a valueFunc
+ * state:{value, dynamic, offset}
+ * 
+ */
+
+function toState(sources, states, offset, options={}) {
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
+    }
+    let {valueFunc, stateFunc} = options; 
+    if (valueFunc != undefined) {
+        let value = valueFunc(sources, states, offset);
+        let dynamic = states.map((v) => v.dymamic).some(e=>e);
+        return {value, dynamic, offset};
+    } else if (stateFunc != undefined) {
+        return {...stateFunc(sources, states, offset), offset};
+    }
+    // fallback - just use first state
+    let state = states[0];
+    return {...state, offset}; 
+}
+
+/************************************************
+ * CLOCK PROVIDER BASE
+ ************************************************/
+
+/**
+ * Base class for ClockProviders
+ * 
+ * Clock Providers implement the callback
+ * interface to be compatible with other state
+ * providers, even though they are not required to
+ * provide any callbacks after clock adjustments
+ */
+
+class ClockProviderBase {
+    constructor() {
+        addToInstance$2(this);
+    }
+    now () {
+        throw new Error("not implemented");
+    }
+}
+addToPrototype$2(ClockProviderBase.prototype);
+
+
+/**
+ * Base class for MotionProviders
+ * 
+ * This is a convenience class offering a simpler way
+ * of implementing state provider which deal exclusively
+ * with motion segments.
+ * 
+ * Motionproviders do not deal with items, but with simpler
+ * statements of motion state
+ * 
+ * state = {
+ *      position: 0,
+ *      velocity: 0,
+ *      acceleration: 0,
+ *      timestamp: 0
+ *      range: [undefined, undefined]
+ * }
+ * 
+ * Internally, MotionProvider will be wrapped so that they
+ * become proper StateProviders.
+ */
+
+class MotionProviderBase {
+
+    constructor(options={}) {
+        addToInstance$2(this);
+        let {state} = options;
+        if (state = undefined) {
+            this._state = {
+                position: 0,
+                velocity: 0,
+                acceleration: 0,
+                timestamp: 0,
+                range: [undefined, undefined]
+            };
+        } else {
+            this._state = state;
+        }
+    }
+
+    /**
+     * set motion state
+     * 
+     * implementations of online motion providers will
+     * use this to send an update request,
+     * and set _state on response and then call notify_callbaks
+     * If the proxy wants to set the state immediatedly - 
+     * it should be done using a Promise - to break the control flow.
+     * 
+     * return Promise.resolve()
+     *      .then(() => {
+     *           this._state = state;
+     *           this.notify_callbacks();
+     *       });
+     * 
+     */
+    set_state (state) {
+        throw new Error("not implemented");
+    }
+
+    // return current motion state
+    get_state () {
+        return {...this._state};
+    }
+}
+addToPrototype$2(MotionProviderBase.prototype);
+
+
+
+
+/************************************************
+ * STATE PROVIDER BASE
+ ************************************************/
+
+/*
+    Base class for StateProviders
+
+    - collection of items
+    - {key, itv, type, data}
+*/
+
+class StateProviderBase {
+
+    constructor() {
+        addToInstance$2(this);
+    }
+
+    /**
+     * update function
+     * 
+     * If ItemsProvider is a proxy to an online
+     * Items collection, update requests will 
+     * imply a network request
+     * 
+     * options - support reset flag 
+     */
+    update(items, options={}){
+        throw new Error("not implemented");
+    }
+
+    /**
+     * return array with all items in collection 
+     * - no requirement wrt order
+     */
+
+    get_items() {
+        throw new Error("not implemented");
+    }
+
+    /**
+     * signal if items can be overlapping or not
+     */
+
+    get info () {
+        return {overlapping: true};
+    }
+}
+addToPrototype$2(StateProviderBase.prototype);
+
+const METHODS = {assign, move, transition, interpolate: interpolate$1};
+
+
+function cmd (target) {
+    if (!(target instanceof StateProviderBase)) {
+        throw new Error(`target.src must be stateprovider ${target}`);
+    }
+    let entries = Object.entries(METHODS)
+        .map(([name, method]) => {
+            return [
+                name,
+                function(...args) { 
+                    let items = method.call(this, ...args);
+                    return target.update(items);  
+                }
+            ]
+        });
+    return Object.fromEntries(entries);
+}
+
+function assign(value) {
+    if (value == undefined) {
+        return [];
+    } else {
+        let item = {
+            itv: [-Infinity, Infinity, true, true],
+            type: "static",
+            data: value                 
+        };
+        return [item];
+    }
+}
+
+function move(vector) {
+    let item = {
+        itv: [-Infinity, Infinity, true, true],
+        type: "motion",
+        data: vector  
+    };
+    return [item];
+}
+
+function transition(v0, v1, t0, t1, easing) {
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "transition",
+            data: {v0, v1, t0, t1, easing}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            data: v1
+        }
+    ];
+    return items;
+}
+
+function interpolate$1(tuples) {
+    let [v0, t0] = tuples[0];
+    let [v1, t1] = tuples[tuples.length-1];
+
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "interpolation",
+            data: tuples
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            data: v1
+        }
+    ];    
+    return items;
+}
+
+/************************************************
+ * LAYER QUERY INTERFACE
+ ************************************************/
+
+/**
+ * Decorate an object/prototype of a Layer to implement 
+ * the LayerQuery interface.
+ * 
+ * The layer query interface implements a query
+ * mechanism for layers, with built-in caching
+ * 
+ * Example use
+ * cache = object.getCache() 
+ * cache.query();
+ * 
+ * - clearCaches is for internal use
+ * - index is the actual target of of the query
+ * - queryOptions specializes the query output
+ * 
+ * 
+ * NOTE - this might be part of the BaseLayer class instead.
+ */
+
+const PREFIX = "__layerquery";
+
+function addToInstance (object, queryOptions, CacheClass) {
+    object[`${PREFIX}_index`];
+    object[`${PREFIX}_queryOptions`] = queryOptions;
+    object[`${PREFIX}_cacheClass`] = CacheClass;
+    object[`${PREFIX}_cacheObjects`] = [];
+}
+
+function addToPrototype (_prototype) {
+
+    Object.defineProperty(_prototype, "index", {
+        get: function () {
+            return this[`${PREFIX}_index`];
+        },
+        set: function (index) {
+            this[`${PREFIX}_index`] = index;
+        }
+    });
+    Object.defineProperty(_prototype, "queryOptions", {
+        get: function () {
+            return this[`${PREFIX}_queryOptions`];
+        }
+    });
+
+    function getCache () {
+        let CacheClass = this[`${PREFIX}_cacheClass`];
+        const cache = new CacheClass(this);
+        this[`${PREFIX}_cacheObjects`].push(cache);
+        return cache;
+    }
+
+    function clearCaches () {
+        for (let cache of this[`${PREFIX}_cacheObjects`]) {
+            cache.clear();
+        }
+    }
+    
+    Object.assign(_prototype, {getCache, clearCaches});
+}
+
+/*
+    
+    INTERVAL ENDPOINTS
+
+    * interval endpoints are defined by [value, sign], for example
+    * 
+    * 4) -> [4,-1] - endpoint is on the left of 4
+    * [4, 4, 4] -> [4, 0] - endpoint is at 4 
+    * (4 -> [4, 1] - endpoint is on the right of 4)
+    * 
+    * This representation ensures that the interval endpoints are ordered and allows
+    * intervals to be exclusive or inclusive, yet cover the entire real line 
+    * 
+    * [a,b], (a,b), [a,b), [a, b) are all valid intervals
+
+*/
+
+/*
+    Endpoint comparison
+    returns 
+        - negative : correct order
+        - 0 : equal
+        - positive : wrong order
+
+
+    NOTE 
+    - cmp(4],[4 ) == 0 - since these are the same with respect to sorting
+    - but if you want to see if two intervals are overlapping in the endpoints
+    cmp(high_a, low_b) > 0 this will not be good
+    
+*/ 
+
+
+function cmpNumbers(a, b) {
+    if (a === b) return 0;
+    if (a === Infinity) return 1;
+    if (b === Infinity) return -1;
+    if (a === -Infinity) return -1;
+    if (b === -Infinity) return 1;
+    return a - b;
+  }
+
+function endpoint_cmp (p1, p2) {
+    let [v1, s1] = p1;
+    let [v2, s2] = p2;
+    let diff = cmpNumbers(v1, v2);
+    return (diff != 0) ? diff : s1 - s2;
+}
+
+function endpoint_lt (p1, p2) {
+    return endpoint_cmp(p1, p2) < 0
+}
+function endpoint_le (p1, p2) {
+    return endpoint_cmp(p1, p2) <= 0
+}
+function endpoint_gt (p1, p2) {
+    return endpoint_cmp(p1, p2) > 0
+}
+function endpoint_ge (p1, p2) {
+    return endpoint_cmp(p1, p2) >= 0
+}
+function endpoint_eq (p1, p2) {
+    return endpoint_cmp(p1, p2) == 0
+}
+function endpoint_min(p1, p2) {
+    return (endpoint_le(p1, p2)) ? p1 : p2;
+}
+function endpoint_max(p1, p2) {
+    return (endpoint_ge(p1, p2)) ? p1 : p2;
+}
+
+/**
+ * flip endpoint to the other side
+ * 
+ * useful for making back-to-back intervals 
+ * 
+ * high) <-> [low
+ * high] <-> (low
+ */
+
+function endpoint_flip(p, target) {
+    let [v,s] = p;
+    if (!isFinite(v)) {
+        return p;
+    }
+    if (target == "low") {
+    	// assume point is high: sign must be -1 or 0
+    	if (s > 0) {
+			throw new Error("endpoint is already low");    		
+    	}
+        p = [v, s+1];
+    } else if (target == "high") {
+		// assume point is low: sign is 0 or 1
+    	if (s < 0) {
+			throw new Error("endpoint is already high");    		
+    	}
+        p = [v, s-1];
+    } else {
+    	throw new Error("illegal type", target);
+    }
+    return p;
+}
+
+
+/*
+    returns low and high endpoints from interval
+*/
+function endpoints_from_interval(itv) {
+    let [low, high, lowClosed, highClosed] = itv;
+    let low_p = (lowClosed) ? [low, 0] : [low, 1]; 
+    let high_p = (highClosed) ? [high, 0] : [high, -1];
+    return [low_p, high_p];
+}
+
+
+/*
+    INTERVALS
+
+    Intervals are [low, high, lowClosed, highClosed]
+
+*/ 
+
+/*
+    return true if point p is covered by interval itv
+    point p can be number p or a point [p,s]
+
+    implemented by comparing points
+    exception if interval is not defined
+*/
+function interval_covers_endpoint(itv, p) {
+    let [low_p, high_p] = endpoints_from_interval(itv);
+    // covers: low <= p <= high
+    return endpoint_le(low_p, p) && endpoint_le(p, high_p);
+}
+// convenience
+function interval_covers_point(itv, p) {
+    return interval_covers_endpoint(itv, [p, 0]);
+}
+
+
+
+/*
+    Return true if interval has length 0
+*/
+function interval_is_singular(interval) {
+    return interval[0] == interval[1]
+}
+
+/*
+    Create interval from endpoints
+*/
+function interval_from_endpoints(p1, p2) {
+    let [v1, s1] = p1;
+    let [v2, s2] = p2;
+    // p1 must be a low point
+    if (s1 == -1) {
+        throw new Error("illegal low point", p1);
+    }
+    if (s2 == 1) {
+        throw new Error("illegeal high point", p2);   
+    }
+    return [v1, v2, (s1==0), (s2==0)]
+}
+
+function isNumber(n) {
+    return typeof n == "number";
+}
+
+function interval_from_input(input){
+    let itv = input;
+    if (itv == undefined) {
+        throw new Error("input is undefined");
+    }
+    if (!Array.isArray(itv)) {
+        if (isNumber(itv)) {
+            // input is singular number
+            itv = [itv, itv, true, true];
+        } else {
+            throw new Error(`input: ${input}: must be Array or Number`)
+        }
+    }    // make sure interval is length 4
+    if (itv.length == 1) {
+        itv = [itv[0], itv[0], true, true];
+    } else if (itv.length == 2) {
+        itv = itv.concat([true, false]);
+    } else if (itv.length == 3) {
+        itv = itv.push(false);
+    } else if (itv.length > 4) {
+        itv = itv.slice(0,4);
+    }
+    let [low, high, lowInclude, highInclude] = itv;
+    // undefined
+    if (low == undefined || low == null) {
+        low = -Infinity;
+    }
+    if (high == undefined || high == null) {
+        high = Infinity;
+    }
+    // check that low and high are numbers
+    if (!isNumber(low)) throw new Error("low not a number", low);
+    if (!isNumber(high)) throw new Error("high not a number", high);
+    // check that low <= high
+    if (low > high) throw new Error("low > high", low, high);
+    // singleton
+    if (low == high) {
+        lowInclude = true;
+        highInclude = true;
+    }
+    // check infinity values
+    if (low == -Infinity) {
+        lowInclude = true;
+    }
+    if (high == Infinity) {
+        highInclude = true;
+    }
+    // check that lowInclude, highInclude are booleans
+    if (typeof lowInclude !== "boolean") {
+        throw new Error("lowInclude not boolean");
+    } 
+    if (typeof highInclude !== "boolean") {
+        throw new Error("highInclude not boolean");
+    }
+    return [low, high, lowInclude, highInclude];
+}
+
+
+
+
+const endpoint = {
+    le: endpoint_le,
+    lt: endpoint_lt,
+    ge: endpoint_ge,
+    gt: endpoint_gt,
+    cmp: endpoint_cmp,
+    eq: endpoint_eq,
+    min: endpoint_min,
+    max: endpoint_max,
+    flip: endpoint_flip,
+    from_interval: endpoints_from_interval
+};
+const interval = {
+    covers_endpoint: interval_covers_endpoint,
+    covers_point: interval_covers_point, 
+    is_singular: interval_is_singular,
+    from_endpoints: interval_from_endpoints,
+    from_input: interval_from_input
+};
+
+/********************************************************************
+BASE SEGMENT
+*********************************************************************/
+/*
+	Abstract Base Class for Segments
+
+    constructor(interval)
+
+    - interval: interval of validity of segment
+    - dynamic: true if segment is dynamic
+    - value(offset): value of segment at offset
+    - query(offset): state of segment at offset
+*/
+
+class BaseSegment {
+
+	constructor(itv) {
+		this._itv = itv;
+	}
+
+	get itv() {return this._itv;}
+
+    /** 
+     * implemented by subclass
+     * returns {value, dynamic};
+    */
+    state(offset) {
+    	throw new Error("not implemented");
+    }
+
+    /**
+     * convenience function returning the state of the segment
+     * @param {*} offset 
+     * @returns 
+     */
+    query(offset) {
+        if (interval.covers_point(this._itv, offset)) {
+            return {...this.state(offset), offset};
+        } 
+        return {value: undefined, dynamic:false, offset};
+    }
+}
+
+
+/********************************************************************
+    STATIC SEGMENT
+*********************************************************************/
+
+class StaticSegment extends BaseSegment {
+
+	constructor(itv, data) {
+        super(itv);
+		this._value = data;
+	}
+
+	state() {
+        return {value: this._value, dynamic:false}
+	}
+}
+
+
+/********************************************************************
+    MOTION SEGMENT
+*********************************************************************/
+/*
+    Implements deterministic projection based on initial conditions 
+    - motion vector describes motion under constant acceleration
+*/
+
+class MotionSegment extends BaseSegment {
+    
+    constructor(itv, data) {
+        super(itv);
+        const {
+            position:p0=0, 
+            velocity:v0=0, 
+            acceleration:a0=0, 
+            timestamp:t0=0
+        } = data;
+        // create motion transition
+        this._pos_func = function (ts) {
+            let d = ts - t0;
+            return p0 + v0*d + 0.5*a0*d*d;
+        };
+        this._vel_func = function (ts) {
+            let d = ts - t0;
+            return v0 + a0*d;
+        };
+        this._acc_func = function (ts) {
+            return a0;
+        };
+    }
+
+    state(offset) {
+        let pos = this._pos_func(offset);
+        let vel = this._vel_func(offset);
+        let acc = this._acc_func(offset);
+        return {
+            position: pos,
+            velocity: vel,
+            acceleration: acc,
+            timestamp: offset,
+            value: pos,
+            dynamic: (vel != 0 || acc != 0 )
+        }
+    }
+}
+
+
+/********************************************************************
+    TRANSITION SEGMENT
+*********************************************************************/
+
+/*
+    Supported easing functions
+    "ease-in":
+    "ease-out":
+    "ease-in-out"
+*/
+
+function easein (ts) {
+    return Math.pow(ts,2);  
+}
+function easeout (ts) {
+    return 1 - easein(1 - ts);
+}
+function easeinout (ts) {
+    if (ts < .5) {
+        return easein(2 * ts) / 2;
+    } else {
+        return (2 - easein(2 * (1 - ts))) / 2;
+    }
+}
+
+class TransitionSegment extends BaseSegment {
+
+	constructor(itv, data) {
+		super(itv);
+        let {v0, v1, easing} = data;
+        let [t0, t1] = this._itv.slice(0,2);
+
+        // create the transition function
+        this._dynamic = v1-v0 != 0;
+        this._trans = function (ts) {
+            // convert ts to [t0,t1]-space
+            // - shift from [t0,t1]-space to [0,(t1-t0)]-space
+            // - scale from [0,(t1-t0)]-space to [0,1]-space
+            ts = ts - t0;
+            ts = ts/parseFloat(t1-t0);
+            // easing functions stretches or compresses the time scale 
+            if (easing == "ease-in") {
+                ts = easein(ts);
+            } else if (easing == "ease-out") {
+                ts = easeout(ts);
+            } else if (easing == "ease-in-out") {
+                ts = easeinout(ts);
+            }
+            // linear transition from v0 to v1, for time values [0,1]
+            ts = Math.max(ts, 0);
+            ts = Math.min(ts, 1);
+            return v0 + (v1-v0)*ts;
+        };
+	}
+
+	state(offset) {
+        return {value: this._trans(offset), dynamic:this._dynamic}
+	}
+}
+
+
+
+/********************************************************************
+    INTERPOLATION SEGMENT
+*********************************************************************/
+
+/**
+ * Function to create an interpolator for nearest neighbor interpolation with
+ * extrapolation support.
+ *
+ * @param {Array} tuples - An array of [value, offset] pairs, where value is the
+ * point's value and offset is the corresponding offset.
+ * @returns {Function} - A function that takes an offset and returns the
+ * interpolated or extrapolated value.
+ */
+
+function interpolate(tuples) {
+
+    if (tuples.length < 1) {
+        return function interpolator () {return undefined;}
+    } else if (tuples.length == 1) {
+        return function interpolator () {return tuples[0][0];}
+    }
+
+    // Sort the tuples by their offsets
+    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
+  
+    return function interpolator(offset) {
+      // Handle extrapolation before the first point
+      if (offset <= sortedTuples[0][1]) {
+        const [value1, offset1] = sortedTuples[0];
+        const [value2, offset2] = sortedTuples[1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+      
+      // Handle extrapolation after the last point
+      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
+        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
+        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+  
+      // Find the nearest points to the left and right
+      for (let i = 0; i < sortedTuples.length - 1; i++) {
+        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
+          const [value1, offset1] = sortedTuples[i];
+          const [value2, offset2] = sortedTuples[i + 1];
+          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
+          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+        }
+      }
+  
+      // In case the offset does not fall within any range (should be covered by the previous conditions)
+      return undefined;
+    };
+}
+  
+
+class InterpolationSegment extends BaseSegment {
+
+    constructor(itv, tuples) {
+        super(itv);
+        // setup interpolation function
+        this._trans = interpolate(tuples);
+    }
+
+    state(offset) {
+        return {value: this._trans(offset), dynamic:true};
+    }
+}
+
+/***************************************************************
+    LOCAL STATE PROVIDER
+***************************************************************/
+
+/**
+ * Local Array with non-overlapping items.
+ */
+
+class LocalStateProvider extends StateProviderBase {
+
+    constructor(options={}) {
+        super();
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            // initialize from items
+            this._items = check_input(items);
+        } else if (value != undefined) {
+            // initialize from value
+            this._items = [{
+                itv:[-Infinity, Infinity, true, true], 
+                type: "static",
+                data:value
+            }];
+        } else {
+            this._items = [];
+        }
+    }
+
+    update (items, options) {
+        return Promise.resolve()
+            .then(() => {
+                this._items = check_input(items);
+                this.notify_callbacks();
+            });
+    }
+
+    get_items () {
+        return this._items.slice();
+    }
+
+    get info () {
+        return {overlapping: false};
+    }
+}
+
+
+function check_input(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
+}
+
+/*********************************************************************
+    NEARBY INDEX
+*********************************************************************/
+
+/**
+ * Abstract superclass for NearbyIndexe.
+ * 
+ * Superclass used to check that a class implements the nearby() method, 
+ * and provide some convenience methods.
+ * 
+ * NEARBY INDEX
+ * 
+ * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
+ * given that
+ * (i) each entriy is associated with an interval and,
+ * (ii) entries are non-overlapping.
+ * Each ITEM must be associated with an interval on the timeline 
+ * 
+ * NEARBY
+ * The nearby method returns information about the neighborhood around endpoint. 
+ * 
+ * Primary use is for iteration 
+ * 
+ * Returns {
+ *      center: list of ITEMS covering endpoint,
+ *      itv: interval where nearby returns identical {center}
+ *      left:
+ *          first interval endpoint to the left 
+ *          which will produce different {center}
+ *          always a high-endpoint or undefined
+ *      right:
+ *          first interval endpoint to the right
+ *          which will produce different {center}
+ *          always a low-endpoint or undefined         
+ *      prev:
+ *          first interval endpoint to the left 
+ *          which will produce different && non-empty {center}
+ *          always a high-endpoint or undefined if no more intervals to the left
+ *      next:
+ *          first interval endpoint to the right
+ *          which will produce different && non-empty {center}
+ *          always a low-endpoint or undefined if no more intervals to the right
+ * }
+ * 
+ * 
+ * The nearby state is well-defined for every timeline position.
+ * 
+ * 
+ * NOTE left/right and prev/next are mostly the same. The only difference is 
+ * that prev/next will skip over regions where there are no intervals. This
+ * ensures practical iteration of items as prev/next will only be undefined  
+ * at the end of iteration.
+ * 
+ * INTERVALS
+ * 
+ * [low, high, lowInclusive, highInclusive]
+ * 
+ * This representation ensures that the interval endpoints are ordered and allows
+ * intervals to be exclusive or inclusive, yet cover the entire real line 
+ * 
+ * [a,b], (a,b), [a,b), [a, b) are all valid intervals
+ * 
+ * 
+ * INTERVAL ENDPOINTS
+ * 
+ * interval endpoints are defined by [value, sign], for example
+ * 
+ * 4) -> [4,-1] - endpoint is on the left of 4
+ * [4, 4, 4] -> [4, 0] - endpoint is at 4 
+ * (4 -> [4, 1] - endpoint is on the right of 4)
+ * 
+ * / */
+
+ class NearbyIndexBase {
+
+
+    /* 
+        Nearby method
+    */
+    nearby(offset) {
+        throw new Error("Not implemented");
+    }
+
+
+    /*
+        return low point of leftmost entry
+    */
+    first() {
+        let {center, right} = this.nearby([-Infinity, 0]);
+        return (center.length > 0) ? [-Infinity, 0] : right;
+    }
+
+    /*
+        return high point of rightmost entry
+    */
+    last() {
+        let {left, center} = this.nearby([Infinity, 0]);
+        return (center.length > 0) ? [Infinity, 0] : left
+    }
+
+    /*
+        List items of NearbyIndex (order left to right)
+        interval defines [start, end] offset on the timeline.
+        Returns list of item-lists.
+        options
+        - start
+        - stop
+    */
+    list(options={}) {
+        let {start=-Infinity, stop=Infinity} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+        let current = start;
+        let nearby;
+        const results = [];
+        let limit = 5;
+        while (limit) {
+            if (endpoint.gt(current, stop)) {
+                // exhausted
+                break;
+            }
+            nearby = this.nearby(current);
+            if (nearby.center.length == 0) {
+                // center empty (typically first iteration)
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // no entries - already exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            } else {
+                results.push(nearby.center);
+                if (nearby.right == undefined) {
+                    // right undefined
+                    // last entry - mark iteractor exhausted
+                    break;
+                } else {
+                    // right defined
+                    // increment offset
+                    current = nearby.right;
+                }
+            }
+            limit--;
+        }
+        return results;
+    }
+}
+
+/**
+ * 
+ * Nearby Index Simple
+ * 
+ * - items are assumed to be non-overlapping on the timeline, 
+ * - implying that nearby.center will be a list of at most one ITEM. 
+ * - exception will be raised if overlapping ITEMS are found
+ * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
+ * 
+ *  
+ */
+
+
+// get interval low point
+function get_low_value(item) {
+    return item.itv[0];
+}
+
+// get interval low endpoint
+function get_low_endpoint(item) {
+    return endpoint.from_interval(item.itv)[0]
+}
+
+// get interval high endpoint
+function get_high_endpoint(item) {
+    return endpoint.from_interval(item.itv)[1]
+}
+
+
+class NearbyIndexSimple extends NearbyIndexBase {
+
+    constructor(src) {
+        super();
+        this._src = src;
+    }
+
+    get src () {return this._src;}
+
+    /*
+        nearby by offset
+        
+        returns {left, center, right}
+
+        binary search based on offset
+        1) found, idx
+            offset matches value of interval.low of an item
+            idx gives the index of this item in the array
+        2) not found, idx
+            offset is either covered by item at (idx-1),
+            or it is not => between entries
+            in this case - idx gives the index where an item
+            should be inserted - if it had low == offset
+    */
+    nearby(offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
+        }
+        if (!Array.isArray(offset)) {
+            throw new Error("Endpoint must be an array");
+        }
+        const result = {
+            center: [],
+            itv: [-Infinity, Infinity, true, true],
+            left: undefined,
+            right: undefined,
+            prev: undefined,
+            next: undefined
+        };
+        let items = this._src.get_items();
+        let indexes, item;
+        const size = items.length;
+        if (size == 0) {
+            return result; 
+        }
+        let [found, idx] = find_index(offset[0], items, get_low_value);
+        if (found) {
+            // search offset matches item low exactly
+            // check that it indeed covered by item interval
+            item = items[idx];
+            if (interval.covers_endpoint(item.itv, offset)) {
+                indexes = {left:idx-1, center:idx, right:idx+1};
+            }
+        }
+        if (indexes == undefined) {
+            // check prev item
+            item = items[idx-1];
+            if (item != undefined) {
+                // check if search offset is covered by item interval
+                if (interval.covers_endpoint(item.itv, offset)) {
+                    indexes = {left:idx-2, center:idx-1, right:idx};
+                } 
+            }
+        }	
+        if (indexes == undefined) {
+            // prev item either does not exist or is not relevant
+            indexes = {left:idx-1, center:-1, right:idx};
+        }
+
+        // center
+        if (0 <= indexes.center && indexes.center < size) {
+            result.center =  [items[indexes.center]];
+        }
+        // prev/next
+        if (0 <= indexes.left && indexes.left < size) {
+            result.prev =  get_high_endpoint(items[indexes.left]);
+        }
+        if (0 <= indexes.right && indexes.right < size) {
+            result.next =  get_low_endpoint(items[indexes.right]);
+        }        
+        // left/right
+        let low, high;
+        if (result.center.length > 0) {
+            let itv = result.center[0].itv;
+            [low, high] = endpoint.from_interval(itv);
+            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
+            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+            result.itv = result.center[0].itv;
+        } else {
+            result.left = result.prev;
+            result.right = result.next;
+            // interval
+            let left = result.left;
+            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
+            let right = result.right;
+            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
+            result.itv = interval.from_endpoints(low, high);
+        }
+        return result;
+    }
+}
+
+/*********************************************************************
+	UTILS
+*********************************************************************/
+
+
+/*
+	binary search for finding the correct insertion index into
+	the sorted array (ascending) of items
+	
+	array contains objects, and value func retreaves a value
+	from each object.
+
+	return [found, index]
+*/
+
+function find_index(target, arr, value_func) {
+
+    function default_value_func(el) {
+        return el;
+    }
+    
+    let left = 0;
+	let right = arr.length - 1;
+	value_func = value_func || default_value_func;
+	while (left <= right) {
+		const mid = Math.floor((left + right) / 2);
+		let mid_value = value_func(arr[mid]);
+		if (mid_value === target) {
+			return [true, mid]; // Target already exists in the array
+		} else if (mid_value < target) {
+			  left = mid + 1; // Move search range to the right
+		} else {
+			  right = mid - 1; // Move search range to the left
+		}
+	}
+  	return [false, left]; // Return the index where target should be inserted
+}
+
+/************************************************
+ * LAYER
+ ************************************************/
+
+/**
+ * Layer is abstract base class for Layers
+ * 
+ * Layer interface is defined by (index, CacheClass, valueFunc)
+ */
+
+class Layer {
+
+    constructor(queryOptions, CacheClass) {
+        // callbacks
+        addToInstance$2(this);
+        // layer query api
+        addToInstance(this, queryOptions, CacheClass || LayerCache);
+        // define change event
+        eventifyInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+
+    /*
+        Sample Layer by timeline offset increments
+        return list of tuples [value, offset]
+        options
+        - start
+        - stop
+        - step
+    */
+    sample(options={}) {
+        let {start=-Infinity, stop=Infinity, step=1} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+        start = endpoint.max(this.index.first(), start);
+        stop = endpoint.min(this.index.last(), stop);
+        const cache = this.getCache();
+        return range(start[0], stop[0], step, {include_end:true})
+            .map((offset) => {
+                return [cache.query(offset).value, offset];
+            });
+    }
+}
+addToPrototype$2(Layer.prototype);
+addToPrototype(Layer.prototype);
+eventifyPrototype(Layer.prototype);
+
+
+/************************************************
+ * LAYER CACHE
+ ************************************************/
+
+/**
+ * This implements a Cache to be used with Layer objects
+ * Query results are obtained from the src objects in the
+ * layer index.
+ * and cached only if they describe a static value. 
+ */
+
+class LayerCache {
+
+    constructor(layer) {
+        this._layer = layer;
+        // cached nearby state
+        this._nearby;
+        // cached result
+        this._state;
+        // src cache objects (src -> cache)
+        this._cache_map = new Map();
+        this._caches;
+    }
+
+    /**
+     * query cache
+     */
+    query(offset) {
+        const need_nearby = (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        );
+        if (
+            !need_nearby && 
+            this._state != undefined &&
+            !this._state.dynamic
+        ) {
+            // cache hit
+            return {...this._state, offset};
+        }
+        // cache miss
+        if (need_nearby) {
+            this._nearby = this._layer.index.nearby(offset);
+            this._caches = this._nearby.center
+                // map to layer
+                .map((item) => item.src)
+                // map to cache object
+                .map((layer) => {
+                    if (!this._cache_map.has(layer)) {
+                        this._cache_map.set(layer, layer.getCache());
+                    }
+                    return this._cache_map.get(layer);
+                });
+        }
+        // perform queries
+        const states = this._caches.map((cache) => {
+            return cache.query(offset);
+        });
+        const state = toState(this._caches, states, offset, this._layer.queryOptions);
+        // cache state only if not dynamic
+        this._state = (state.dynamic) ? undefined : state;
+        return state    
+    }
+
+    clear() {
+        this._itv = undefined;
+        this._state = undefined;
+        this._caches = undefined;
+        this._cache_map = new Map();
+    }
+}
+
+
+/*********************************************************************
+    SOURCE LAYER
+*********************************************************************/
+
+function getLayer(options={}) {
+    let {src, items, ...opts} = options;
+    if (src == undefined) {
+        src = new LocalStateProvider({items});
+    }
+    return new SourceLayer(src, opts)
+}
+
+
+/*********************************************************************
+    SOURCE LAYER
+*********************************************************************/
+
+/**
+ * SourceLayer is a Layer with a stateprovider.
+ * 
+ * .src : stateprovider.
+ */
+
+class SourceLayer extends Layer {
+
+    constructor(src, options={}) {
+        super(options, SourceLayerCache);
+        // src
+        addToInstance$1(this, "src");
+        this.src = src;
+    }
+
+    /**********************************************************
+     * SRC (stateprovider)
+     **********************************************************/
+
+    __src_check(src) {
+        if (!(src instanceof StateProviderBase)) {
+            throw new Error(`"src" must be state provider ${src}`);
+        }
+        return src;
+    }    
+    __src_handle_change() {
+        if (this.index == undefined) {
+            this.index = new NearbyIndexSimple(this.src);
+        } else {
+            this.clearCaches();
+        }
+        this.notify_callbacks();
+        this.eventifyTrigger("change");   
+    }
+}
+addToPrototype$1(SourceLayer.prototype, "src", {mutable:true});
+
+
+/*********************************************************************
+    SOURCE LAYER CACHE
+*********************************************************************/
+
+/*
+    Source Layer used a specific cache implementation.    
+
+    Since Source Layer has a state provider, its index is
+    items, and the cache will instantiate segments corresponding to
+    these items. 
+*/
+
+class SourceLayerCache {
+    constructor(layer) {
+        // layer
+        this._layer = layer;
+        // cached nearby object
+        this._nearby = undefined;
+        // cached segment
+        this._segment = undefined;
+    }
+
+    query(offset) {
+        const cache_miss = (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        );
+        if (cache_miss) {
+            this._nearby = this._layer.index.nearby(offset);
+            let {itv, center} = this._nearby;
+            this._segments = center.map((item) => {
+                return load_segment(itv, item);
+            });
+        }
+        // query segments
+        const states = this._segments.map((seg) => {
+            return seg.query(offset);
+        });
+        return toState(this._segments, states, offset, this._layer.queryOptions)
+    }
+
+    clear() {
+        this._nearby = undefined;
+        this._segment = undefined;
+    }
+}
+
+/*********************************************************************
+    LOAD SEGMENT
+*********************************************************************/
+
+function load_segment(itv, item) {
+    let {type="static", data} = item;
+    if (type == "static") {
+        return new StaticSegment(itv, data);
+    } else if (type == "transition") {
+        return new TransitionSegment(itv, data);
+    } else if (type == "interpolation") {
+        return new InterpolationSegment(itv, data);
+    } else if (type == "motion") {
+        return new MotionSegment(itv, data);
+    } else {
+        console.log("unrecognized segment type", type);
+    }
+}
+
+/***************************************************************
+    MOTION STATE PROVIDER
+***************************************************************/
+
+/**
+ * Wraps the simpler motion provider to ensure 
+ * checking of state and implement the StateProvider 
+ * interface.
+ */
+
+class MotionStateProvider extends StateProviderBase {
+
+    constructor(mp) {
+        super();
+        if (!(mp instanceof MotionProviderBase)) {
+            throw new Error(`must be MotionProviderBase ${mp}`)
+        }
+        // motion provider
+        this._mp = mp;
+        // check initial state of motion provider
+        this._mp._state = check_state(this._mp._state);
+        // subscribe to callbacks
+        this._mp.add_callback(this._handle_callback.bind(this));
+    }
+
+    _handle_callback() {
+        // Forward callback from wrapped motion provider
+        this.notify_callbacks();
+    }
+
+    /**
+     * update motion state
+     */
+
+    update(items, options={}) {
+        // TODO - items should be coverted to motion state
+        let state = state_from_items(items);
+        state = check_state(state);
+        // forward updates to wrapped motion provider
+        return this._mp.set_state(state);
+    }
+
+    get_state() {
+        // resolve state from wrapped motion provider
+        let state = this._mp.get_state();
+        state = check_state(state);
+        return items_from_state(state);
+    }
+
+    get info () {
+        return {overlapping: false};
+    }
+}
+
+
+/***************************************************************
+    UTIL
+***************************************************************/
+
+function check_state(state) {
+    let {
+        position=0, 
+        velocity=0, 
+        acceleration=0,
+        timestamp=0,
+        range=[undefined, undefined] 
+    } = state || {};
+    state = {
+        position, 
+        velocity,
+        acceleration,
+        timestamp,
+        range
+    };
+    // vector values must be finite numbers
+    const props = ["position", "velocity", "acceleration", "timestamp"];
+    for (let prop of props) {
+        let n = state[prop];
+        if (!isFiniteNumber(n)) {
+            throw new Error(`${prop} must be number ${n}`);
+        }
+    }
+
+    // range values can be undefined or a number
+    for (let n of range) {
+        if (!(n == undefined || isFiniteNumber(n))) {
+            throw new Error(`range value must be undefined or number ${n}`);
+        }
+    }
+    let [low, high] = range;
+    if (low != undefined && low != undefined) {
+        if (low >= high) {
+            throw new Error(`low > high [${low}, ${high}]`)
+        } 
+    }
+    return {position, velocity, acceleration, timestamp, range};
+}
+
+function isFiniteNumber(n) {
+    return (typeof n == "number") && isFinite(n);
+}
+
+/**
+ * convert item list into motion state
+ */
+
+function state_from_items(items) {
+    // pick one item of motion type
+    const item = items.find((item) => {
+        return item.type == "motion";
+    });
+    if (item != undefined) {
+        return item.data;
+    }
+}
+
+/**
+ * convert motion state into items list
+ */
+
+function items_from_state (state) {
+    // motion segment for calculation
+    let [low, high] = state.range;
+    const seg = new MotionSegment([low, high, true, true], state);
+    const {value:value_low} = seg.state(low);
+    const {value:value_high} = seg.state(high);
+
+    // set up items
+    if (low == undefined && high == undefined) {
+        return [{
+            itv:[-Infinity, Infinity, true, true], 
+            type: "motion",
+            args: state
+        }];
+    } else if (low == undefined) {
+        return [
+            {
+                itv:[-Infinity, high, true, true], 
+                type: "motion",
+                args: state
+            },
+            {
+                itv:[high, Infinity, false, true], 
+                type: "static",
+                args: value_high
+            },
+        ];
+    } else if (high == undefined) {
+        return [
+            {
+                itv:[-Infinity, low, true, false], 
+                type: "static",
+                args: value_low
+            },
+            {
+                itv:[low, Infinity, true, true], 
+                type: "motion",
+                args: state
+            },
+        ];
+    } else {
+        return [
+            {
+                itv:[-Infinity, low, true, false], 
+                type: "static",
+                args: value_low
+            },
+            {
+                itv:[low, high, true, true], 
+                type: "motion",
+                args: state
+            },
+            {
+                itv:[high, Infinity, false, true], 
+                type: "static",
+                args: value_high
+            },
+        ];
+    }
+}
 
 /*
     Timeout Monitor
@@ -734,432 +2459,16 @@ function release(handle) {
     }
 }
 
-/*
-    
-    INTERVAL ENDPOINTS
-
-    * interval endpoints are defined by [value, sign], for example
-    * 
-    * 4) -> [4,-1] - endpoint is on the left of 4
-    * [4, 4, 4] -> [4, 0] - endpoint is at 4 
-    * (4 -> [4, 1] - endpoint is on the right of 4)
-    * 
-    * This representation ensures that the interval endpoints are ordered and allows
-    * intervals to be exclusive or inclusive, yet cover the entire real line 
-    * 
-    * [a,b], (a,b), [a,b), [a, b) are all valid intervals
-
-*/
-
-/*
-    Endpoint comparison
-    returns 
-        - negative : correct order
-        - 0 : equal
-        - positive : wrong order
-
-
-    NOTE 
-    - cmp(4],[4 ) == 0 - since these are the same with respect to sorting
-    - but if you want to see if two intervals are overlapping in the endpoints
-    cmp(high_a, low_b) > 0 this will not be good
-    
-*/ 
-
-
-function cmpNumbers(a, b) {
-    if (a === b) return 0;
-    if (a === Infinity) return 1;
-    if (b === Infinity) return -1;
-    if (a === -Infinity) return -1;
-    if (b === -Infinity) return 1;
-    return a - b;
-  }
-
-function endpoint_cmp (p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    let diff = cmpNumbers(v1, v2);
-    return (diff != 0) ? diff : s1 - s2;
-}
-
-function endpoint_lt (p1, p2) {
-    return endpoint_cmp(p1, p2) < 0
-}
-function endpoint_le (p1, p2) {
-    return endpoint_cmp(p1, p2) <= 0
-}
-function endpoint_gt (p1, p2) {
-    return endpoint_cmp(p1, p2) > 0
-}
-function endpoint_ge (p1, p2) {
-    return endpoint_cmp(p1, p2) >= 0
-}
-function endpoint_eq (p1, p2) {
-    return endpoint_cmp(p1, p2) == 0
-}
-function endpoint_min(p1, p2) {
-    return (endpoint_le(p1, p2)) ? p1 : p2;
-}
-function endpoint_max(p1, p2) {
-    return (endpoint_ge(p1, p2)) ? p1 : p2;
-}
-
-/**
- * flip endpoint to the other side
- * 
- * useful for making back-to-back intervals 
- * 
- * high) <-> [low
- * high] <-> (low
- */
-
-function endpoint_flip(p, target) {
-    let [v,s] = p;
-    if (!isFinite(v)) {
-        return p;
-    }
-    if (target == "low") {
-    	// assume point is high: sign must be -1 or 0
-    	if (s > 0) {
-			throw new Error("endpoint is already low");    		
-    	}
-        p = [v, s+1];
-    } else if (target == "high") {
-		// assume point is low: sign is 0 or 1
-    	if (s < 0) {
-			throw new Error("endpoint is already high");    		
-    	}
-        p = [v, s-1];
-    } else {
-    	throw new Error("illegal type", target);
-    }
-    return p;
-}
-
-
-/*
-    returns low and high endpoints from interval
-*/
-function endpoints_from_interval(itv) {
-    let [low, high, lowClosed, highClosed] = itv;
-    let low_p = (lowClosed) ? [low, 0] : [low, 1]; 
-    let high_p = (highClosed) ? [high, 0] : [high, -1];
-    return [low_p, high_p];
-}
-
-
-/*
-    INTERVALS
-
-    Intervals are [low, high, lowClosed, highClosed]
-
-*/ 
-
-/*
-    return true if point p is covered by interval itv
-    point p can be number p or a point [p,s]
-
-    implemented by comparing points
-    exception if interval is not defined
-*/
-function interval_covers_endpoint(itv, p) {
-    let [low_p, high_p] = endpoints_from_interval(itv);
-    // covers: low <= p <= high
-    return endpoint_le(low_p, p) && endpoint_le(p, high_p);
-}
-// convenience
-function interval_covers_point(itv, p) {
-    return interval_covers_endpoint(itv, [p, 0]);
-}
-
-
-
-/*
-    Return true if interval has length 0
-*/
-function interval_is_singular(interval) {
-    return interval[0] == interval[1]
-}
-
-/*
-    Create interval from endpoints
-*/
-function interval_from_endpoints(p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    // p1 must be a low point
-    if (s1 == -1) {
-        throw new Error("illegal low point", p1);
-    }
-    if (s2 == 1) {
-        throw new Error("illegeal high point", p2);   
-    }
-    return [v1, v2, (s1==0), (s2==0)]
-}
-
-function isNumber(n) {
-    return typeof n == "number";
-}
-
-function interval_from_input(input){
-    let itv = input;
-    if (itv == undefined) {
-        throw new Error("input is undefined");
-    }
-    if (!Array.isArray(itv)) {
-        if (isNumber(itv)) {
-            // input is singular number
-            itv = [itv, itv, true, true];
-        } else {
-            throw new Error(`input: ${input}: must be Array or Number`)
-        }
-    }    // make sure interval is length 4
-    if (itv.length == 1) {
-        itv = [itv[0], itv[0], true, true];
-    } else if (itv.length == 2) {
-        itv = itv.concat([true, false]);
-    } else if (itv.length == 3) {
-        itv = itv.push(false);
-    } else if (itv.length > 4) {
-        itv = itv.slice(0,4);
-    }
-    let [low, high, lowInclude, highInclude] = itv;
-    // undefined
-    if (low == undefined || low == null) {
-        low = -Infinity;
-    }
-    if (high == undefined || high == null) {
-        high = Infinity;
-    }
-    // check that low and high are numbers
-    if (!isNumber(low)) throw new Error("low not a number", low);
-    if (!isNumber(high)) throw new Error("high not a number", high);
-    // check that low <= high
-    if (low > high) throw new Error("low > high", low, high);
-    // singleton
-    if (low == high) {
-        lowInclude = true;
-        highInclude = true;
-    }
-    // check infinity values
-    if (low == -Infinity) {
-        lowInclude = true;
-    }
-    if (high == Infinity) {
-        highInclude = true;
-    }
-    // check that lowInclude, highInclude are booleans
-    if (typeof lowInclude !== "boolean") {
-        throw new Error("lowInclude not boolean");
-    } 
-    if (typeof highInclude !== "boolean") {
-        throw new Error("highInclude not boolean");
-    }
-    return [low, high, lowInclude, highInclude];
-}
-
-
-
-
-const endpoint = {
-    le: endpoint_le,
-    lt: endpoint_lt,
-    ge: endpoint_ge,
-    gt: endpoint_gt,
-    cmp: endpoint_cmp,
-    eq: endpoint_eq,
-    min: endpoint_min,
-    max: endpoint_max,
-    flip: endpoint_flip,
-    from_interval: endpoints_from_interval
-};
-const interval = {
-    covers_endpoint: interval_covers_endpoint,
-    covers_point: interval_covers_point, 
-    is_singular: interval_is_singular,
-    from_endpoints: interval_from_endpoints,
-    from_input: interval_from_input
-};
-
-/*
-    This decorates an object/prototype with basic (synchronous) callback support.
-*/
-
-const PREFIX$1 = "__callback";
-
-function addToInstance$2(object) {
-    object[`${PREFIX$1}_handlers`] = [];
-}
-
-function add_callback (handler) {
-    let handle = {
-        handler: handler
-    };
-    this[`${PREFIX$1}_handlers`].push(handle);
-    return handle;
-}
-function remove_callback (handle) {
-    let index = this[`${PREFIX$1}_handlers`].indexof(handle);
-    if (index > -1) {
-        this[`${PREFIX$1}_handlers`].splice(index, 1);
-    }
-}
-function notify_callbacks (eArg) {
-    this[`${PREFIX$1}_handlers`].forEach(function(handle) {
-        handle.handler(eArg);
-    });
-}
-
-function addToPrototype$2 (_prototype) {
-    const api = {
-        add_callback, remove_callback, notify_callbacks
-    };
-    Object.assign(_prototype, api);
-}
-
 /************************************************
- * CLOCK PROVIDER BASE
+ * LOCAL CLOCK PROVIDER
  ************************************************/
 
-/**
- * Base class for ClockProviders
- * 
- * Clock Providers implement the callback
- * interface to be compatible with other state
- * providers, even though they are not required to
- * provide any callbacks after clock adjustments
- */
-
-class ClockProviderBase {
-    constructor() {
-        addToInstance$2(this);
-    }
+class LocalClockProvider extends ClockProviderBase {
     now () {
-        throw new Error("not implemented");
+        return CLOCK.now();
     }
 }
-addToPrototype$2(ClockProviderBase.prototype);
-
-
-/**
- * Base class for MotionProviders
- * 
- * This is a convenience class offering a simpler way
- * of implementing state provider which deal exclusively
- * with motion segments.
- * 
- * Motionproviders do not deal with items, but with simpler
- * statements of motion state
- * 
- * state = {
- *      position: 0,
- *      velocity: 0,
- *      acceleration: 0,
- *      timestamp: 0
- *      range: [undefined, undefined]
- * }
- * 
- * Internally, MotionProvider will be wrapped so that they
- * become proper StateProviders.
- */
-
-class MotionProviderBase {
-
-    constructor(options={}) {
-        addToInstance$2(this);
-        let {state} = options;
-        if (state = undefined) {
-            this._state = {
-                position: 0,
-                velocity: 0,
-                acceleration: 0,
-                timestamp: 0,
-                range: [undefined, undefined]
-            };
-        } else {
-            this._state = state;
-        }
-    }
-
-    /**
-     * set motion state
-     * 
-     * implementations of online motion providers will
-     * use this to send an update request,
-     * and set _state on response and then call notify_callbaks
-     * If the proxy wants to set the state immediatedly - 
-     * it should be done using a Promise - to break the control flow.
-     * 
-     * return Promise.resolve()
-     *      .then(() => {
-     *           this._state = state;
-     *           this.notify_callbacks();
-     *       });
-     * 
-     */
-    set_state (state) {
-        throw new Error("not implemented");
-    }
-
-    // return current motion state
-    get_state () {
-        return {...this._state};
-    }
-}
-addToPrototype$2(MotionProviderBase.prototype);
-
-
-
-
-/************************************************
- * STATE PROVIDER BASE
- ************************************************/
-
-/*
-    Base class for StateProviders
-
-    - collection of items
-    - {key, itv, type, data}
-*/
-
-class StateProviderBase {
-
-    constructor() {
-        addToInstance$2(this);
-    }
-
-    /**
-     * update function
-     * 
-     * If ItemsProvider is a proxy to an online
-     * Items collection, update requests will 
-     * imply a network request
-     * 
-     * options - support reset flag 
-     */
-    update(items, options={}){
-        throw new Error("not implemented");
-    }
-
-    /**
-     * return array with all items in collection 
-     * - no requirement wrt order
-     */
-
-    get_items() {
-        throw new Error("not implemented");
-    }
-
-    /**
-     * signal if items can be overlapping or not
-     */
-
-    get info () {
-        return {overlapping: true};
-    }
-}
-addToPrototype$2(StateProviderBase.prototype);
+const localClockProvider = new LocalClockProvider();
 
 
 
@@ -1172,7 +2481,7 @@ class CursorBase {
     constructor () {
         addToInstance$2(this);
         // define change event
-        eventify.addToInstance(this);
+        eventifyInstance(this);
         this.eventifyDefine("change", {init:true});
     }
     
@@ -1210,797 +2519,9 @@ class CursorBase {
 
 }
 addToPrototype$2(CursorBase.prototype);
-eventify.addToPrototype(CursorBase.prototype);
+eventifyPrototype(CursorBase.prototype);
 
-/************************************************
- * SOURCE PROPERTY
- ************************************************/
 
-/**
- * Functions for extending a class with support for 
- * external source on a named property.
- * 
- * option: mutable:true means that propery may be reset 
- * 
- * source object is assumed to support the callback interface
- */
-
-function propnames (propName) {
-    return {
-        prop: `__${propName}`,
-        init: `__${propName}_init`,
-        handle: `__${propName}_handle`,
-        change: `__${propName}_handle_change`,
-        detatch: `__${propName}_detatch`,
-        attatch: `__${propName}_attatch`,
-        check: `__${propName}_check`
-    }
-}
-
-function addToInstance$1 (object, propName) {
-    const p = propnames(propName);
-    object[p.prop] = undefined;
-    object[p.init] = false;
-    object[p.handle] = undefined;
-}
-
-function addToPrototype$1 (_prototype, propName, options={}) {
-
-    const p = propnames(propName);
-
-    function detatch() {
-        // unsubscribe from source change event
-        let {mutable=false} = options;
-        if (mutable && this[p.prop]) {
-            let handle = this[p.handle];
-            this[p.prop].remove_callback(handle);
-            this[p.handle] = undefined;
-        }
-        this[p.prop] = undefined;
-    }
-
-    function attatch(source) {
-        let {mutable=false} = options;
-        if (!this[p.init] || mutable) {
-            this[p.prop] = source;
-            this[p.init] = true;
-            // subscribe to callback from source
-            if (this[p.change]) {
-                const handler = this[p.change].bind(this);
-                this[p.handle] = source.add_callback(handler);
-                handler("reset"); 
-            }
-        } else {
-            throw new Error(`${propName} can not be reassigned`);
-        }
-    }
-
-    /**
-     * 
-     * object must implement
-     * __{propName}_handle_change() {}
-     * 
-     * object can implement
-     * __{propName}_check(source) {}
-     */
-
-    // getter and setter
-    Object.defineProperty(_prototype, propName, {
-        get: function () {
-            return this[p.prop];
-        },
-        set: function (src) {
-            if (this[p.check]) {
-                src = this[p.check](src);
-            }
-            if (src != this[p.prop]) {
-                this[p.detatch]();
-                this[p.attatch](src);
-            }
-        }
-
-    });
-
-    const api = {};
-    api[p.detatch] = detatch;
-    api[p.attatch] = attatch;
-
-    Object.assign(_prototype, api);
-}
-
-const METHODS = {assign, move, transition, interpolate: interpolate$1};
-
-
-function cmd (target) {
-    if (!(target instanceof StateProviderBase)) {
-        throw new Error(`target.src must be stateprovider ${target}`);
-    }
-    let entries = Object.entries(METHODS)
-        .map(([name, method]) => {
-            return [
-                name,
-                function(...args) { 
-                    let items = method.call(this, ...args);
-                    return target.update(items);  
-                }
-            ]
-        });
-    return Object.fromEntries(entries);
-}
-
-function assign(value) {
-    if (value == undefined) {
-        return [];
-    } else {
-        let item = {
-            itv: [-Infinity, Infinity, true, true],
-            type: "static",
-            data: value                 
-        };
-        return [item];
-    }
-}
-
-function move(vector) {
-    let item = {
-        itv: [-Infinity, Infinity, true, true],
-        type: "motion",
-        data: vector  
-    };
-    return [item];
-}
-
-function transition(v0, v1, t0, t1, easing) {
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            data: v0
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "transition",
-            data: {v0, v1, t0, t1, easing}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            data: v1
-        }
-    ];
-    return items;
-}
-
-function interpolate$1(tuples) {
-    let [v0, t0] = tuples[0];
-    let [v1, t1] = tuples[tuples.length-1];
-
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            data: v0
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "interpolation",
-            data: tuples
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            data: v1
-        }
-    ];    
-    return items;
-}
-
-/************************************************
- * LAYER SOURCE INTERFACE
- ************************************************/
-
-/**
- * Decorate an object/prototype to implement 
- * the LayerSource interface.
- * 
- * - index
- * - valueFunc
- * - getCache
- * - clearCaches
- */
-
-const PREFIX = "__layersource";
-
-function addToInstance (object, CacheClass, valueFunc) {
-    object[`${PREFIX}_index`];
-    object[`${PREFIX}_valueFunc`] = valueFunc;
-    object[`${PREFIX}_cacheClass`] = CacheClass;
-    object[`${PREFIX}_cacheObjects`] = [];
-}
-
-function addToPrototype (_prototype) {
-
-    Object.defineProperty(_prototype, "index", {
-        get: function () {
-            return this[`${PREFIX}_index`];
-        },
-        set: function (index) {
-            this[`${PREFIX}_index`] = index;
-        }
-    });
-    Object.defineProperty(_prototype, "valueFunc", {
-        get: function () {
-            return this[`${PREFIX}_valueFunc`];
-        }
-    });
-
-    function getCache () {
-        let CacheClass = this[`${PREFIX}_cacheClass`];
-        console.log(CacheClass);
-        const cache = new CacheClass(this);
-        this[`${PREFIX}_cacheObjects`].push(cache);
-        return cache;
-    }
-
-    function clearCaches () {
-        for (let cache of this[`${PREFIX}_cacheObjects`]) {
-            cache.clear();
-        }
-    }
-    
-    Object.assign(_prototype, {getCache, clearCaches});
-}
-
-/************************************************
- * LAYER
- ************************************************/
-
-/**
- * Layer is abstract base class for Layers
- * 
- * Layer interface is defined by (index, CacheClass, valueFunc)
- */
-
-class Layer {
-
-    constructor(CacheClass, valueFunc) {
-        // callbacks
-        addToInstance$2(this);
-        // layer source api
-        addToInstance(this, CacheClass, valueFunc);
-        // define change event
-        eventify.addToInstance(this);
-        this.eventifyDefine("change", {init:true});
-    }
-
-    /*
-        Sample Layer by timeline offset increments
-        return list of tuples [value, offset]
-        options
-        - start
-        - stop
-        - step
-    */
-    sample(options={}) {
-        let {start=-Infinity, stop=Infinity, step=1} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
-        }
-        start = [start, 0];
-        stop = [stop, 0];
-        start = endpoint.max(this.index.first(), start);
-        stop = endpoint.min(this.index.last(), stop);
-        const cache = this.getCache();
-        return range(start[0], stop[0], step, {include_end:true})
-            .map((offset) => {
-                return [cache.query(offset).value, offset];
-            });
-    }
-}
-addToPrototype$2(Layer.prototype);
-addToPrototype(Layer.prototype);
-eventify.addToPrototype(Layer.prototype);
-
-/***************************************************************
-    LOCAL STATE PROVIDER
-***************************************************************/
-
-/**
- * Local Array with non-overlapping items.
- */
-
-class LocalStateProvider extends StateProviderBase {
-
-    constructor(options={}) {
-        super();
-        // initialization
-        let {items, value} = options;
-        if (items != undefined) {
-            // initialize from items
-            this._items = check_input(items);
-        } else if (value != undefined) {
-            // initialize from value
-            this._items = [{
-                itv:[-Infinity, Infinity, true, true], 
-                type: "static",
-                data:value
-            }];
-        } else {
-            this._items = [];
-        }
-    }
-
-    update (items, options) {
-        return Promise.resolve()
-            .then(() => {
-                this._items = check_input(items);
-                this.notify_callbacks();
-            });
-    }
-
-    get_items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {overlapping: false};
-    }
-}
-
-
-function check_input(items) {
-    if (!Array.isArray(items)) {
-        throw new Error("Input must be an array");
-    }
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
-    }
-    return items;
-}
-
-/********************************************************************
-BASE SEGMENT
-*********************************************************************/
-/*
-	Abstract Base Class for Segments
-
-    constructor(interval)
-
-    - interval: interval of validity of segment
-    - dynamic: true if segment is dynamic
-    - value(offset): value of segment at offset
-    - query(offset): state of segment at offset
-*/
-
-class BaseSegment {
-
-	constructor(itv) {
-		this._itv = itv;
-	}
-
-	get itv() {return this._itv;}
-
-    /** 
-     * implemented by subclass
-     * returns {value, dynamic};
-    */
-    state(offset) {
-    	throw new Error("not implemented");
-    }
-
-    /**
-     * convenience function returning the state of the segment
-     * @param {*} offset 
-     * @returns 
-     */
-    query(offset) {
-        if (interval.covers_point(this._itv, offset)) {
-            return {...this.state(offset), offset};
-        } 
-        return {value: undefined, dynamic:false, offset};
-    }
-}
-
-
-/********************************************************************
-    STATIC SEGMENT
-*********************************************************************/
-
-class StaticSegment extends BaseSegment {
-
-	constructor(itv, data) {
-        super(itv);
-		this._value = data;
-	}
-
-	state() {
-        return {value: this._value, dynamic:false}
-	}
-}
-
-
-/********************************************************************
-    MOTION SEGMENT
-*********************************************************************/
-/*
-    Implements deterministic projection based on initial conditions 
-    - motion vector describes motion under constant acceleration
-*/
-
-class MotionSegment extends BaseSegment {
-    
-    constructor(itv, data) {
-        super(itv);
-        const {
-            position:p0=0, 
-            velocity:v0=0, 
-            acceleration:a0=0, 
-            timestamp:t0=0
-        } = data;
-        // create motion transition
-        this._pos_func = function (ts) {
-            let d = ts - t0;
-            return p0 + v0*d + 0.5*a0*d*d;
-        };
-        this._vel_func = function (ts) {
-            let d = ts - t0;
-            return v0 + a0*d;
-        };
-        this._acc_func = function (ts) {
-            return a0;
-        };
-    }
-
-    state(offset) {
-        let pos = this._pos_func(offset);
-        let vel = this._vel_func(offset);
-        let acc = this._acc_func(offset);
-        return {
-            position: pos,
-            velocity: vel,
-            acceleration: acc,
-            timestamp: offset,
-            value: pos,
-            dynamic: (vel != 0 || acc != 0 )
-        }
-    }
-}
-
-
-/********************************************************************
-    TRANSITION SEGMENT
-*********************************************************************/
-
-/*
-    Supported easing functions
-    "ease-in":
-    "ease-out":
-    "ease-in-out"
-*/
-
-function easein (ts) {
-    return Math.pow(ts,2);  
-}
-function easeout (ts) {
-    return 1 - easein(1 - ts);
-}
-function easeinout (ts) {
-    if (ts < .5) {
-        return easein(2 * ts) / 2;
-    } else {
-        return (2 - easein(2 * (1 - ts))) / 2;
-    }
-}
-
-class TransitionSegment extends BaseSegment {
-
-	constructor(itv, data) {
-		super(itv);
-        let {v0, v1, easing} = data;
-        let [t0, t1] = this._itv.slice(0,2);
-
-        // create the transition function
-        this._dynamic = v1-v0 != 0;
-        this._trans = function (ts) {
-            // convert ts to [t0,t1]-space
-            // - shift from [t0,t1]-space to [0,(t1-t0)]-space
-            // - scale from [0,(t1-t0)]-space to [0,1]-space
-            ts = ts - t0;
-            ts = ts/parseFloat(t1-t0);
-            // easing functions stretches or compresses the time scale 
-            if (easing == "ease-in") {
-                ts = easein(ts);
-            } else if (easing == "ease-out") {
-                ts = easeout(ts);
-            } else if (easing == "ease-in-out") {
-                ts = easeinout(ts);
-            }
-            // linear transition from v0 to v1, for time values [0,1]
-            ts = Math.max(ts, 0);
-            ts = Math.min(ts, 1);
-            return v0 + (v1-v0)*ts;
-        };
-	}
-
-	state(offset) {
-        return {value: this._trans(offset), dynamic:this._dynamic}
-	}
-}
-
-
-
-/********************************************************************
-    INTERPOLATION SEGMENT
-*********************************************************************/
-
-/**
- * Function to create an interpolator for nearest neighbor interpolation with
- * extrapolation support.
- *
- * @param {Array} tuples - An array of [value, offset] pairs, where value is the
- * point's value and offset is the corresponding offset.
- * @returns {Function} - A function that takes an offset and returns the
- * interpolated or extrapolated value.
- */
-
-function interpolate(tuples) {
-
-    if (tuples.length < 1) {
-        return function interpolator () {return undefined;}
-    } else if (tuples.length == 1) {
-        return function interpolator () {return tuples[0][0];}
-    }
-
-    // Sort the tuples by their offsets
-    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
-  
-    return function interpolator(offset) {
-      // Handle extrapolation before the first point
-      if (offset <= sortedTuples[0][1]) {
-        const [value1, offset1] = sortedTuples[0];
-        const [value2, offset2] = sortedTuples[1];
-        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-      }
-      
-      // Handle extrapolation after the last point
-      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
-        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
-        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
-        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-      }
-  
-      // Find the nearest points to the left and right
-      for (let i = 0; i < sortedTuples.length - 1; i++) {
-        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
-          const [value1, offset1] = sortedTuples[i];
-          const [value2, offset2] = sortedTuples[i + 1];
-          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
-          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-        }
-      }
-  
-      // In case the offset does not fall within any range (should be covered by the previous conditions)
-      return undefined;
-    };
-}
-  
-
-class InterpolationSegment extends BaseSegment {
-
-    constructor(itv, tuples) {
-        super(itv);
-        // setup interpolation function
-        this._trans = interpolate(tuples);
-    }
-
-    state(offset) {
-        return {value: this._trans(offset), dynamic:true};
-    }
-}
-
-/***************************************************************
-    MOTION STATE PROVIDER
-***************************************************************/
-
-/**
- * Wraps the simpler motion provider to ensure 
- * checking of state and implement the StateProvider 
- * interface.
- */
-
-class MotionStateProvider extends StateProviderBase {
-
-    constructor(mp) {
-        super();
-        if (!(mp instanceof MotionProviderBase)) {
-            throw new Error(`must be MotionProviderBase ${mp}`)
-        }
-        // motion provider
-        this._mp = mp;
-        // check initial state of motion provider
-        this._mp._state = check_state(this._mp._state);
-        // subscribe to callbacks
-        this._mp.add_callback(this._handle_callback.bind(this));
-    }
-
-    _handle_callback() {
-        // Forward callback from wrapped motion provider
-        this.notify_callbacks();
-    }
-
-    /**
-     * update motion state
-     */
-
-    update(items, options={}) {
-        // TODO - items should be coverted to motion state
-        let state = state_from_items(items);
-        state = check_state(state);
-        // forward updates to wrapped motion provider
-        return this._mp.set_state(state);
-    }
-
-    get_state() {
-        // resolve state from wrapped motion provider
-        let state = this._mp.get_state();
-        state = check_state(state);
-        return items_from_state(state);
-    }
-
-    get info () {
-        return {overlapping: false};
-    }
-}
-
-
-/***************************************************************
-    UTIL
-***************************************************************/
-
-function check_state(state) {
-    let {
-        position=0, 
-        velocity=0, 
-        acceleration=0,
-        timestamp=0,
-        range=[undefined, undefined] 
-    } = state || {};
-    state = {
-        position, 
-        velocity,
-        acceleration,
-        timestamp,
-        range
-    };
-    // vector values must be finite numbers
-    const props = ["position", "velocity", "acceleration", "timestamp"];
-    for (let prop of props) {
-        let n = state[prop];
-        if (!isFiniteNumber(n)) {
-            throw new Error(`${prop} must be number ${n}`);
-        }
-    }
-
-    // range values can be undefined or a number
-    for (let n of range) {
-        if (!(n == undefined || isFiniteNumber(n))) {
-            throw new Error(`range value must be undefined or number ${n}`);
-        }
-    }
-    let [low, high] = range;
-    if (low != undefined && low != undefined) {
-        if (low >= high) {
-            throw new Error(`low > high [${low}, ${high}]`)
-        } 
-    }
-    return {position, velocity, acceleration, timestamp, range};
-}
-
-function isFiniteNumber(n) {
-    return (typeof n == "number") && isFinite(n);
-}
-
-/**
- * convert item list into motion state
- */
-
-function state_from_items(items) {
-    // pick one item of motion type
-    const item = items.find((item) => {
-        return item.type == "motion";
-    });
-    if (item != undefined) {
-        return item.data;
-    }
-}
-
-/**
- * convert motion state into items list
- */
-
-function items_from_state (state) {
-    // motion segment for calculation
-    let [low, high] = state.range;
-    const seg = new MotionSegment([low, high, true, true], state);
-    const {value:value_low} = seg.state(low);
-    const {value:value_high} = seg.state(high);
-
-    // set up items
-    if (low == undefined && high == undefined) {
-        return [{
-            itv:[-Infinity, Infinity, true, true], 
-            type: "motion",
-            args: state
-        }];
-    } else if (low == undefined) {
-        return [
-            {
-                itv:[-Infinity, high, true, true], 
-                type: "motion",
-                args: state
-            },
-            {
-                itv:[high, Infinity, false, true], 
-                type: "static",
-                args: value_high
-            },
-        ];
-    } else if (high == undefined) {
-        return [
-            {
-                itv:[-Infinity, low, true, false], 
-                type: "static",
-                args: value_low
-            },
-            {
-                itv:[low, Infinity, true, true], 
-                type: "motion",
-                args: state
-            },
-        ];
-    } else {
-        return [
-            {
-                itv:[-Infinity, low, true, false], 
-                type: "static",
-                args: value_low
-            },
-            {
-                itv:[low, high, true, true], 
-                type: "motion",
-                args: state
-            },
-            {
-                itv:[high, Infinity, false, true], 
-                type: "static",
-                args: value_high
-            },
-        ];
-    }
-}
-
-/************************************************
- * LOCAL CLOCK PROVIDER
- ************************************************/
-
-class LocalClockProvider extends ClockProviderBase {
-    now () {
-        return CLOCK.now();
-    }
-}
-const localClockProvider = new LocalClockProvider();
 
 
 
@@ -2388,311 +2909,51 @@ class Cursor extends CursorBase {
 addToPrototype$1(Cursor.prototype, "src", {mutable:true});
 addToPrototype$1(Cursor.prototype, "ctrl", {mutable:true});
 
-/*********************************************************************
-    NEARBY INDEX
-*********************************************************************/
-
 /**
- * Abstract superclass for NearbyIndexe.
  * 
- * Superclass used to check that a class implements the nearby() method, 
- * and provide some convenience methods.
+ * This implements a merge operation for layers.
+ * List of sources is immutable.
  * 
- * NEARBY INDEX
- * 
- * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
- * given that
- * (i) each entriy is associated with an interval and,
- * (ii) entries are non-overlapping.
- * Each ITEM must be associated with an interval on the timeline 
- * 
- * NEARBY
- * The nearby method returns information about the neighborhood around endpoint. 
- * 
- * Primary use is for iteration 
- * 
- * Returns {
- *      center: list of ITEMS covering endpoint,
- *      itv: interval where nearby returns identical {center}
- *      left:
- *          first interval endpoint to the left 
- *          which will produce different {center}
- *          always a high-endpoint or undefined
- *      right:
- *          first interval endpoint to the right
- *          which will produce different {center}
- *          always a low-endpoint or undefined         
- *      prev:
- *          first interval endpoint to the left 
- *          which will produce different && non-empty {center}
- *          always a high-endpoint or undefined if no more intervals to the left
- *      next:
- *          first interval endpoint to the right
- *          which will produce different && non-empty {center}
- *          always a low-endpoint or undefined if no more intervals to the right
- * }
- * 
- * 
- * The nearby state is well-defined for every timeline position.
- * 
- * 
- * NOTE left/right and prev/next are mostly the same. The only difference is 
- * that prev/next will skip over regions where there are no intervals. This
- * ensures practical iteration of items as prev/next will only be undefined  
- * at the end of iteration.
- * 
- * INTERVALS
- * 
- * [low, high, lowInclusive, highInclusive]
- * 
- * This representation ensures that the interval endpoints are ordered and allows
- * intervals to be exclusive or inclusive, yet cover the entire real line 
- * 
- * [a,b], (a,b), [a,b), [a, b) are all valid intervals
- * 
- * 
- * INTERVAL ENDPOINTS
- * 
- * interval endpoints are defined by [value, sign], for example
- * 
- * 4) -> [4,-1] - endpoint is on the left of 4
- * [4, 4, 4] -> [4, 0] - endpoint is at 4 
- * (4 -> [4, 1] - endpoint is on the right of 4)
- * 
- * / */
-
- class NearbyIndexBase {
-
-
-    /* 
-        Nearby method
-    */
-    nearby(offset) {
-        throw new Error("Not implemented");
-    }
-
-
-    /*
-        return low point of leftmost entry
-    */
-    first() {
-        let {center, right} = this.nearby([-Infinity, 0]);
-        return (center.length > 0) ? [-Infinity, 0] : right;
-    }
-
-    /*
-        return high point of rightmost entry
-    */
-    last() {
-        let {left, center} = this.nearby([Infinity, 0]);
-        return (center.length > 0) ? [Infinity, 0] : left
-    }
-
-    /*
-        List items of NearbyIndex (order left to right)
-        interval defines [start, end] offset on the timeline.
-        Returns list of item-lists.
-        options
-        - start
-        - stop
-    */
-    list(options={}) {
-        let {start=-Infinity, stop=Infinity} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
-        }
-        start = [start, 0];
-        stop = [stop, 0];
-        let current = start;
-        let nearby;
-        const results = [];
-        let limit = 5;
-        while (limit) {
-            if (endpoint.gt(current, stop)) {
-                // exhausted
-                break;
-            }
-            nearby = this.nearby(current);
-            if (nearby.center.length == 0) {
-                // center empty (typically first iteration)
-                if (nearby.right == undefined) {
-                    // right undefined
-                    // no entries - already exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            } else {
-                results.push(nearby.center);
-                if (nearby.right == undefined) {
-                    // right undefined
-                    // last entry - mark iteractor exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            }
-            limit--;
-        }
-        return results;
-    }
-}
-
-/**
- * Returns a Layer representing a layer
- * representing the merging of sources.
  */
 
-
 function merge (sources, valueFunc) {
-
-    const index = new MergeIndex(sources);
-
     // create layer
-    return new Layer({index, valueFunc});
+    return new MergeLayer(sources, valueFunc);
 }
 
+/*********************************************************************
+    MERGE LAYER
+*********************************************************************/
 
-
-
-/************************************************
- * MERGE LAYER
- ************************************************/
-
-
-
-
-class MergeLayerCacheObject {
-
-    constructor (layer) {
-        this._layer = layer;
-        this._cache_objects = layer.sources.map((layer) => {
-            return layer.getQueryObject()
-        });
-    }
-
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        const vector = this._cache_objects.map((cache_object) => {
-            return cache_object.query(offset);
-        });
-        const valueFunc = this._layer.valueFunc;
-        const dynamic = vector.map((v) => v.dynamic).some(e => e == true);
-        const values = vector.map((v) => v.value);
-        const value = (valueFunc) ? valueFunc(values) : values;
-        return {value, dynamic, offset};
-    }
-
-    dirty() {
-        // Noop - as long as queryobject is stateless
-    }
-
-    refresh(offset) {
-        // Noop - as long as queryobject is stateless
-    }
-
-    get nearby() {
-        throw new Error("not implemented")
-    }
-
-
-}
-
-
-class MergeLayer extends LayerBase {
-
-    constructor (options={}) {
-        super();
-
-        this._cache_objects = [];
-
-        // value func
-        let {valueFunc=undefined} = options;
-        if (typeof valueFunc == "function") {
-            this._valueFunc = valueFunc;
-        }
-
-        // sources (layers)
-        this._sources;
-        let {sources} = options;
-        if (sources) {
-            this.sources = sources;
-        }
- 
-        // subscribe to callbacks from sources
-    }
-
-
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get valueFunc () {
-        return this._valueFunc;
-    }
-
-    getQueryObject () {
-        const cache_object = new MergeLayerCacheObject(this);
-        this._cache_objects.push(cache_object);
-        return cache_object;
-    }
-
-    /*
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        let values = this._sources.map((layer) => {
-            return layer.query(offset);
-        });
-        // TODO - apply function to arrive at single value for layer.
-        return values;
-    }
-    */
-
-    /**********************************************************
-     * UPDATE API
-     **********************************************************/
-    
-    get sources () {
-        return this._sources;
-    }
-    set sources (sources) {
+class MergeLayer extends Layer {
+    constructor(sources, options) {
+        super(options);
+        // src - immutable
         this._sources = sources;
-        let indexes = sources.map((layer) => layer.index);
-        this._index = new NearbyIndexMerge(indexes);
+        // index
+        this.index = new MergeIndex(sources);
+        // subscribe to callbacks
+        const handler = this._handle_src_change.bind(this);
+        for (let src of this._sources) {
+            src.add_callback(handler);            
+        }
     }
 
-}
+    get sources () {return this._sources;}
 
+    _handle_src_change(eArg) {
+        this.clearCaches();
+        this.notify_callback();
+        this.eventifyTrigger("change"); 
+    }
+} 
 
-
-
-
-
-
-
-function cmp_ascending(p1, p2) {
-    return endpoint.cmp(p1, p2)
-}
-
-function cmp_descending(p1, p2) {
-    return endpoint.cmp(p2, p1)
-}
 
 /**
  * Merging indexes from multiple sources into a single index.
  * 
  * A source is an object with an index.
- * - layer
- * - datasource
+ * - layer (cursor)
  * 
  * The merged index gives a temporal structure for the
  * collection of sources, computing a list of
@@ -2703,6 +2964,14 @@ function cmp_descending(p1, p2) {
  * 
  * Implementaion is stateless.
  */
+
+function cmp_ascending(p1, p2) {
+    return endpoint.cmp(p1, p2)
+}
+
+function cmp_descending(p1, p2) {
+    return endpoint.cmp(p2, p1)
+}
 
 class MergeIndex extends NearbyIndexBase {
 
@@ -2718,7 +2987,7 @@ class MergeIndex extends NearbyIndexBase {
             let {itv, prev, center, next} = src.index.nearby(offset);
             if (prev != undefined) prev_list.push(prev);            
             if (next != undefined) next_list.push(next);
-            if (center > 0) {
+            if (center.length > 0) {
                 center_list.push({itv, src});
             }
         }
@@ -2746,7 +3015,6 @@ class MergeIndex extends NearbyIndexBase {
             result.prev = max_prev_high;
 
         } else {
-
             // non-empty center
 
             // center high
@@ -2800,292 +3068,8 @@ class MergeIndex extends NearbyIndexBase {
         if (result.right[0] == Infinity) {
             result.right = undefined;
         }
-
         return result;
     }
 }
 
-/**
- * 
- * Nearby Index Simple
- * 
- * - items are assumed to be non-overlapping on the timeline, 
- * - implying that nearby.center will be a list of at most one ITEM. 
- * - exception will be raised if overlapping ITEMS are found
- * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
- * 
- *  
- */
-
-
-// get interval low point
-function get_low_value(item) {
-    return item.itv[0];
-}
-
-// get interval low endpoint
-function get_low_endpoint(item) {
-    return endpoint.from_interval(item.itv)[0]
-}
-
-// get interval high endpoint
-function get_high_endpoint(item) {
-    return endpoint.from_interval(item.itv)[1]
-}
-
-
-class NearbyIndexSimple extends NearbyIndexBase {
-
-    constructor(src) {
-        super();
-        this._src = src;
-    }
-
-    get src () {return this._src;}
-
-    /*
-        nearby by offset
-        
-        returns {left, center, right}
-
-        binary search based on offset
-        1) found, idx
-            offset matches value of interval.low of an item
-            idx gives the index of this item in the array
-        2) not found, idx
-            offset is either covered by item at (idx-1),
-            or it is not => between entries
-            in this case - idx gives the index where an item
-            should be inserted - if it had low == offset
-    */
-    nearby(offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (!Array.isArray(offset)) {
-            throw new Error("Endpoint must be an array");
-        }
-        const result = {
-            center: [],
-            itv: [-Infinity, Infinity, true, true],
-            left: undefined,
-            right: undefined,
-            prev: undefined,
-            next: undefined
-        };
-        let items = this._src.get_items();
-        let indexes, item;
-        const size = items.length;
-        if (size == 0) {
-            return result; 
-        }
-        let [found, idx] = find_index(offset[0], items, get_low_value);
-        if (found) {
-            // search offset matches item low exactly
-            // check that it indeed covered by item interval
-            item = items[idx];
-            if (interval.covers_endpoint(item.itv, offset)) {
-                indexes = {left:idx-1, center:idx, right:idx+1};
-            }
-        }
-        if (indexes == undefined) {
-            // check prev item
-            item = items[idx-1];
-            if (item != undefined) {
-                // check if search offset is covered by item interval
-                if (interval.covers_endpoint(item.itv, offset)) {
-                    indexes = {left:idx-2, center:idx-1, right:idx};
-                } 
-            }
-        }	
-        if (indexes == undefined) {
-            // prev item either does not exist or is not relevant
-            indexes = {left:idx-1, center:-1, right:idx};
-        }
-
-        // center
-        if (0 <= indexes.center && indexes.center < size) {
-            result.center =  [items[indexes.center]];
-        }
-        // prev/next
-        if (0 <= indexes.left && indexes.left < size) {
-            result.prev =  get_high_endpoint(items[indexes.left]);
-        }
-        if (0 <= indexes.right && indexes.right < size) {
-            result.next =  get_low_endpoint(items[indexes.right]);
-        }        
-        // left/right
-        let low, high;
-        if (result.center.length > 0) {
-            let itv = result.center[0].itv;
-            [low, high] = endpoint.from_interval(itv);
-            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
-            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
-            result.itv = result.center[0].itv;
-        } else {
-            result.left = result.prev;
-            result.right = result.next;
-            // interval
-            let left = result.left;
-            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
-            let right = result.right;
-            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
-            result.itv = interval.from_endpoints(low, high);
-        }
-        return result;
-    }
-}
-
-/*********************************************************************
-	UTILS
-*********************************************************************/
-
-
-/*
-	binary search for finding the correct insertion index into
-	the sorted array (ascending) of items
-	
-	array contains objects, and value func retreaves a value
-	from each object.
-
-	return [found, index]
-*/
-
-function find_index(target, arr, value_func) {
-
-    function default_value_func(el) {
-        return el;
-    }
-    
-    let left = 0;
-	let right = arr.length - 1;
-	value_func = value_func || default_value_func;
-	while (left <= right) {
-		const mid = Math.floor((left + right) / 2);
-		let mid_value = value_func(arr[mid]);
-		if (mid_value === target) {
-			return [true, mid]; // Target already exists in the array
-		} else if (mid_value < target) {
-			  left = mid + 1; // Move search range to the right
-		} else {
-			  right = mid - 1; // Move search range to the left
-		}
-	}
-  	return [false, left]; // Return the index where target should be inserted
-}
-
-/*********************************************************************
-    INPUT LAYER
-*********************************************************************/
-
-/**
- * InputLayer is a Layer with a stateprovider.
- * 
- * .src : stateprovider.
- */
-
-class InputLayer extends Layer {
-
-    constructor(options={}) {
-        let {src, valueFunc, ...opts} = options;
-        super(InputLayerCache, valueFunc);
-        // src
-        addToInstance$1(this, "src");
-
-        // initialise stateprovider
-        if (src == undefined) {
-            src = new LocalStateProvider(opts);
-        }        
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRC (stateprovider)
-     **********************************************************/
-
-    __src_check(src) {
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${src}`);
-        }
-        return src;
-    }    
-    __src_handle_change() {
-        if (this.index == undefined) {
-            this.index = new NearbyIndexSimple(this.src);
-        } else {
-            this.clearCaches();
-        }
-        this.notify_callbacks();
-        // trigger change event for cursor
-        this.eventifyTrigger("change");   
-    }
-}
-addToPrototype$1(InputLayer.prototype, "src", {mutable:true});
-
-
-/*********************************************************************
-    INPUTLAYER CACHE
-*********************************************************************/
-
-/*
-    This implements a cache for an InputLayer 
-    Since InputLayer has a state provider, its index is
-    items, and the cache will instantiate segments corresponding to
-    these items. 
-*/
-
-class InputLayerCache {
-    constructor(layer) {
-        // layer
-        this._layer = layer;
-        // cached nearby object
-        this._nearby = undefined;
-        // cached segment
-        this._segment = undefined;
-    }
-
-    query(offset) {
-        const cache_miss = (
-            this._nearby == undefined ||
-            !interval.covers_point(this._nearby.itv, offset)
-        );
-        if (cache_miss) {
-            this._nearby = this._layer.index.nearby(offset);
-            let {itv, center} = this._nearby;
-            this._segments = center.map((item) => {
-                return load_segment(itv, item);
-            });
-        }
-        // query segments
-        const states = this._segments.map((seg) => {
-            return seg.query(offset);
-        });
-        return toState(states, this._layer.valueFunc)
-    }
-
-    clear() {
-        this._nearby = undefined;
-        this._segment = undefined;
-    }
-}
-
-/*********************************************************************
-    LOAD SEGMENT
-*********************************************************************/
-
-function load_segment(itv, item) {
-    let {type="static", data} = item;
-    if (type == "static") {
-        return new StaticSegment(itv, data);
-    } else if (type == "transition") {
-        return new TransitionSegment(itv, data);
-    } else if (type == "interpolation") {
-        return new InterpolationSegment(itv, data);
-    } else if (type == "motion") {
-        return new MotionSegment(itv, data);
-    } else {
-        console.log("unrecognized segment type", type);
-    }
-}
-
-export { Cursor, InputLayer, cmd, merge };
+export { Cursor, cmd, getLayer, merge };

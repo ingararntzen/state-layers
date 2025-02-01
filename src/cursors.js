@@ -1,15 +1,19 @@
+import * as callback from "./api_callback.js";
+import * as sourceprop from "./api_sourceprop.js";
+import * as eventify from "./api_eventify.js";
 import { CLOCK } from "./util.js";
 import { 
     ClockProviderBase,
     MotionProviderBase,
     StateProviderBase
 } from "./stateprovider_bases.js";
-import * as sourceprop from "./sourceprop.js";
 import { cmd } from "./cmd.js";
-import { Layer } from "./newlayer.js";
+import { Layer } from "./layers.js";
 import { LocalStateProvider } from "./stateprovider_simple.js";
 import { MotionStateProvider } from "./stateprovider_motion.js";
 import { interval } from "./intervals.js";
+import { bind, release } from "./monitor.js";
+
 
 /************************************************
  * LOCAL CLOCK PROVIDER

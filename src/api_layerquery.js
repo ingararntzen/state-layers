@@ -15,7 +15,7 @@
  * 
  * - clearCaches is for internal use
  * - index is the actual target of of the query
- * - valueFunc specializes the query output
+ * - queryOptions specializes the query output
  * 
  * 
  * NOTE - this might be part of the BaseLayer class instead.
@@ -23,9 +23,9 @@
 
 const PREFIX = "__layerquery";
 
-export function addToInstance (object, CacheClass, valueFunc) {
+export function addToInstance (object, queryOptions, CacheClass) {
     object[`${PREFIX}_index`];
-    object[`${PREFIX}_valueFunc`] = valueFunc;
+    object[`${PREFIX}_queryOptions`] = queryOptions;
     object[`${PREFIX}_cacheClass`] = CacheClass;
     object[`${PREFIX}_cacheObjects`] = [];
 }
@@ -40,15 +40,14 @@ export function addToPrototype (_prototype) {
             this[`${PREFIX}_index`] = index;
         }
     });
-    Object.defineProperty(_prototype, "valueFunc", {
+    Object.defineProperty(_prototype, "queryOptions", {
         get: function () {
-            return this[`${PREFIX}_valueFunc`];
+            return this[`${PREFIX}_queryOptions`];
         }
     });
 
     function getCache () {
-        let CacheClass = this[`${PREFIX}_cacheClass`]
-        console.log(CacheClass)
+        let CacheClass = this[`${PREFIX}_cacheClass`];
         const cache = new CacheClass(this);
         this[`${PREFIX}_cacheObjects`].push(cache);
         return cache;
