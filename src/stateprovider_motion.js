@@ -1,7 +1,7 @@
 import { 
     StateProviderBase,
     MotionProviderBase 
-} from "./bases.js";
+} from "./stateprovider_bases.js";
 import { MotionSegment } from "./segments.js";
 
 

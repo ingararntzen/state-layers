@@ -1,12 +1,14 @@
+import * as eventify from "./api_eventify.js";
+import * as layerquery from "./api_layerquery.js";
+import * as callback from "./api_callback.js";
+import * as sourceprop from "./api_sourceprop.js";
+import * as segment from "./segments.js";
 
-import { LayerBase, StateProviderBase } from "./bases.js";
-import * as sourceprop from "./sourceprop.js";
+import { interval, endpoint } from "./intervals.js";
+import { range, toState } from "./util.js";
+import { StateProviderBase } from "./stateprovider_bases.js";
 import { LocalStateProvider } from "./stateprovider_simple.js";
-import { NearbyIndexSimple } from "./nearbyindex_simple.js";
-import { NearbyCache } from "./nearbycache.js";
-import { NearbyIndexMerge } from "./nearbyindex_merge.js";
-
-
+import { NearbyIndexSimple } from "./nearbyindex_simple";
 
 
 /************************************************
@@ -14,44 +16,145 @@ import { NearbyIndexMerge } from "./nearbyindex_merge.js";
  ************************************************/
 
 /**
+ * Layer is abstract base class for Layers
  * 
- * Layer
- * - has mutable state provider (src) (default state undefined)
- * - methods for list and sample
- * 
+ * Layer interface is defined by (index, CacheClass, valueFunc)
  */
 
-export class Layer extends LayerBase {
+export class Layer {
 
-    constructor (options={}) {
-        super();
+    constructor(CacheClass, valueFunc) {
+        // callbacks
+        callback.addToInstance(this);
+        // layer query api
+        layerquery.addToInstance(this, CacheClass, valueFunc);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
 
+    /*
+        Sample Layer by timeline offset increments
+        return list of tuples [value, offset]
+        options
+        - start
+        - stop
+        - step
+    */
+    sample(options={}) {
+        let {start=-Infinity, stop=Infinity, step=1} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+        start = endpoint.max(this.index.first(), start);
+        stop = endpoint.min(this.index.last(), stop);
+        const cache = this.getCache();
+        return range(start[0], stop[0], step, {include_end:true})
+            .map((offset) => {
+                return [cache.query(offset).value, offset];
+            });
+    }
+}
+callback.addToPrototype(Layer.prototype);
+layerquery.addToPrototype(Layer.prototype);
+eventify.addToPrototype(Layer.prototype);
+
+
+/************************************************
+ * LAYER CACHE
+ ************************************************/
+
+/**
+ * This implements a Cache to be used with Layer objects
+ * Query results are obtained from the src objects in the
+ * layer index.
+ * and cached only if they describe a static value. 
+ */
+
+export class LayerCache {
+
+    constructor(layer) {
+        this._layer = layer;
+        // cached nearby state
+        this._nearby;
+        // cached result
+        this._state;
+        // src cache objects (src -> cache)
+        this._cache_map = new Map();
+    }
+
+    /**
+     * query cache
+     */
+    query(offset) {
+        const need_nearby = (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        );
+        if (
+            !need_nearby && 
+            this._state != undefined &&
+            !this._state.dynamic
+        ) {
+            // cache hit
+            return {...this._state, offset};
+        }
+        // cache miss
+        if (need_nearby) {
+            this._nearby = this._layer.index.nearby(offset);
+        }
+        // perform queries
+        const states = this._nearby.center
+            // map to cache object
+            .map((item) => {
+                if (!this._cache_map.has(item.src)) {
+                    this._cache_map.set(item.src, item.src.getCache());
+                }
+                return this._cache_map.get(item.src);
+            })
+            // map to query results
+            .map((cache) => {
+                return cache.query(offset);
+            });
+
+        const state = toState(states, this._layer.valueFunc)
+        // cache state only if not dynamic
+        this._state = (state.dynamic) ? undefined : state;
+        return state    
+    }
+
+    clear() {
+        this._itv = undefined;
+        this._state = undefined;
+    }
+}
+
+
+/*********************************************************************
+    SOURCE LAYER
+*********************************************************************/
+
+/**
+ * SourceLayer is a Layer with a stateprovider.
+ * 
+ * .src : stateprovider.
+ */
+
+export class SourceLayer extends Layer {
+
+    constructor(options={}) {
+        let {src, valueFunc, ...opts} = options;
+        super(SourceLayerCache, valueFunc);
         // src
         sourceprop.addToInstance(this, "src");
-        // cache objects
-        this._cache = new NearbyCache(this);
-        this._cache_objects = [];
 
-        // initialise with stateprovider
-        let {src, ...opts} = options;
+        // initialise stateprovider
         if (src == undefined) {
             src = new LocalStateProvider(opts);
-        }
+        }        
         this.src = src;
-    }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    getQueryObject () {
-        const cache_object = new NearbyCache(this);
-        this._cache_objects.push(cache_object);
-        return cache_object;
-    }
-    
-    query (offset) {
-        return this._cache.query(offset);
     }
 
     /**********************************************************
@@ -65,147 +168,84 @@ export class Layer extends LayerBase {
         return src;
     }    
     __src_handle_change() {
-        if (this._index == undefined) {
-            this._index = new NearbyIndexSimple(this.src)
+        if (this.index == undefined) {
+            this.index = new NearbyIndexSimple(this.src)
         } else {
-            this._cache.dirty();
-            for (let cache_object of this._cache_objects) {
-                cache_object.dirty();
-            }
+            this.clearCaches();
         }
         this.notify_callbacks();
         // trigger change event for cursor
         this.eventifyTrigger("change");   
     }
 }
-sourceprop.addToPrototype(Layer.prototype, "src", {mutable:true});
+sourceprop.addToPrototype(SourceLayer.prototype, "src", {mutable:true});
 
 
-function fromArray (array) {
-    const items = array.map((obj, index) => {
-        return { 
-            itv: [index, index+1, true, false], 
-            type: "static", 
-            data: obj};
-    });
-    return new Layer({items});
-}
+/*********************************************************************
+    SOURCE LAYER CACHE
+*********************************************************************/
 
-Layer.fromArray = fromArray;
+/*
+    Source Layer used a specific cache implementation.    
 
+    Since Source Layer has a state provider, its index is
+    items, and the cache will instantiate segments corresponding to
+    these items. 
+*/
 
-
-/************************************************
- * MERGE LAYER
- ************************************************/
-
-
-
-
-class MergeLayerCacheObject {
-
-    constructor (layer) {
+export class SourceLayerCache {
+    constructor(layer) {
+        // layer
         this._layer = layer;
-        this._cache_objects = layer.sources.map((layer) => {
-            return layer.getQueryObject()
-        });
+        // cached nearby object
+        this._nearby = undefined;
+        // cached segment
+        this._segment = undefined;
     }
 
     query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
+        const cache_miss = (
+            this._nearby == undefined ||
+            !interval.covers_point(this._nearby.itv, offset)
+        );
+        if (cache_miss) {
+            this._nearby = this._layer.index.nearby(offset);
+            let {itv, center} = this._nearby;
+            this._segments = center.map((item) => {
+                return load_segment(itv, item);
+            });
         }
-        const vector = this._cache_objects.map((cache_object) => {
-            return cache_object.query(offset);
+        // query segments
+        const states = this._segments.map((seg) => {
+            return seg.query(offset);
         });
-        const valueFunc = this._layer.valueFunc;
-        const dynamic = vector.map((v) => v.dynamic).some(e => e == true);
-        const values = vector.map((v) => v.value);
-        const value = (valueFunc) ? valueFunc(values) : values;
-        return {value, dynamic, offset};
+        return toState(states, this._layer.valueFunc)
     }
 
-    dirty() {
-        // Noop - as long as queryobject is stateless
+    clear() {
+        this._nearby = undefined;
+        this._segment = undefined;
     }
-
-    refresh(offset) {
-        // Noop - as long as queryobject is stateless
-    }
-
-    get nearby() {
-        throw new Error("not implemented")
-    }
-
-
 }
 
+/*********************************************************************
+    LOAD SEGMENT
+*********************************************************************/
 
-export class MergeLayer extends LayerBase {
-
-    constructor (options={}) {
-        super();
-
-        this._cache_objects = [];
-
-        // value func
-        let {valueFunc=undefined} = options;
-        if (typeof valueFunc == "function") {
-            this._valueFunc = valueFunc
-        }
-
-        // sources (layers)
-        this._sources;
-        let {sources} = options;
-        if (sources) {
-            this.sources = sources;
-        }
- 
-        // subscribe to callbacks from sources
+function load_segment(itv, item) {
+    let {type="static", data} = item;
+    if (type == "static") {
+        return new segment.StaticSegment(itv, data);
+    } else if (type == "transition") {
+        return new segment.TransitionSegment(itv, data);
+    } else if (type == "interpolation") {
+        return new segment.InterpolationSegment(itv, data);
+    } else if (type == "motion") {
+        return new segment.MotionSegment(itv, data);
+    } else {
+        console.log("unrecognized segment type", type);
     }
-
-
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    get valueFunc () {
-        return this._valueFunc;
-    }
-
-    getQueryObject () {
-        const cache_object = new MergeLayerCacheObject(this);
-        this._cache_objects.push(cache_object);
-        return cache_object;
-    }
-
-    /*
-    query(offset) {
-        if (offset == undefined) {
-            throw new Error("Layer: query offset can not be undefined");
-        }
-        let values = this._sources.map((layer) => {
-            return layer.query(offset);
-        });
-        // TODO - apply function to arrive at single value for layer.
-        return values;
-    }
-    */
-
-    /**********************************************************
-     * UPDATE API
-     **********************************************************/
-    
-    get sources () {
-        return this._sources;
-    }
-    set sources (sources) {
-        this._sources = sources;
-        let indexes = sources.map((layer) => layer.index);
-        this._index = new NearbyIndexMerge(indexes);
-    }
-
 }
+
 
 

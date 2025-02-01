@@ -1,18 +1,27 @@
 /************************************************
- * LAYER SOURCE INTERFACE
+ * LAYER QUERY INTERFACE
  ************************************************/
 
 /**
- * Decorate an object/prototype to implement 
- * the LayerSource interface.
+ * Decorate an object/prototype of a Layer to implement 
+ * the LayerQuery interface.
  * 
- * - index
- * - valueFunc
- * - getCache
- * - clearCaches
+ * The layer query interface implements a query
+ * mechanism for layers, with built-in caching
+ * 
+ * Example use
+ * cache = object.getCache() 
+ * cache.query();
+ * 
+ * - clearCaches is for internal use
+ * - index is the actual target of of the query
+ * - valueFunc specializes the query output
+ * 
+ * 
+ * NOTE - this might be part of the BaseLayer class instead.
  */
 
-const PREFIX = "__layersource";
+const PREFIX = "__layerquery";
 
 export function addToInstance (object, CacheClass, valueFunc) {
     object[`${PREFIX}_index`];

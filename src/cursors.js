@@ -2,9 +2,8 @@ import { CLOCK } from "./util.js";
 import { 
     ClockProviderBase,
     MotionProviderBase,
-    StateProviderBase,
-    CursorBase, 
-} from "./bases.js";
+    StateProviderBase
+} from "./stateprovider_bases.js";
 import * as sourceprop from "./sourceprop.js";
 import { cmd } from "./cmd.js";
 import { Layer } from "./newlayer.js";
@@ -22,6 +21,59 @@ class LocalClockProvider extends ClockProviderBase {
     }
 }
 const localClockProvider = new LocalClockProvider();
+
+
+
+/************************************************
+ * CURSOR BASE
+ ************************************************/
+
+export class CursorBase {
+
+    constructor () {
+        callback.addToInstance(this);
+        // define change event
+        eventify.addToInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+    
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+
+    query () {
+        throw new Error("Not implemented");
+    }
+
+    get index() {
+        throw new Error("Not implemented");
+    }
+
+    /*
+        Eventify: immediate events
+    */
+    eventifyInitEventArgs(name) {
+        if (name == "change") {
+            return [this.query()];
+        }
+    }
+
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay, options);
+    }
+    release(handle) {
+        return release(handle);
+    }
+
+}
+callback.addToPrototype(CursorBase.prototype);
+eventify.addToPrototype(CursorBase.prototype);
+
+
 
 
 

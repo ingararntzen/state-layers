@@ -288,12 +288,8 @@ export function eventifyPrototype(_prototype) {
 };
 
 
-export const eventify = function () {
-	return {
-		addToInstance: eventifyInstance,
-		addToPrototype: eventifyPrototype
-	}
-}();
+export {eventifyInstance as addToInstance};
+export {eventifyPrototype as addToPrototype};
 
 /*
 	Event Variable

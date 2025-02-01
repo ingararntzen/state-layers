@@ -20,6 +20,124 @@ export function merge (sources, valueFunc) {
 
 
 
+/************************************************
+ * MERGE LAYER
+ ************************************************/
+
+
+
+
+class MergeLayerCacheObject {
+
+    constructor (layer) {
+        this._layer = layer;
+        this._cache_objects = layer.sources.map((layer) => {
+            return layer.getQueryObject()
+        });
+    }
+
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        const vector = this._cache_objects.map((cache_object) => {
+            return cache_object.query(offset);
+        });
+        const valueFunc = this._layer.valueFunc;
+        const dynamic = vector.map((v) => v.dynamic).some(e => e == true);
+        const values = vector.map((v) => v.value);
+        const value = (valueFunc) ? valueFunc(values) : values;
+        return {value, dynamic, offset};
+    }
+
+    dirty() {
+        // Noop - as long as queryobject is stateless
+    }
+
+    refresh(offset) {
+        // Noop - as long as queryobject is stateless
+    }
+
+    get nearby() {
+        throw new Error("not implemented")
+    }
+
+
+}
+
+
+export class MergeLayer extends LayerBase {
+
+    constructor (options={}) {
+        super();
+
+        this._cache_objects = [];
+
+        // value func
+        let {valueFunc=undefined} = options;
+        if (typeof valueFunc == "function") {
+            this._valueFunc = valueFunc
+        }
+
+        // sources (layers)
+        this._sources;
+        let {sources} = options;
+        if (sources) {
+            this.sources = sources;
+        }
+ 
+        // subscribe to callbacks from sources
+    }
+
+
+
+    /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    get valueFunc () {
+        return this._valueFunc;
+    }
+
+    getQueryObject () {
+        const cache_object = new MergeLayerCacheObject(this);
+        this._cache_objects.push(cache_object);
+        return cache_object;
+    }
+
+    /*
+    query(offset) {
+        if (offset == undefined) {
+            throw new Error("Layer: query offset can not be undefined");
+        }
+        let values = this._sources.map((layer) => {
+            return layer.query(offset);
+        });
+        // TODO - apply function to arrive at single value for layer.
+        return values;
+    }
+    */
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
+    
+    get sources () {
+        return this._sources;
+    }
+    set sources (sources) {
+        this._sources = sources;
+        let indexes = sources.map((layer) => layer.index);
+        this._index = new NearbyIndexMerge(indexes);
+    }
+
+}
+
+
+
+
+
+
 
 
 function cmp_ascending(p1, p2) {
