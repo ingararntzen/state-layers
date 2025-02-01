@@ -7,6 +7,17 @@ import { NearbyIndexSimple } from "./nearbyindex_simple";
 import { toState } from "./util.js";
 import * as segment from "./segments.js";
 
+
+/*********************************************************************
+    INPUT LAYER
+*********************************************************************/
+
+/**
+ * InputLayer is a Layer with a stateprovider.
+ * 
+ * .src : stateprovider.
+ */
+
 export class InputLayer extends Layer {
 
     constructor(options={}) {
@@ -15,13 +26,12 @@ export class InputLayer extends Layer {
         // src
         sourceprop.addToInstance(this, "src");
 
-        // initialise with stateprovider
+        // initialise stateprovider
         if (src == undefined) {
             src = new LocalStateProvider(opts);
         }        
         this.src = src;
     }
-
 
     /**********************************************************
      * SRC (stateprovider)
@@ -34,9 +44,8 @@ export class InputLayer extends Layer {
         return src;
     }    
     __src_handle_change() {
-        if (this._index == undefined) {
-            console.log("set index");
-            this._index = new NearbyIndexSimple(this.src)
+        if (this.index == undefined) {
+            this.index = new NearbyIndexSimple(this.src)
         } else {
             this.clearCaches();
         }
@@ -44,9 +53,6 @@ export class InputLayer extends Layer {
         // trigger change event for cursor
         this.eventifyTrigger("change");   
     }
-
-
-
 }
 sourceprop.addToPrototype(InputLayer.prototype, "src", {mutable:true});
 
@@ -56,8 +62,10 @@ sourceprop.addToPrototype(InputLayer.prototype, "src", {mutable:true});
 *********************************************************************/
 
 /*
-    This implements a cache in front of a StateProvider    
-    - index contains segment items
+    This implements a cache for an InputLayer 
+    Since InputLayer has a state provider, its index is
+    items, and the cache will instantiate segments corresponding to
+    these items. 
 */
 
 export class InputLayerCache {
@@ -71,19 +79,18 @@ export class InputLayerCache {
     }
 
     query(offset) {
-        // check cache
-        if (
+        const cache_miss = (
             this._nearby == undefined ||
             !interval.covers_point(this._nearby.itv, offset)
-        ) {
-            // cache miss
+        );
+        if (cache_miss) {
             this._nearby = this._layer.index.nearby(offset);
             let {itv, center} = this._nearby;
             this._segments = center.map((item) => {
-                return create_segment(itv, item);
+                return load_segment(itv, item);
             });
         }
-        // query
+        // query segments
         const states = this._segments.map((seg) => {
             return seg.query(offset);
         });
@@ -100,8 +107,8 @@ export class InputLayerCache {
     LOAD SEGMENT
 *********************************************************************/
 
-function create_segment(itv, item) {
-    let {type, data} = item;
+function load_segment(itv, item) {
+    let {type="static", data} = item;
     if (type == "static") {
         return new segment.StaticSegment(itv, data);
     } else if (type == "transition") {
@@ -114,4 +121,3 @@ function create_segment(itv, item) {
         console.log("unrecognized segment type", type);
     }
 }
-

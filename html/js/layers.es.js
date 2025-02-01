@@ -1465,12 +1465,11 @@ function interpolate$1(tuples) {
 
 const PREFIX = "__layersource";
 
-function addToInstance (object, options={}) {
-    const {CacheClass, valueFunc} = options;
+function addToInstance (object, CacheClass, valueFunc) {
     object[`${PREFIX}_index`];
     object[`${PREFIX}_valueFunc`] = valueFunc;
     object[`${PREFIX}_cacheClass`] = CacheClass;
-    object[`${PREFIX}_cache_objects`] = [];
+    object[`${PREFIX}_cacheObjects`] = [];
 }
 
 function addToPrototype (_prototype) {
@@ -1478,6 +1477,9 @@ function addToPrototype (_prototype) {
     Object.defineProperty(_prototype, "index", {
         get: function () {
             return this[`${PREFIX}_index`];
+        },
+        set: function (index) {
+            this[`${PREFIX}_index`] = index;
         }
     });
     Object.defineProperty(_prototype, "valueFunc", {
@@ -1487,13 +1489,15 @@ function addToPrototype (_prototype) {
     });
 
     function getCache () {
-        const cache = new this[`${PREFIX}_cacheClass`](this);
-        this[`${PREFIX}_cache_objects`].push(cache);
+        let CacheClass = this[`${PREFIX}_cacheClass`];
+        console.log(CacheClass);
+        const cache = new CacheClass(this);
+        this[`${PREFIX}_cacheObjects`].push(cache);
         return cache;
     }
 
     function clearCaches () {
-        for (let cache of this[`${PREFIX}_cache_objects`]) {
+        for (let cache of this[`${PREFIX}_cacheObjects`]) {
             cache.clear();
         }
     }
@@ -1512,11 +1516,11 @@ function addToPrototype (_prototype) {
 
 class Layer {
 
-    constructor(cacheClass, valueFunc) {
+    constructor(CacheClass, valueFunc) {
         // callbacks
         addToInstance$2(this);
         // layer source api
-        addToInstance(this, cacheClass);
+        addToInstance(this, CacheClass, valueFunc);
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
@@ -2905,6 +2909,16 @@ function find_index(target, arr, value_func) {
   	return [false, left]; // Return the index where target should be inserted
 }
 
+/*********************************************************************
+    INPUT LAYER
+*********************************************************************/
+
+/**
+ * InputLayer is a Layer with a stateprovider.
+ * 
+ * .src : stateprovider.
+ */
+
 class InputLayer extends Layer {
 
     constructor(options={}) {
@@ -2913,13 +2927,12 @@ class InputLayer extends Layer {
         // src
         addToInstance$1(this, "src");
 
-        // initialise with stateprovider
+        // initialise stateprovider
         if (src == undefined) {
             src = new LocalStateProvider(opts);
         }        
         this.src = src;
     }
-
 
     /**********************************************************
      * SRC (stateprovider)
@@ -2932,9 +2945,8 @@ class InputLayer extends Layer {
         return src;
     }    
     __src_handle_change() {
-        if (this._index == undefined) {
-            console.log("set index");
-            this._index = new NearbyIndexSimple(this.src);
+        if (this.index == undefined) {
+            this.index = new NearbyIndexSimple(this.src);
         } else {
             this.clearCaches();
         }
@@ -2942,9 +2954,6 @@ class InputLayer extends Layer {
         // trigger change event for cursor
         this.eventifyTrigger("change");   
     }
-
-
-
 }
 addToPrototype$1(InputLayer.prototype, "src", {mutable:true});
 
@@ -2954,8 +2963,10 @@ addToPrototype$1(InputLayer.prototype, "src", {mutable:true});
 *********************************************************************/
 
 /*
-    This implements a cache in front of a StateProvider    
-    - index contains segment items
+    This implements a cache for an InputLayer 
+    Since InputLayer has a state provider, its index is
+    items, and the cache will instantiate segments corresponding to
+    these items. 
 */
 
 class InputLayerCache {
@@ -2969,19 +2980,18 @@ class InputLayerCache {
     }
 
     query(offset) {
-        // check cache
-        if (
+        const cache_miss = (
             this._nearby == undefined ||
             !interval.covers_point(this._nearby.itv, offset)
-        ) {
-            // cache miss
+        );
+        if (cache_miss) {
             this._nearby = this._layer.index.nearby(offset);
             let {itv, center} = this._nearby;
             this._segments = center.map((item) => {
-                return create_segment(itv, item);
+                return load_segment(itv, item);
             });
         }
-        // query
+        // query segments
         const states = this._segments.map((seg) => {
             return seg.query(offset);
         });
@@ -2998,8 +3008,8 @@ class InputLayerCache {
     LOAD SEGMENT
 *********************************************************************/
 
-function create_segment(itv, item) {
-    let {type, data} = item;
+function load_segment(itv, item) {
+    let {type="static", data} = item;
     if (type == "static") {
         return new StaticSegment(itv, data);
     } else if (type == "transition") {

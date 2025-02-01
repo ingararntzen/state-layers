@@ -17,11 +17,11 @@ import { toState } from "./util.js";
 
 export class Layer {
 
-    constructor(cacheClass, valueFunc) {
+    constructor(CacheClass, valueFunc) {
         // callbacks
         callback.addToInstance(this);
         // layer source api
-        layersource.addToInstance(this, cacheClass, valueFunc);
+        layersource.addToInstance(this, CacheClass, valueFunc);
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});

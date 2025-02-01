@@ -14,12 +14,11 @@
 
 const PREFIX = "__layersource";
 
-export function addToInstance (object, options={}) {
-    const {CacheClass, valueFunc} = options;
+export function addToInstance (object, CacheClass, valueFunc) {
     object[`${PREFIX}_index`];
     object[`${PREFIX}_valueFunc`] = valueFunc;
     object[`${PREFIX}_cacheClass`] = CacheClass;
-    object[`${PREFIX}_cache_objects`] = [];
+    object[`${PREFIX}_cacheObjects`] = [];
 }
 
 export function addToPrototype (_prototype) {
@@ -27,6 +26,9 @@ export function addToPrototype (_prototype) {
     Object.defineProperty(_prototype, "index", {
         get: function () {
             return this[`${PREFIX}_index`];
+        },
+        set: function (index) {
+            this[`${PREFIX}_index`] = index;
         }
     });
     Object.defineProperty(_prototype, "valueFunc", {
@@ -36,13 +38,15 @@ export function addToPrototype (_prototype) {
     });
 
     function getCache () {
-        const cache = new this[`${PREFIX}_cacheClass`](this);
-        this[`${PREFIX}_cache_objects`].push(cache);
+        let CacheClass = this[`${PREFIX}_cacheClass`]
+        console.log(CacheClass)
+        const cache = new CacheClass(this);
+        this[`${PREFIX}_cacheObjects`].push(cache);
         return cache;
     }
 
     function clearCaches () {
-        for (let cache of this[`${PREFIX}_cache_objects`]) {
+        for (let cache of this[`${PREFIX}_cacheObjects`]) {
             cache.clear();
         }
     }
