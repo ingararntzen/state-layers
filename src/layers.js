@@ -1,7 +1,7 @@
 import * as eventify from "./api_eventify.js";
 import * as layerquery from "./api_layerquery.js";
 import * as callback from "./api_callback.js";
-import * as sourceprop from "./api_sourceprop.js";
+import * as srcprop from "./api_srcprop.js";
 import * as segment from "./segments.js";
 
 import { interval, endpoint } from "./intervals.js";
@@ -23,11 +23,12 @@ import { NearbyIndexSimple } from "./nearbyindex_simple";
 
 export class Layer {
 
-    constructor(queryOptions, CacheClass) {
+    constructor(options={}) {
+        let {queryFuncs, CacheClass} = options;
         // callbacks
         callback.addToInstance(this);
         // layer query api
-        layerquery.addToInstance(this, queryOptions, CacheClass || LayerCache);
+        layerquery.addToInstance(this, queryFuncs, CacheClass || LayerCache);
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
@@ -105,6 +106,7 @@ export class LayerCache {
         // cache miss
         if (need_nearby) {
             this._nearby = this._layer.index.nearby(offset);
+            console.log(this._nearby.center);
             this._caches = this._nearby.center
                 // map to layer
                 .map((item) => item.src)
@@ -135,8 +137,66 @@ export class LayerCache {
 }
 
 
+
 /*********************************************************************
-    SOURCE LAYER
+    STATE LAYER
+*********************************************************************/
+
+class StateIndex extends NearbyIndexSimple {
+
+    constructor (stateProvider) {
+        super(stateProvider);
+    }
+
+    nearby (offset) {
+        const nearby = super.nearby(offset);
+        // change center
+        nearby.center = nearby.center.map((item) => {
+            return load_segment(nearby.itv, item);
+        });
+        return nearby;
+    }
+}
+
+/**
+ * Layer with a StateProvider as src
+ */
+
+export class StateLayer extends Layer {
+
+    constructor(options={}) {
+        const {queryFuncs} = options;
+        super({queryFuncs, CacheClass:StateLayerCache});
+        // setup src propterty
+        srcprop.addToInstance(this);
+        this.srcpropRegister("src");
+    }
+
+    propCheck(propName, src) {
+        if (propName == "src") {
+            if (!(src instanceof StateProviderBase)) {
+                throw new Error(`"src" must be state provider ${src}`);
+            }
+            return src;    
+        }
+    }
+
+    propChange(propName, eArg) {
+        if (propName == "src") {
+            if (this.index == undefined || eArg == "reset") {
+                this.index = new NearbyIndexSimple(this.src)
+            } else {
+                this.clearCaches();
+            }
+            this.notify_callbacks();
+            this.eventifyTrigger("change");
+        }        
+    }
+}
+srcprop.addToPrototype(StateLayer.prototype);
+
+/*********************************************************************
+    LAYER FACTORY
 *********************************************************************/
 
 export function getLayer(options={}) {
@@ -144,65 +204,25 @@ export function getLayer(options={}) {
     if (src == undefined) {
         src = new LocalStateProvider({items})
     }
-    return new SourceLayer(src, opts)
+    const layer = new StateLayer(opts);
+    layer.src = src;
+    return layer;
 }
 
 
 /*********************************************************************
-    SOURCE LAYER
-*********************************************************************/
-
-/**
- * SourceLayer is a Layer with a stateprovider.
- * 
- * .src : stateprovider.
- */
-
-export class SourceLayer extends Layer {
-
-    constructor(src, options={}) {
-        super(options, SourceLayerCache);
-        // src
-        sourceprop.addToInstance(this, "src");
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRC (stateprovider)
-     **********************************************************/
-
-    __src_check(src) {
-        if (!(src instanceof StateProviderBase)) {
-            throw new Error(`"src" must be state provider ${src}`);
-        }
-        return src;
-    }    
-    __src_handle_change() {
-        if (this.index == undefined) {
-            this.index = new NearbyIndexSimple(this.src)
-        } else {
-            this.clearCaches();
-        }
-        this.notify_callbacks();
-        this.eventifyTrigger("change");   
-    }
-}
-sourceprop.addToPrototype(SourceLayer.prototype, "src", {mutable:true});
-
-
-/*********************************************************************
-    SOURCE LAYER CACHE
+    STATE LAYER CACHE
 *********************************************************************/
 
 /*
-    Source Layer used a specific cache implementation.    
+    Layer with a StateProvider uses a specific cache implementation.    
 
     Since Source Layer has a state provider, its index is
     items, and the cache will instantiate segments corresponding to
     these items. 
 */
 
-export class SourceLayerCache {
+export class StateLayerCache {
     constructor(layer) {
         // layer
         this._layer = layer;
