@@ -9,37 +9,29 @@ import { Layer } from "../layers.js"
  * 
  */
 
-export function merge (sources, valueFunc) {
-    // create layer
-    return new MergeLayer(sources, valueFunc);
-}
+export function merge (sources, options) {
 
-/*********************************************************************
-    MERGE LAYER
-*********************************************************************/
+    const layer = new Layer(options);
+    layer.index = new MergeIndex(sources);
 
-export class MergeLayer extends Layer {
-    constructor(sources, options) {
-        super(options);
-        // src - immutable
-        this._sources = sources;
-        // index
-        this.index = new MergeIndex(sources);
-        // subscribe to callbacks
-        const handler = this._handle_src_change.bind(this);
-        for (let src of this._sources) {
-            src.add_callback(handler);            
+    // getter for sources
+    Object.defineProperty(layer, "sources", {
+        get: function () {
+            return sources;
         }
+    });
+ 
+    // subscrive to change callbacks from sources 
+    function handle_src_change(eArg) {
+        layer.clearCaches();
+        layer.notify_callback();
+        layer.eventifyTrigger("change"); 
     }
-
-    get sources () {return this._sources;}
-
-    _handle_src_change(eArg) {
-        this.clearCaches();
-        this.notify_callback();
-        this.eventifyTrigger("change"); 
+    for (let src of sources) {
+        src.add_callback(handle_src_change);            
     }
-} 
+    return layer;
+}
 
 
 /**

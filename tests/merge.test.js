@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
 import { getLayer } from "../src/layers.js";
-import { MergeLayer, MergeIndex } from "../src/ops/merge.js"; 
+import { merge, MergeIndex } from "../src/ops/merge.js"; 
 
 const DATA = "data";
 const OFFSET = 4;
@@ -148,7 +148,7 @@ describe('MergeTest', () => {
         runtest(layers, expected);
     });
 
-    test.only('TestMergeLayer List', () => {
+    test('TestMergeLayer List', () => {
 
         // Datasource 1
         const items_1 = [
@@ -165,8 +165,9 @@ describe('MergeTest', () => {
         const layer_2 = getLayer({items:items_2});
 
         // Merge
-        let layer = new MergeLayer([layer_1, layer_2]);
+        let layer = merge([layer_1, layer_2]);
 
+        console.log(layer.index)
         const expected = [
             [layer_1],
             [layer_1, layer_2],
@@ -201,14 +202,15 @@ describe('MergeTest', () => {
         const layer_2 = getLayer({items:items_2});
 
         // valueFunc
-        function valueFunc(values) {
-            return values
-                .filter(e => e != undefined)
-                .reduce((acc, current) => acc + current, 0);
+        function valueFunc(info) {
+            // gives 0 as value even if states is empty list
+            return info.states
+                .map(state => state.value) 
+                .reduce((acc, value) => acc + value, 0);
         }
 
         // Merge
-        let layer = new MergeLayer([layer_1, layer_2], valueFunc);
+        let layer = merge([layer_1, layer_2], {valueFunc});
 
 
         const expected = [
@@ -233,12 +235,8 @@ describe('MergeTest', () => {
         ]
             
         let tups = layer.sample({start:0, end:20});
-        expect(tups).toStrictEqual(expected)
-
+        expect(tups).toStrictEqual(expected);
     });
-
-
-
 
     // Add more test cases as needed
 });

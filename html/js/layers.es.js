@@ -524,16 +524,17 @@ function range (start, end, step = 1, options={}) {
  */
 
 function toState(sources, states, offset, options={}) {
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
-    }
     let {valueFunc, stateFunc} = options; 
     if (valueFunc != undefined) {
-        let value = valueFunc(sources, states, offset);
+        let value = valueFunc({sources, states, offset});
         let dynamic = states.map((v) => v.dymamic).some(e=>e);
         return {value, dynamic, offset};
     } else if (stateFunc != undefined) {
-        return {...stateFunc(sources, states, offset), offset};
+        return {...stateFunc({sources, states, offset}), offset};
+    }
+    // no valueFunc or stateFunc
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
     }
     // fallback - just use first state
     let state = states[0];
@@ -2916,37 +2917,29 @@ addToPrototype$1(Cursor.prototype, "ctrl", {mutable:true});
  * 
  */
 
-function merge (sources, valueFunc) {
-    // create layer
-    return new MergeLayer(sources, valueFunc);
-}
+function merge (sources, options) {
 
-/*********************************************************************
-    MERGE LAYER
-*********************************************************************/
+    const layer = new Layer(options);
+    layer.index = new MergeIndex(sources);
 
-class MergeLayer extends Layer {
-    constructor(sources, options) {
-        super(options);
-        // src - immutable
-        this._sources = sources;
-        // index
-        this.index = new MergeIndex(sources);
-        // subscribe to callbacks
-        const handler = this._handle_src_change.bind(this);
-        for (let src of this._sources) {
-            src.add_callback(handler);            
+    // getter for sources
+    Object.defineProperty(layer, "sources", {
+        get: function () {
+            return sources;
         }
+    });
+ 
+    // subscrive to change callbacks from sources 
+    function handle_src_change(eArg) {
+        layer.clearCaches();
+        layer.notify_callback();
+        layer.eventifyTrigger("change"); 
     }
-
-    get sources () {return this._sources;}
-
-    _handle_src_change(eArg) {
-        this.clearCaches();
-        this.notify_callback();
-        this.eventifyTrigger("change"); 
+    for (let src of sources) {
+        src.add_callback(handle_src_change);            
     }
-} 
+    return layer;
+}
 
 
 /**

@@ -78,16 +78,17 @@ export function range (start, end, step = 1, options={}) {
  */
 
 export function toState(sources, states, offset, options={}) {
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
-    }
     let {valueFunc, stateFunc} = options; 
     if (valueFunc != undefined) {
-        let value = valueFunc(sources, states, offset);
+        let value = valueFunc({sources, states, offset});
         let dynamic = states.map((v) => v.dymamic).some(e=>e);
         return {value, dynamic, offset};
     } else if (stateFunc != undefined) {
-        return {...stateFunc(sources, states, offset), offset};
+        return {...stateFunc({sources, states, offset}), offset};
+    }
+    // no valueFunc or stateFunc
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
     }
     // fallback - just use first state
     let state = states[0];
