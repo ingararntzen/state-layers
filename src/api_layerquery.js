@@ -23,7 +23,7 @@
 
 const PREFIX = "__layerquery";
 
-export function addToInstance (object, queryOptions, CacheClass) {
+export function addToInstance (object, CacheClass, queryOptions) {
     object[`${PREFIX}_index`];
     object[`${PREFIX}_queryOptions`] = queryOptions;
     object[`${PREFIX}_cacheClass`] = CacheClass;

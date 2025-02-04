@@ -989,7 +989,7 @@ eventifyPrototype(EventVariable.prototype);
 
 const PREFIX$1 = "__layerquery";
 
-function addToInstance$1 (object, queryOptions, CacheClass) {
+function addToInstance$1 (object, CacheClass, queryOptions) {
     object[`${PREFIX$1}_index`];
     object[`${PREFIX$1}_queryOptions`] = queryOptions;
     object[`${PREFIX$1}_cacheClass`] = CacheClass;
@@ -1634,11 +1634,12 @@ function find_index(target, arr, value_func) {
 class Layer {
 
     constructor(options={}) {
-        let {queryFuncs, CacheClass} = options;
+        const {CacheClass=LayerCache} = options;
+        const {valueFunc, stateFunc} = options;
         // callbacks
         addToInstance$2(this);
         // layer query api
-        addToInstance$1(this, queryFuncs, CacheClass || LayerCache);
+        addToInstance$1(this, CacheClass, {valueFunc, stateFunc});
         // define change event
         eventifyInstance(this);
         this.eventifyDefine("change", {init:true});
@@ -1848,7 +1849,7 @@ function load_segment(itv, item) {
  */
 
 function merge (sources, options) {
-
+    
     const layer = new Layer(options);
     layer.index = new MergeIndex(sources);
 
@@ -1908,13 +1909,19 @@ class MergeIndex extends NearbyIndexBase {
 
     nearby(offset) {
         // accumulate nearby from all sources
-        const prev_list = [], center_list = [], next_list = [];
+        const prev_list = [], next_list = [];
+        const center_list = [];
+        const center_high_list = [];
+        const center_low_list = [];
         for (let src of this._sources) {
-            let {prev, center, next} = src.index.nearby(offset);
+            let {prev, center, next, itv} = src.index.nearby(offset);
             if (prev != undefined) prev_list.push(prev);            
             if (next != undefined) next_list.push(next);
             if (center.length > 0) {
                 center_list.push(this._caches.get(src));
+                let [low, high] = endpoint.from_interval(itv);
+                center_high_list.push(high);
+                center_low_list.push(low);    
             }
         }
         
@@ -1942,19 +1949,15 @@ class MergeIndex extends NearbyIndexBase {
 
         } else {
             // non-empty center
-
+            
             // center high
-            let center_high_list = center_list.map((item) => {
-                return endpoint.from_interval(item.itv)[1];
-            }).sort(cmp_ascending);
+            center_high_list.sort(cmp_ascending);
             let min_center_high = center_high_list[0];
             let max_center_high = center_high_list.slice(-1)[0];
             let multiple_center_high = !endpoint.eq(min_center_high, max_center_high);
 
             // center low
-            let center_low_list = center_list.map((item) => {
-                return endpoint.from_interval(item.itv)[0]
-            }).sort(cmp_descending);
+            center_low_list.sort(cmp_descending);
             let max_center_low = center_low_list[0];
             let min_center_low = center_low_list.slice(-1)[0];
             let multiple_center_low = !endpoint.eq(max_center_low, min_center_low);
@@ -1973,7 +1976,8 @@ class MergeIndex extends NearbyIndexBase {
             } else {
                 result.left = endpoint.flip(max_center_low, "high");
             }
-            result.prev = (multiple_center_low) ? result.left : max_prev_high;    
+            result.prev = (multiple_center_low) ? result.left : max_prev_high;
+
         }
 
         // interval from left/right

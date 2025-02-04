@@ -23,11 +23,12 @@ import { NearbyIndexSimple } from "./nearbyindex_simple";
 export class Layer {
 
     constructor(options={}) {
-        let {queryFuncs, CacheClass} = options;
+        const {CacheClass=LayerCache} = options;
+        const {valueFunc, stateFunc} = options;
         // callbacks
         callback.addToInstance(this);
         // layer query api
-        layerquery.addToInstance(this, queryFuncs, CacheClass || LayerCache);
+        layerquery.addToInstance(this, CacheClass, {valueFunc, stateFunc});
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});

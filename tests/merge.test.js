@@ -177,10 +177,11 @@ describe('MergeTest', () => {
             [layer_2]
         ];
 
-        let entries = layer.index.list({start:0, end:20});        
-        for (let [idx, items] of entries.entries()) {
-            let layers = items.map((item) => item.src);
-            expect(layers).toStrictEqual(expected[idx]);
+        let regions = layer.index.list({start:0, end:20});        
+        for (let [i, caches] of regions.entries()) {
+            for (let [j, cache] of caches.entries()) {
+                expect(cache._layer).toBe(expected[i][j]);
+            }
         }
     });
 
@@ -235,6 +236,7 @@ describe('MergeTest', () => {
         ]
             
         let tups = layer.sample({start:0, end:20});
+        console.log(tups)
         expect(tups).toStrictEqual(expected);
     });
 
