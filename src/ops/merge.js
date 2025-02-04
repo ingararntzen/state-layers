@@ -63,17 +63,20 @@ export class MergeIndex extends NearbyIndexBase {
     constructor(sources) {
         super();
         this._sources = sources;
+        this._caches = new Map(sources.map((src) => {
+            return [src, src.getCache()];
+        }));
     }
 
     nearby(offset) {
         // accumulate nearby from all sources
         const prev_list = [], center_list = [], next_list = [];
         for (let src of this._sources) {
-            let {itv, prev, center, next} = src.index.nearby(offset);
+            let {prev, center, next} = src.index.nearby(offset);
             if (prev != undefined) prev_list.push(prev);            
             if (next != undefined) next_list.push(next);
             if (center.length > 0) {
-                center_list.push({itv, src});
+                center_list.push(this._caches.get(src));
             }
         }
         

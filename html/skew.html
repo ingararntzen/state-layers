@@ -6,25 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script type="module">
 
-        import { getLayer, skew } from './js/layers.es.js';
+        import * as sl from './js/layers.es.js';
 
-
-        const l1 = getLayer({items:[
-            {itv: [0, 1, true, false], data: 1},
+        const l1 = sl.layer({items:[
+            {itv: [0, 1, true, false], data: 0},
+            {itv: [1, 2, true, false], data: 1},
             {itv: [2, 3, true, false], data: 2},
-            {itv: [4, 5, true, false], data: 3},
-            {itv: [6, 7, true, false], data: 4},
+            {itv: [3, 4, true, false], data: 3},
+            {itv: [4, 5, true, false], data: 4},
+            {itv: [5, 6, true, false], data: 5},
+            {itv: [6, 7, true, false], data: 6},
+            {itv: [7, 8, true, false], data: 7},
+
         ]});
 
-        const l2 = skew(l1, 1);
+        const OFFSET = 2
+        const l2 = sl.skew(l1, OFFSET);
 
         console.log("Layer 1")
+
+
         for (let tup of l1.sample(0,10)) {
-            console.log(tup);
+            console.log(`${tup[0]},${tup[1]}`);
         }
         console.log("Layer 2")
+
         for (let tup of l2.sample(0,10)) {
-            console.log(tup);
+            console.log(`${tup[0]},${tup[1]}`);
         }
             
 

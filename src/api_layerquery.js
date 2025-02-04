@@ -27,6 +27,7 @@ export function addToInstance (object, queryOptions, CacheClass) {
     object[`${PREFIX}_index`];
     object[`${PREFIX}_queryOptions`] = queryOptions;
     object[`${PREFIX}_cacheClass`] = CacheClass;
+    object[`${PREFIX}_cacheObject`] = new CacheClass(object);
     object[`${PREFIX}_cacheObjects`] = [];
 }
 
@@ -54,11 +55,17 @@ export function addToPrototype (_prototype) {
     }
 
     function clearCaches () {
+        this[`${PREFIX}_cacheObject`].clear();
         for (let cache of this[`${PREFIX}_cacheObjects`]) {
             cache.clear();
         }
     }
+
+    function query (offset) {
+        return this[`${PREFIX}_cacheObject`].query(offset);
+    }
+
     
-    Object.assign(_prototype, {getCache, clearCaches});
+    Object.assign(_prototype, {getCache, clearCaches, query});
 }
 

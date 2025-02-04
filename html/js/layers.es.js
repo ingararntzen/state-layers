@@ -1,6 +1,185 @@
 
 (function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
 /*
+    This decorates an object/prototype with basic (synchronous) callback support.
+*/
+
+const PREFIX$2 = "__callback";
+
+function addToInstance$2(object) {
+    object[`${PREFIX$2}_handlers`] = [];
+}
+
+function add_callback (handler) {
+    let handle = {
+        handler: handler
+    };
+    this[`${PREFIX$2}_handlers`].push(handle);
+    return handle;
+}
+function remove_callback (handle) {
+    let index = this[`${PREFIX$2}_handlers`].indexof(handle);
+    if (index > -1) {
+        this[`${PREFIX$2}_handlers`].splice(index, 1);
+    }
+}
+function notify_callbacks (eArg) {
+    this[`${PREFIX$2}_handlers`].forEach(function(handle) {
+        handle.handler(eArg);
+    });
+}
+
+function addToPrototype$2 (_prototype) {
+    const api = {
+        add_callback, remove_callback, notify_callbacks
+    };
+    Object.assign(_prototype, api);
+}
+
+/************************************************
+ * CLOCK PROVIDER BASE
+ ************************************************/
+
+/**
+ * Base class for ClockProviders
+ * 
+ * Clock Providers implement the callback
+ * interface to be compatible with other state
+ * providers, even though they are not required to
+ * provide any callbacks after clock adjustments
+ */
+
+class ClockProviderBase {
+    constructor() {
+        addToInstance$2(this);
+    }
+    now () {
+        throw new Error("not implemented");
+    }
+}
+addToPrototype$2(ClockProviderBase.prototype);
+
+
+/**
+ * Base class for MotionProviders
+ * 
+ * This is a convenience class offering a simpler way
+ * of implementing state provider which deal exclusively
+ * with motion segments.
+ * 
+ * Motionproviders do not deal with items, but with simpler
+ * statements of motion state
+ * 
+ * state = {
+ *      position: 0,
+ *      velocity: 0,
+ *      acceleration: 0,
+ *      timestamp: 0
+ *      range: [undefined, undefined]
+ * }
+ * 
+ * Internally, MotionProvider will be wrapped so that they
+ * become proper StateProviders.
+ */
+
+class MotionProviderBase {
+
+    constructor(options={}) {
+        addToInstance$2(this);
+        let {state} = options;
+        if (state = undefined) {
+            this._state = {
+                position: 0,
+                velocity: 0,
+                acceleration: 0,
+                timestamp: 0,
+                range: [undefined, undefined]
+            };
+        } else {
+            this._state = state;
+        }
+    }
+
+    /**
+     * set motion state
+     * 
+     * implementations of online motion providers will
+     * use this to send an update request,
+     * and set _state on response and then call notify_callbaks
+     * If the proxy wants to set the state immediatedly - 
+     * it should be done using a Promise - to break the control flow.
+     * 
+     * return Promise.resolve()
+     *      .then(() => {
+     *           this._state = state;
+     *           this.notify_callbacks();
+     *       });
+     * 
+     */
+    set_state (state) {
+        throw new Error("not implemented");
+    }
+
+    // return current motion state
+    get_state () {
+        return {...this._state};
+    }
+}
+addToPrototype$2(MotionProviderBase.prototype);
+
+
+
+
+/************************************************
+ * STATE PROVIDER BASE
+ ************************************************/
+
+/*
+    Base class for StateProviders
+
+    - collection of items
+    - {key, itv, type, data}
+*/
+
+class StateProviderBase {
+
+    constructor() {
+        addToInstance$2(this);
+    }
+
+    /**
+     * update function
+     * 
+     * If ItemsProvider is a proxy to an online
+     * Items collection, update requests will 
+     * imply a network request
+     * 
+     * options - support reset flag 
+     */
+    update(items, options={}){
+        throw new Error("not implemented");
+    }
+
+    /**
+     * return array with all items in collection 
+     * - no requirement wrt order
+     */
+
+    get_items() {
+        throw new Error("not implemented");
+    }
+
+    /**
+     * signal if items can be overlapping or not
+     */
+
+    get info () {
+        return {overlapping: true};
+    }
+}
+addToPrototype$2(StateProviderBase.prototype);
+
+/*
     
     INTERVAL ENDPOINTS
 
@@ -247,6 +426,75 @@ const interval = {
     from_endpoints: interval_from_endpoints,
     from_input: interval_from_input
 };
+
+/***************************************************************
+    LOCAL STATE PROVIDER
+***************************************************************/
+
+/**
+ * Local Array with non-overlapping items.
+ */
+
+class LocalStateProvider extends StateProviderBase {
+
+    constructor(options={}) {
+        super();
+        // initialization
+        let {items, value} = options;
+        if (items != undefined) {
+            // initialize from items
+            this._items = check_input(items);
+        } else if (value != undefined) {
+            // initialize from value
+            this._items = [{
+                itv:[-Infinity, Infinity, true, true], 
+                type: "static",
+                data:value
+            }];
+        } else {
+            this._items = [];
+        }
+    }
+
+    update (items, options) {
+        return Promise.resolve()
+            .then(() => {
+                this._items = check_input(items);
+                this.notify_callbacks();
+            });
+    }
+
+    get_items () {
+        return this._items.slice();
+    }
+
+    get info () {
+        return {overlapping: false};
+    }
+}
+
+
+function check_input(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
+}
 
 /*********************************************************************
     NEARBY INDEX
@@ -739,81 +987,52 @@ eventifyPrototype(EventVariable.prototype);
  * NOTE - this might be part of the BaseLayer class instead.
  */
 
-const PREFIX$2 = "__layerquery";
+const PREFIX$1 = "__layerquery";
 
-function addToInstance$2 (object, queryOptions, CacheClass) {
-    object[`${PREFIX$2}_index`];
-    object[`${PREFIX$2}_queryOptions`] = queryOptions;
-    object[`${PREFIX$2}_cacheClass`] = CacheClass;
-    object[`${PREFIX$2}_cacheObjects`] = [];
+function addToInstance$1 (object, queryOptions, CacheClass) {
+    object[`${PREFIX$1}_index`];
+    object[`${PREFIX$1}_queryOptions`] = queryOptions;
+    object[`${PREFIX$1}_cacheClass`] = CacheClass;
+    object[`${PREFIX$1}_cacheObject`] = new CacheClass(object);
+    object[`${PREFIX$1}_cacheObjects`] = [];
 }
 
-function addToPrototype$2 (_prototype) {
+function addToPrototype$1 (_prototype) {
 
     Object.defineProperty(_prototype, "index", {
         get: function () {
-            return this[`${PREFIX$2}_index`];
+            return this[`${PREFIX$1}_index`];
         },
         set: function (index) {
-            this[`${PREFIX$2}_index`] = index;
+            this[`${PREFIX$1}_index`] = index;
         }
     });
     Object.defineProperty(_prototype, "queryOptions", {
         get: function () {
-            return this[`${PREFIX$2}_queryOptions`];
+            return this[`${PREFIX$1}_queryOptions`];
         }
     });
 
     function getCache () {
-        let CacheClass = this[`${PREFIX$2}_cacheClass`];
+        let CacheClass = this[`${PREFIX$1}_cacheClass`];
         const cache = new CacheClass(this);
-        this[`${PREFIX$2}_cacheObjects`].push(cache);
+        this[`${PREFIX$1}_cacheObjects`].push(cache);
         return cache;
     }
 
     function clearCaches () {
-        for (let cache of this[`${PREFIX$2}_cacheObjects`]) {
+        this[`${PREFIX$1}_cacheObject`].clear();
+        for (let cache of this[`${PREFIX$1}_cacheObjects`]) {
             cache.clear();
         }
     }
-    
-    Object.assign(_prototype, {getCache, clearCaches});
-}
 
-/*
-    This decorates an object/prototype with basic (synchronous) callback support.
-*/
-
-const PREFIX$1 = "__callback";
-
-function addToInstance$1(object) {
-    object[`${PREFIX$1}_handlers`] = [];
-}
-
-function add_callback (handler) {
-    let handle = {
-        handler: handler
-    };
-    this[`${PREFIX$1}_handlers`].push(handle);
-    return handle;
-}
-function remove_callback (handle) {
-    let index = this[`${PREFIX$1}_handlers`].indexof(handle);
-    if (index > -1) {
-        this[`${PREFIX$1}_handlers`].splice(index, 1);
+    function query (offset) {
+        return this[`${PREFIX$1}_cacheObject`].query(offset);
     }
-}
-function notify_callbacks (eArg) {
-    this[`${PREFIX$1}_handlers`].forEach(function(handle) {
-        handle.handler(eArg);
-    });
-}
 
-function addToPrototype$1 (_prototype) {
-    const api = {
-        add_callback, remove_callback, notify_callbacks
-    };
-    Object.assign(_prototype, api);
+    
+    Object.assign(_prototype, {getCache, clearCaches, query});
 }
 
 /************************************************
@@ -1233,218 +1452,6 @@ function toState(sources, states, offset, options={}) {
     return {...state, offset}; 
 }
 
-/************************************************
- * CLOCK PROVIDER BASE
- ************************************************/
-
-/**
- * Base class for ClockProviders
- * 
- * Clock Providers implement the callback
- * interface to be compatible with other state
- * providers, even though they are not required to
- * provide any callbacks after clock adjustments
- */
-
-class ClockProviderBase {
-    constructor() {
-        addToInstance$1(this);
-    }
-    now () {
-        throw new Error("not implemented");
-    }
-}
-addToPrototype$1(ClockProviderBase.prototype);
-
-
-/**
- * Base class for MotionProviders
- * 
- * This is a convenience class offering a simpler way
- * of implementing state provider which deal exclusively
- * with motion segments.
- * 
- * Motionproviders do not deal with items, but with simpler
- * statements of motion state
- * 
- * state = {
- *      position: 0,
- *      velocity: 0,
- *      acceleration: 0,
- *      timestamp: 0
- *      range: [undefined, undefined]
- * }
- * 
- * Internally, MotionProvider will be wrapped so that they
- * become proper StateProviders.
- */
-
-class MotionProviderBase {
-
-    constructor(options={}) {
-        addToInstance$1(this);
-        let {state} = options;
-        if (state = undefined) {
-            this._state = {
-                position: 0,
-                velocity: 0,
-                acceleration: 0,
-                timestamp: 0,
-                range: [undefined, undefined]
-            };
-        } else {
-            this._state = state;
-        }
-    }
-
-    /**
-     * set motion state
-     * 
-     * implementations of online motion providers will
-     * use this to send an update request,
-     * and set _state on response and then call notify_callbaks
-     * If the proxy wants to set the state immediatedly - 
-     * it should be done using a Promise - to break the control flow.
-     * 
-     * return Promise.resolve()
-     *      .then(() => {
-     *           this._state = state;
-     *           this.notify_callbacks();
-     *       });
-     * 
-     */
-    set_state (state) {
-        throw new Error("not implemented");
-    }
-
-    // return current motion state
-    get_state () {
-        return {...this._state};
-    }
-}
-addToPrototype$1(MotionProviderBase.prototype);
-
-
-
-
-/************************************************
- * STATE PROVIDER BASE
- ************************************************/
-
-/*
-    Base class for StateProviders
-
-    - collection of items
-    - {key, itv, type, data}
-*/
-
-class StateProviderBase {
-
-    constructor() {
-        addToInstance$1(this);
-    }
-
-    /**
-     * update function
-     * 
-     * If ItemsProvider is a proxy to an online
-     * Items collection, update requests will 
-     * imply a network request
-     * 
-     * options - support reset flag 
-     */
-    update(items, options={}){
-        throw new Error("not implemented");
-    }
-
-    /**
-     * return array with all items in collection 
-     * - no requirement wrt order
-     */
-
-    get_items() {
-        throw new Error("not implemented");
-    }
-
-    /**
-     * signal if items can be overlapping or not
-     */
-
-    get info () {
-        return {overlapping: true};
-    }
-}
-addToPrototype$1(StateProviderBase.prototype);
-
-/***************************************************************
-    LOCAL STATE PROVIDER
-***************************************************************/
-
-/**
- * Local Array with non-overlapping items.
- */
-
-class LocalStateProvider extends StateProviderBase {
-
-    constructor(options={}) {
-        super();
-        // initialization
-        let {items, value} = options;
-        if (items != undefined) {
-            // initialize from items
-            this._items = check_input(items);
-        } else if (value != undefined) {
-            // initialize from value
-            this._items = [{
-                itv:[-Infinity, Infinity, true, true], 
-                type: "static",
-                data:value
-            }];
-        } else {
-            this._items = [];
-        }
-    }
-
-    update (items, options) {
-        return Promise.resolve()
-            .then(() => {
-                this._items = check_input(items);
-                this.notify_callbacks();
-            });
-    }
-
-    get_items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {overlapping: false};
-    }
-}
-
-
-function check_input(items) {
-    if (!Array.isArray(items)) {
-        throw new Error("Input must be an array");
-    }
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
-    }
-    return items;
-}
-
 /**
  * 
  * Nearby Index Simple
@@ -1629,9 +1636,9 @@ class Layer {
     constructor(options={}) {
         let {queryFuncs, CacheClass} = options;
         // callbacks
-        addToInstance$1(this);
+        addToInstance$2(this);
         // layer query api
-        addToInstance$2(this, queryFuncs, CacheClass || LayerCache);
+        addToInstance$1(this, queryFuncs, CacheClass || LayerCache);
         // define change event
         eventifyInstance(this);
         this.eventifyDefine("change", {init:true});
@@ -1661,8 +1668,8 @@ class Layer {
             });
     }
 }
-addToPrototype$1(Layer.prototype);
 addToPrototype$2(Layer.prototype);
+addToPrototype$1(Layer.prototype);
 eventifyPrototype(Layer.prototype);
 
 
@@ -1672,9 +1679,8 @@ eventifyPrototype(Layer.prototype);
 
 /**
  * This implements a Cache to be used with Layer objects
- * Query results are obtained from the src objects in the
- * layer index.
- * and cached only if they describe a static value. 
+ * Query results are obtained from the cache objects in the
+ * layer index and cached only if they describe a static value. 
  */
 
 class LayerCache {
@@ -1685,9 +1691,6 @@ class LayerCache {
         this._nearby;
         // cached result
         this._state;
-        // src cache objects (src -> cache)
-        this._cache_map = new Map();
-        this._caches;
     }
 
     /**
@@ -1709,23 +1712,12 @@ class LayerCache {
         // cache miss
         if (need_nearby) {
             this._nearby = this._layer.index.nearby(offset);
-            console.log(this._nearby.center);
-            this._caches = this._nearby.center
-                // map to layer
-                .map((item) => item.src)
-                // map to cache object
-                .map((layer) => {
-                    if (!this._cache_map.has(layer)) {
-                        this._cache_map.set(layer, layer.getCache());
-                    }
-                    return this._cache_map.get(layer);
-                });
         }
         // perform queries
-        const states = this._caches.map((cache) => {
+        const states = this._nearby.center.map((cache) => {
             return cache.query(offset);
         });
-        const state = toState(this._caches, states, offset, this._layer.queryOptions);
+        const state = toState(this._nearby.center, states, offset, this._layer.queryOptions);
         // cache state only if not dynamic
         this._state = (state.dynamic) ? undefined : state;
         return state    
@@ -1734,10 +1726,14 @@ class LayerCache {
     clear() {
         this._itv = undefined;
         this._state = undefined;
-        this._caches = undefined;
-        this._cache_map = new Map();
     }
 }
+
+
+
+/*********************************************************************
+    STATE LAYER
+*********************************************************************/
 
 /**
  * Layer with a StateProvider as src
@@ -1776,19 +1772,6 @@ class StateLayer extends Layer {
 }
 addToPrototype(StateLayer.prototype);
 
-/*********************************************************************
-    LAYER FACTORY
-*********************************************************************/
-
-function getLayer(options={}) {
-    let {src, items, ...opts} = options;
-    if (src == undefined) {
-        src = new LocalStateProvider({items});
-    }
-    const layer = new StateLayer(opts);
-    layer.src = src;
-    return layer;
-}
 
 
 /*********************************************************************
@@ -1918,17 +1901,20 @@ class MergeIndex extends NearbyIndexBase {
     constructor(sources) {
         super();
         this._sources = sources;
+        this._caches = new Map(sources.map((src) => {
+            return [src, src.getCache()];
+        }));
     }
 
     nearby(offset) {
         // accumulate nearby from all sources
         const prev_list = [], center_list = [], next_list = [];
         for (let src of this._sources) {
-            let {itv, prev, center, next} = src.index.nearby(offset);
+            let {prev, center, next} = src.index.nearby(offset);
             if (prev != undefined) prev_list.push(prev);            
             if (next != undefined) next_list.push(next);
             if (center.length > 0) {
-                center_list.push({itv, src});
+                center_list.push(this._caches.get(src));
             }
         }
         
@@ -2032,27 +2018,39 @@ function skewed(p, offset) {
     SKEW INDEX
 *********************************************************************/
 
-class SkewedIndex extends NearbyIndexBase {
+class SkewIndex extends NearbyIndexBase {
 
     constructor (layer, skew) {
         super();
         this._layer = layer;
         this._skew = skew;
+        this._cache = layer.getCache();
+
+        // skewing cache object
+        this._skewed_cache = {
+            query: function (offset) {
+                // skew query (negative) - override result offset
+                return {...this._cache.query(skewed(offset, -this._skew)), offset};
+            }.bind(this)
+        };
     }
+
+    // skewing index.nearby
     nearby(offset) {
-        // skew lookup (negative)
+        // skew query (negative)
         const nearby = this._layer.index.nearby(skewed(offset, -this._skew));
         // skew result (positive) 
-        nearby.itv[0] = skewed(nearby.itv[0], this._skew);
-        nearby.itv[1] = skewed(nearby.itv[1], this._skew);
-        nearby.left = skewed(nearby.left, this._skew);
-        nearby.right = skewed(nearby.right, this._skew);
-        nearby.prev = skewed(nearby.prev, this._skew);
-        nearby.next = skewed(nearby.next, this._skew);
-        nearby.center = nearby.center.map((item) => {
-            return {src:this._layer}
-        });
-        return nearby;
+        const itv = nearby.itv.slice();
+        itv[0] = skewed(nearby.itv[0], this._skew);
+        itv[1] = skewed(nearby.itv[1], this._skew);
+        return {
+            itv,
+            left: skewed(nearby.left, this._skew),
+            right: skewed(nearby.right, this._skew),
+            next: skewed(nearby.next, this._skew),
+            prev: skewed(nearby.prev, this._skew),
+            center: nearby.center.map(() => this._skewed_cache)
+        }
     }
 }
 
@@ -2089,9 +2087,8 @@ class SkewLayer extends Layer {
 
     propChange(propName, eArg) {
         if (propName == "src") {
-            console.log("create index");
             if (this.index == undefined || eArg == "reset") {
-                this.index = new SkewedIndex(this.src, this._skew);
+                this.index = new SkewIndex(this.src, this._skew);
             } else {
                 this.clearCaches();
             }
@@ -2115,4 +2112,22 @@ function skew (layer, offset) {
     return new SkewLayer(layer, offset);
 }
 
-export { getLayer, merge, skew };
+// import { Cursor } from "./cursors.js";
+// import { cmd } from "./cmd.js";
+
+
+/*********************************************************************
+    LAYER FACTORY
+*********************************************************************/
+
+function layer(options={}) {
+    let {src, items, ...opts} = options;
+    if (src == undefined) {
+        src = new LocalStateProvider({items});
+    }
+    const layer = new StateLayer(opts);
+    layer.src = src;
+    return layer;
+}
+
+export { layer, merge, skew };

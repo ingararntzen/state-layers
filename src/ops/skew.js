@@ -22,27 +22,39 @@ function skewed(p, offset) {
     SKEW INDEX
 *********************************************************************/
 
-class SkewedIndex extends NearbyIndexBase {
+class SkewIndex extends NearbyIndexBase {
 
     constructor (layer, skew) {
         super();
         this._layer = layer;
         this._skew = skew;
+        this._cache = layer.getCache();
+
+        // skewing cache object
+        this._skewed_cache = {
+            query: function (offset) {
+                // skew query (negative) - override result offset
+                return {...this._cache.query(skewed(offset, -this._skew)), offset};
+            }.bind(this)
+        };
     }
+
+    // skewing index.nearby
     nearby(offset) {
-        // skew lookup (negative)
+        // skew query (negative)
         const nearby = this._layer.index.nearby(skewed(offset, -this._skew));
         // skew result (positive) 
-        nearby.itv[0] = skewed(nearby.itv[0], this._skew);
-        nearby.itv[1] = skewed(nearby.itv[1], this._skew);
-        nearby.left = skewed(nearby.left, this._skew);
-        nearby.right = skewed(nearby.right, this._skew);
-        nearby.prev = skewed(nearby.prev, this._skew);
-        nearby.next = skewed(nearby.next, this._skew);
-        nearby.center = nearby.center.map((item) => {
-            return {src:this._layer}
-        });
-        return nearby;
+        const itv = nearby.itv.slice();
+        itv[0] = skewed(nearby.itv[0], this._skew);
+        itv[1] = skewed(nearby.itv[1], this._skew)
+        return {
+            itv,
+            left: skewed(nearby.left, this._skew),
+            right: skewed(nearby.right, this._skew),
+            next: skewed(nearby.next, this._skew),
+            prev: skewed(nearby.prev, this._skew),
+            center: nearby.center.map(() => this._skewed_cache)
+        }
     }
 }
 
@@ -79,9 +91,8 @@ class SkewLayer extends Layer {
 
     propChange(propName, eArg) {
         if (propName == "src") {
-            console.log("create index")
             if (this.index == undefined || eArg == "reset") {
-                this.index = new SkewedIndex(this.src, this._skew)
+                this.index = new SkewIndex(this.src, this._skew)
             } else {
                 this.clearCaches();
             }

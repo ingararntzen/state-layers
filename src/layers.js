@@ -7,7 +7,6 @@ import * as segment from "./segments.js";
 import { interval, endpoint } from "./intervals.js";
 import { range, toState } from "./util.js";
 import { StateProviderBase } from "./stateprovider_bases.js";
-import { LocalStateProvider } from "./stateprovider_simple.js";
 import { NearbyIndexSimple } from "./nearbyindex_simple";
 
 
@@ -69,9 +68,8 @@ eventify.addToPrototype(Layer.prototype);
 
 /**
  * This implements a Cache to be used with Layer objects
- * Query results are obtained from the src objects in the
- * layer index.
- * and cached only if they describe a static value. 
+ * Query results are obtained from the cache objects in the
+ * layer index and cached only if they describe a static value. 
  */
 
 export class LayerCache {
@@ -82,9 +80,6 @@ export class LayerCache {
         this._nearby;
         // cached result
         this._state;
-        // src cache objects (src -> cache)
-        this._cache_map = new Map();
-        this._caches;
     }
 
     /**
@@ -106,23 +101,12 @@ export class LayerCache {
         // cache miss
         if (need_nearby) {
             this._nearby = this._layer.index.nearby(offset);
-            console.log(this._nearby.center);
-            this._caches = this._nearby.center
-                // map to layer
-                .map((item) => item.src)
-                // map to cache object
-                .map((layer) => {
-                    if (!this._cache_map.has(layer)) {
-                        this._cache_map.set(layer, layer.getCache());
-                    }
-                    return this._cache_map.get(layer);
-                });
         }
         // perform queries
-        const states = this._caches.map((cache) => {
+        const states = this._nearby.center.map((cache) => {
             return cache.query(offset);
         });
-        const state = toState(this._caches, states, offset, this._layer.queryOptions)
+        const state = toState(this._nearby.center, states, offset, this._layer.queryOptions)
         // cache state only if not dynamic
         this._state = (state.dynamic) ? undefined : state;
         return state    
@@ -131,8 +115,6 @@ export class LayerCache {
     clear() {
         this._itv = undefined;
         this._state = undefined;
-        this._caches = undefined;
-        this._cache_map = new Map();
     }
 }
 
@@ -141,22 +123,6 @@ export class LayerCache {
 /*********************************************************************
     STATE LAYER
 *********************************************************************/
-
-class StateIndex extends NearbyIndexSimple {
-
-    constructor (stateProvider) {
-        super(stateProvider);
-    }
-
-    nearby (offset) {
-        const nearby = super.nearby(offset);
-        // change center
-        nearby.center = nearby.center.map((item) => {
-            return load_segment(nearby.itv, item);
-        });
-        return nearby;
-    }
-}
 
 /**
  * Layer with a StateProvider as src
@@ -195,19 +161,6 @@ export class StateLayer extends Layer {
 }
 srcprop.addToPrototype(StateLayer.prototype);
 
-/*********************************************************************
-    LAYER FACTORY
-*********************************************************************/
-
-export function getLayer(options={}) {
-    let {src, items, ...opts} = options;
-    if (src == undefined) {
-        src = new LocalStateProvider({items})
-    }
-    const layer = new StateLayer(opts);
-    layer.src = src;
-    return layer;
-}
 
 
 /*********************************************************************

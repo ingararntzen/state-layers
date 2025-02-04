@@ -1,5 +1,5 @@
 /* global describe, test, expect */
-import { getLayer } from "../src/layers.js";
+import * as sl from "../src/index.js";
 
 // Add your test cases here
 describe('NearbyIndexList', () => {
@@ -10,7 +10,7 @@ describe('NearbyIndexList', () => {
             {itv: [2, 4, true, false], data: 0.5},
             {itv: [6, 8, true, false], data: 1.0},
         ];
-        const layer = getLayer({items});
+        const layer = sl.layer({items});
         let result = layer.sample();
 
         expect(result.length).toBe(8-2+1);

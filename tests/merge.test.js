@@ -1,6 +1,6 @@
 /* global describe, test, expect */
 
-import { getLayer } from "../src/layers.js";
+import * as sl from "../src/index.js";
 import { merge, MergeIndex } from "../src/ops/merge.js"; 
 
 const DATA = "data";
@@ -10,7 +10,7 @@ const OFFSET = 4;
 function runtest(intervals, expected) {
     // make layers
     const layers = intervals.map((intervals) => { 
-        return getLayer({
+        return sl.layer({
             items: intervals.map((itv) => {
                 return {itv, type: "static", data: DATA};
             })
@@ -155,14 +155,14 @@ describe('MergeTest', () => {
             {type: "static", itv: [1, 5, true, false], value: 0.8},
             {type: "static", itv: [10, 15, true, false], value: 0.6},
         ];
-        const layer_1 = getLayer({items:items_1});
+        const layer_1 = sl.layer({items:items_1});
 
         // Datasource 2
         const items_2 = [
             {type: "static", itv: [2.5, 7.5, true, false], value: 0.1},
             {type: "static", itv: [12.5, 17.5, true, false], value: 0.3},
         ];
-        const layer_2 = getLayer({items:items_2});
+        const layer_2 = sl.layer({items:items_2});
 
         // Merge
         let layer = merge([layer_1, layer_2]);
@@ -192,14 +192,14 @@ describe('MergeTest', () => {
             {type: "static", itv: [1, 5, true, false], data:0.8},
             {type: "static", itv: [10, 15, true, false], data:0.6},
         ];
-        const layer_1 = new getLayer({items:items_1});
+        const layer_1 = new sl.layer({items:items_1});
 
         // Datasource 2
         const items_2 = [
             {type: "static", itv: [2.5, 7.5, true, false], data:0.1},
             {type: "static", itv: [12.5, 17.5, true, false], data:0.3},
         ];
-        const layer_2 = getLayer({items:items_2});
+        const layer_2 = sl.layer({items:items_2});
 
         // valueFunc
         function valueFunc(info) {
