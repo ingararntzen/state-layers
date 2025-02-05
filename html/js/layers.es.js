@@ -435,19 +435,19 @@ function check_input(items) {
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}
- *          always a high-endpoint or undefined
+ *          always a high-endpoint or [-Infinity, 0]
  *      right:
  *          first interval endpoint to the right
  *          which will produce different {center}
- *          always a low-endpoint or undefined         
+ *          always a low-endpoint or [Infinity, 0]    
  *      prev:
  *          first interval endpoint to the left 
  *          which will produce different && non-empty {center}
- *          always a high-endpoint or undefined if no more intervals to the left
+ *          always a high-endpoint or [-Infinity, 0] if no more intervals to the left
  *      next:
  *          first interval endpoint to the right
  *          which will produce different && non-empty {center}
- *          always a low-endpoint or undefined if no more intervals to the right
+ *          always a low-endpoint or [Infinity, 0] if no more intervals to the right
  * }
  * 
  * 
@@ -542,7 +542,7 @@ function check_input(items) {
             nearby = this.nearby(current);
             if (nearby.center.length == 0) {
                 // center empty (typically first iteration)
-                if (nearby.right == undefined) {
+                if (nearby.right[0] == Infinity) {
                     // right undefined
                     // no entries - already exhausted
                     break;
@@ -553,7 +553,7 @@ function check_input(items) {
                 }
             } else {
                 results.push(nearby.center);
-                if (nearby.right == undefined) {
+                if (nearby.right[0] == Infinity) {
                     // right undefined
                     // last entry - mark iteractor exhausted
                     break;
@@ -1437,10 +1437,10 @@ class NearbyIndexSimple extends NearbyIndexBase {
         const result = {
             center: [],
             itv: [-Infinity, Infinity, true, true],
-            left: undefined,
-            right: undefined,
-            prev: undefined,
-            next: undefined
+            left: [-Infinity, 0],
+            prev: [-Infinity, 0],
+            right: [Infinity, 0],
+            next: [Infinity, 0]
         };
         let items = this._src.get_items();
         let indexes, item;
@@ -1484,21 +1484,25 @@ class NearbyIndexSimple extends NearbyIndexBase {
             result.next =  get_low_endpoint(items[indexes.right]);
         }        
         // left/right
-        let low, high;
+        let low = [-Infinity, 0], high= [Infinity, 0];
         if (result.center.length > 0) {
             let itv = result.center[0].itv;
             [low, high] = endpoint.from_interval(itv);
-            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
-            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : [-Infinity, 0];
+            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : [Infinity, 0];
             result.itv = result.center[0].itv;
         } else {
             result.left = result.prev;
             result.right = result.next;
             // interval
             let left = result.left;
-            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
+            if (low[0] == -Infinity) {
+                low = endpoint.flip(left, "low");
+            }
             let right = result.right;
-            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
+            if (high[0] == Infinity) {
+                high = endpoint.flip(right, "high");
+            }
             result.itv = interval.from_endpoints(low, high);
         }
         return result;
@@ -1892,8 +1896,8 @@ class MergeIndex extends NearbyIndexBase {
         const center_low_list = [];
         for (let src of this._sources) {
             let {prev, center, next, itv} = src.index.nearby(offset);
-            if (prev != undefined) prev_list.push(prev);            
-            if (next != undefined) next_list.push(next);
+            if (prev[0] > -Infinity) prev_list.push(prev);            
+            if (next[0] < Infinity) next_list.push(next);
             if (center.length > 0) {
                 center_list.push(this._caches.get(src));
                 let [low, high] = endpoint.from_interval(itv);
@@ -1962,19 +1966,6 @@ class MergeIndex extends NearbyIndexBase {
         high = endpoint.flip(result.right, "high");
         result.itv = interval.from_endpoints(low, high);
 
-        // switch to undefined
-        if (result.prev[0] == -Infinity) {
-            result.prev = undefined;
-        }
-        if (result.left[0] == -Infinity) {
-            result.left = undefined;
-        }
-        if (result.next[0] == Infinity) {
-            result.next = undefined;
-        }
-        if (result.right[0] == Infinity) {
-            result.right = undefined;
-        }
         return result;
     }
 }

@@ -29,19 +29,19 @@ import { endpoint } from "./intervals.js";
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}
- *          always a high-endpoint or undefined
+ *          always a high-endpoint or [-Infinity, 0]
  *      right:
  *          first interval endpoint to the right
  *          which will produce different {center}
- *          always a low-endpoint or undefined         
+ *          always a low-endpoint or [Infinity, 0]    
  *      prev:
  *          first interval endpoint to the left 
  *          which will produce different && non-empty {center}
- *          always a high-endpoint or undefined if no more intervals to the left
+ *          always a high-endpoint or [-Infinity, 0] if no more intervals to the left
  *      next:
  *          first interval endpoint to the right
  *          which will produce different && non-empty {center}
- *          always a low-endpoint or undefined if no more intervals to the right
+ *          always a low-endpoint or [Infinity, 0] if no more intervals to the right
  * }
  * 
  * 
@@ -136,7 +136,7 @@ import { endpoint } from "./intervals.js";
             nearby = this.nearby(current);
             if (nearby.center.length == 0) {
                 // center empty (typically first iteration)
-                if (nearby.right == undefined) {
+                if (nearby.right[0] == Infinity) {
                     // right undefined
                     // no entries - already exhausted
                     break;
@@ -147,7 +147,7 @@ import { endpoint } from "./intervals.js";
                 }
             } else {
                 results.push(nearby.center);
-                if (nearby.right == undefined) {
+                if (nearby.right[0] == Infinity) {
                     // right undefined
                     // last entry - mark iteractor exhausted
                     break;

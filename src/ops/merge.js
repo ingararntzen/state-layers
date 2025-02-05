@@ -133,8 +133,8 @@ export class MergeIndex extends NearbyIndexBase {
         const center_low_list = []
         for (let src of this._sources) {
             let {prev, center, next, itv} = src.index.nearby(offset);
-            if (prev != undefined) prev_list.push(prev);            
-            if (next != undefined) next_list.push(next);
+            if (prev[0] > -Infinity) prev_list.push(prev);            
+            if (next[0] < Infinity) next_list.push(next);
             if (center.length > 0) {
                 center_list.push(this._caches.get(src));
                 let [low, high] = endpoint.from_interval(itv);
@@ -203,19 +203,6 @@ export class MergeIndex extends NearbyIndexBase {
         high = endpoint.flip(result.right, "high");
         result.itv = interval.from_endpoints(low, high);
 
-        // switch to undefined
-        if (result.prev[0] == -Infinity) {
-            result.prev = undefined;
-        }
-        if (result.left[0] == -Infinity) {
-            result.left = undefined;
-        }
-        if (result.next[0] == Infinity) {
-            result.next = undefined;
-        }
-        if (result.right[0] == Infinity) {
-            result.right = undefined;
-        }
         return result;
     }
 };

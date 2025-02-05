@@ -37,10 +37,10 @@ describe('MergeTest', () => {
         const expected = {
             itv: [-Infinity, Infinity, true, true],
             center_length: 0,
-            left: undefined,
-            prev: undefined,
-            right: undefined,
-            next: undefined
+            left: [-Infinity, 0],
+            prev: [-Infinity, 0],
+            right: [Infinity, 0],
+            next: [Infinity, 0]
         };
         runtest(layers, expected);
     });
@@ -70,9 +70,9 @@ describe('MergeTest', () => {
             itv: [1, 8, true, false],
             center_length: 1,
             left: [1, -1],
-            prev: undefined,
+            prev: [-Infinity, 0],
             right: [8,0],
-            next: undefined
+            next: [Infinity, 0]
         };
         runtest(layers, expected);
     });

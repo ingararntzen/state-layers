@@ -36,7 +36,6 @@ describe('EndpointTest', () => {
     });
 
     test('infinity values', () => {
-        console.log("running")
         const p = [-Infinity, 0];
         const itv = [-Infinity, 0, true, false];
         expect(interval.covers_endpoint(itv, p)).toEqual(true);

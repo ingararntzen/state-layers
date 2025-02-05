@@ -35,10 +35,10 @@ describe('SimpleNearbyIndex', () => {
         // interval
         expect(nearby.itv).toStrictEqual(intervals[0]);
         // prev/next
-        expect(nearby.prev).toBe(undefined);
+        expect(nearby.prev).toStrictEqual([-Infinity, 0]);
         expect(nearby.next).toStrictEqual([0, 0]);
         // left/right
-        expect(nearby.left).toBe(undefined);
+        expect(nearby.left).toStrictEqual([-Infinity, 0]);
         expect(nearby.right).toStrictEqual([0, 0]);
 
         // SECOND ITEM
@@ -74,10 +74,10 @@ describe('SimpleNearbyIndex', () => {
         expect(nearby.itv).toStrictEqual(intervals[2]);
         // prev/next
         expect(nearby.prev).toStrictEqual([1, 0]);
-        expect(nearby.next).toStrictEqual(undefined);
+        expect(nearby.next).toStrictEqual([Infinity, 0]);
         // left/right
         expect(nearby.left).toStrictEqual([2, 0]);
-        expect(nearby.right).toBe(undefined);
+        expect(nearby.right).toStrictEqual([Infinity, 0]);
 
         // GAP
         // endpoint within gap

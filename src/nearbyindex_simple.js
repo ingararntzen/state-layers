@@ -59,10 +59,10 @@ export class NearbyIndexSimple extends NearbyIndexBase {
         const result = {
             center: [],
             itv: [-Infinity, Infinity, true, true],
-            left: undefined,
-            right: undefined,
-            prev: undefined,
-            next: undefined
+            left: [-Infinity, 0],
+            prev: [-Infinity, 0],
+            right: [Infinity, 0],
+            next: [Infinity, 0]
         };
         let items = this._src.get_items();
         let indexes, item;
@@ -106,21 +106,25 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             result.next =  get_low_endpoint(items[indexes.right]);
         }        
         // left/right
-        let low, high;
+        let low = [-Infinity, 0], high= [Infinity, 0];
         if (result.center.length > 0) {
             let itv = result.center[0].itv;
             [low, high] = endpoint.from_interval(itv);
-            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : undefined;
-            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : undefined;
+            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : [-Infinity, 0];
+            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : [Infinity, 0];
             result.itv = result.center[0].itv;
         } else {
             result.left = result.prev;
             result.right = result.next;
             // interval
             let left = result.left;
-            low = (left == undefined) ? [-Infinity, 0] : endpoint.flip(left, "low");
+            if (low[0] == -Infinity) {
+                low = endpoint.flip(left, "low");
+            }
             let right = result.right;
-            high = (right == undefined) ? [Infinity, 0] : endpoint.flip(right, "high");
+            if (high[0] == Infinity) {
+                high = endpoint.flip(right, "high");
+            }
             result.itv = interval.from_endpoints(low, high);
         }
         return result;
