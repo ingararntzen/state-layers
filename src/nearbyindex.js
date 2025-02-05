@@ -24,7 +24,7 @@ import { endpoint } from "./intervals.js";
  * Primary use is for iteration 
  * 
  * Returns {
- *      center: list of ITEMS covering endpoint,
+ *      center: list of ITEMS/LAYERS covering endpoint,
  *      itv: interval where nearby returns identical {center}
  *      left:
  *          first interval endpoint to the left 
@@ -83,6 +83,15 @@ import { endpoint } from "./intervals.js";
         throw new Error("Not implemented");
     }
 
+    check(offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
+        }
+        if (!Array.isArray(offset)) {
+            throw new Error("Endpoint must be an array");
+        }
+        return offset;
+    }
 
     /*
         return low point of leftmost entry

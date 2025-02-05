@@ -55,12 +55,7 @@ export class NearbyIndexSimple extends NearbyIndexBase {
             should be inserted - if it had low == offset
     */
     nearby(offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (!Array.isArray(offset)) {
-            throw new Error("Endpoint must be an array");
-        }
+        offset = this.check(offset);
         const result = {
             center: [],
             itv: [-Infinity, Infinity, true, true],

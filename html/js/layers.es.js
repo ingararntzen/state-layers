@@ -430,7 +430,7 @@ function check_input(items) {
  * Primary use is for iteration 
  * 
  * Returns {
- *      center: list of ITEMS covering endpoint,
+ *      center: list of ITEMS/LAYERS covering endpoint,
  *      itv: interval where nearby returns identical {center}
  *      left:
  *          first interval endpoint to the left 
@@ -489,6 +489,15 @@ function check_input(items) {
         throw new Error("Not implemented");
     }
 
+    check(offset) {
+        if (typeof offset === 'number') {
+            offset = [offset, 0];
+        }
+        if (!Array.isArray(offset)) {
+            throw new Error("Endpoint must be an array");
+        }
+        return offset;
+    }
 
     /*
         return low point of leftmost entry
@@ -1424,12 +1433,7 @@ class NearbyIndexSimple extends NearbyIndexBase {
             should be inserted - if it had low == offset
     */
     nearby(offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (!Array.isArray(offset)) {
-            throw new Error("Endpoint must be an array");
-        }
+        offset = this.check(offset);
         const result = {
             center: [],
             itv: [-Infinity, Infinity, true, true],
