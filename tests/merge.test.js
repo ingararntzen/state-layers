@@ -167,7 +167,6 @@ describe('MergeTest', () => {
         // Merge
         let layer = merge([layer_1, layer_2]);
 
-        console.log(layer.index)
         const expected = [
             [layer_1],
             [layer_1, layer_2],
@@ -236,7 +235,6 @@ describe('MergeTest', () => {
         ]
             
         let tups = layer.sample({start:0, end:20});
-        console.log(tups)
         expect(tups).toStrictEqual(expected);
     });
 

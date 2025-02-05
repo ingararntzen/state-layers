@@ -1,5 +1,5 @@
 import { StateProviderBase } from "./stateprovider_bases.js";
-import { endpoint } from "./intervals.js";
+import { endpoint, interval } from "./intervals.js";
 
 /***************************************************************
     LOCAL STATE PROVIDER
@@ -51,6 +51,10 @@ export class LocalStateProvider extends StateProviderBase {
 function check_input(items) {
     if (!Array.isArray(items)) {
         throw new Error("Input must be an array");
+    }
+    // make sure that intervals are well formed
+    for (const item of items) {
+        item.itv = interval.from_input(item.itv);
     }
     // sort items based on interval low endpoint
     items.sort((a, b) => {

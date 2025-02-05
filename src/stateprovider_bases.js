@@ -51,7 +51,7 @@ export class MotionProviderBase {
     constructor(options={}) {
         callback.addToInstance(this);
         let {state} = options;
-        if (state = undefined) {
+        if (state == undefined) {
             this._state = {
                 position: 0,
                 velocity: 0,

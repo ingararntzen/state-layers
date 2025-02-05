@@ -87,7 +87,7 @@ class MotionProviderBase {
     constructor(options={}) {
         addToInstance$2(this);
         let {state} = options;
-        if (state = undefined) {
+        if (state == undefined) {
             this._state = {
                 position: 0,
                 velocity: 0,
@@ -477,6 +477,10 @@ class LocalStateProvider extends StateProviderBase {
 function check_input(items) {
     if (!Array.isArray(items)) {
         throw new Error("Input must be an array");
+    }
+    // make sure that intervals are well formed
+    for (const item of items) {
+        item.itv = interval.from_input(item.itv);
     }
     // sort items based on interval low endpoint
     items.sort((a, b) => {
@@ -1045,7 +1049,8 @@ function addToPrototype$1 (_prototype) {
  * 
  * option: mutable:true means that propery may be reset 
  * 
- * source object is assumed to support the callback interface
+ * source object is assumed to support the callback interface,
+ * or be a list of objects all supporting the callback interface
  */
 
 const NAME = "srcprop";
@@ -1062,38 +1067,29 @@ function addToPrototype (_prototype) {
         const map = this[`${PREFIX}`]; 
         map.set(propName, {
             init:false,
-            handle: undefined,
-            src: undefined,
-            mutable
+            mutable,
+            entity: undefined,
+            handles: []
         });
 
         // register getters and setters
-        if (mutable) {
-            // getter and setter
-            Object.defineProperty(this, propName, {
-                get: function () {
-                    return map.get(propName).src;
-                },
-                set: function (src) {
-                    if (this.propCheck) {
-                        src = this.propCheck(propName, src);
-                    }
-                    if (src != map.get(propName).src) {
-                        this[`${PREFIX}_attach`](propName, src);
-                    }
+        Object.defineProperty(this, propName, {
+            get: function () {
+                return map.get(propName).entity;
+            },
+            set: function (entity) {
+                if (this[`${NAME}_check`]) {
+                    entity = this[`${NAME}_check`](propName, entity);
                 }
-            });
-        } else {
-            // only getter
-            Object.defineProperty(this, propName, {
-                get: function () {
-                    return m.get(propName).src;
+                if (entity != map.get(propName).entity) {
+                    this[`${PREFIX}_attach`](propName, entity);
                 }
-            });
-        }
+            }
+        });
     }
 
-    function attatch(propName, src) {
+    function attatch(propName, entity) {
+
         const map = this[`${PREFIX}`];
         const state = map.get(propName);
 
@@ -1101,29 +1097,34 @@ function addToPrototype (_prototype) {
             throw new Error(`${propName} can not be reassigned`);
         }
 
-        // unsubscribe from source change event
-        if (state.src) {
-            state.src.remove_callback(state.handle);
-            state.src = undefined;
-            state.handle = undefined;
-        }
+        const entities = (Array.isArray(entity)) ? entity : [entity];
 
-        // attatch new src
-        state.src = src;
+        // unsubscribe from entities
+        if (state.handles.length > 0) {
+            for (const [idx, e] of Object.entries(entities)) {
+                e.remove_callback(state.handles[idx]);
+            }    
+        }
+        state.handles = [];
+
+        // attatch new entity
+        state.entity = entity;
         state.init = true;
 
         // subscribe to callback from source
-        if (this.propChange) {
+        if (this[`${NAME}_onchange`]) {
             const handler = function (eArg) {
-                this.propChange(propName, eArg);
+                this[`${NAME}_onchange`](propName, eArg);
             }.bind(this);
-            state.handle = src.add_callback(handler);
-            this.propChange(propName, "reset"); 
+            for (const e of entities) {
+                state.handles.push(e.add_callback(handler));
+            }
+            this[`${NAME}_onchange`](propName, "reset"); 
         }
     }
 
     const api = {};
-    api[`${NAME}Register`] = register;
+    api[`${NAME}_register`] = register;
     api[`${PREFIX}_attach`] = attatch;
     Object.assign(_prototype, api);
 }
@@ -1725,7 +1726,7 @@ class LayerCache {
     }
 
     clear() {
-        this._itv = undefined;
+        this._nearby = undefined;
         this._state = undefined;
     }
 }
@@ -1733,24 +1734,24 @@ class LayerCache {
 
 
 /*********************************************************************
-    STATE LAYER
+    INPUT LAYER
 *********************************************************************/
 
 /**
  * Layer with a StateProvider as src
  */
 
-class StateLayer extends Layer {
+class InputLayer extends Layer {
 
     constructor(options={}) {
         const {queryFuncs} = options;
-        super({queryFuncs, CacheClass:StateLayerCache});
+        super({queryFuncs, CacheClass:InputLayerCache});
         // setup src propterty
         addToInstance(this);
-        this.srcpropRegister("src");
+        this.srcprop_register("src");
     }
 
-    propCheck(propName, src) {
+    srcprop_check(propName, src) {
         if (propName == "src") {
             if (!(src instanceof StateProviderBase)) {
                 throw new Error(`"src" must be state provider ${src}`);
@@ -1759,35 +1760,33 @@ class StateLayer extends Layer {
         }
     }
 
-    propChange(propName, eArg) {
+    srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new NearbyIndexSimple(this.src);
-            } else {
-                this.clearCaches();
-            }
+            } 
+            this.clearCaches();
             this.notify_callbacks();
             this.eventifyTrigger("change");
         }        
     }
 }
-addToPrototype(StateLayer.prototype);
+addToPrototype(InputLayer.prototype);
 
 
 
 /*********************************************************************
-    STATE LAYER CACHE
+    INPUT LAYER CACHE
 *********************************************************************/
 
 /*
     Layer with a StateProvider uses a specific cache implementation.    
 
-    Since Source Layer has a state provider, its index is
-    items, and the cache will instantiate segments corresponding to
-    these items. 
+    The cache will instantiate segments corresponding to
+    items in the index. 
 */
 
-class StateLayerCache {
+class InputLayerCache {
     constructor(layer) {
         // layer
         this._layer = layer;
@@ -1850,27 +1849,50 @@ function load_segment(itv, item) {
 
 function merge (sources, options) {
     
-    const layer = new Layer(options);
-    layer.index = new MergeIndex(sources);
-
-    // getter for sources
-    Object.defineProperty(layer, "sources", {
-        get: function () {
-            return sources;
-        }
-    });
- 
-    // subscrive to change callbacks from sources 
-    function handle_src_change(eArg) {
-        layer.clearCaches();
-        layer.notify_callback();
-        layer.eventifyTrigger("change"); 
-    }
-    for (let src of sources) {
-        src.add_callback(handle_src_change);            
-    }
-    return layer;
+    return new MergeLayer(sources, options);
 }
+
+
+class MergeLayer extends Layer {
+
+    constructor(sources, options) {
+        super(options);
+
+        // setup sources property
+        addToInstance(this);
+        this.srcprop_register("sources", {mutable:false});
+        this.sources = sources;
+    }
+
+    srcprop_check(propName, sources) {
+        if (propName == "sources") {
+            // check that sources is array of layers
+            if (!Array.isArray(sources)) {
+                throw new Error(`sources must be array ${sources}`)
+            }
+            const all_layers = sources.map((e) => e instanceof Layer).every(e => e);
+            if (!all_layers) {
+                throw new Error(`sources must all be layers ${sources}`);
+            }
+        }
+        return sources;
+    }
+
+    srcprop_onchange(propName, eArg) {
+        if (propName == "sources") {
+            if (this.index == undefined || eArg == "reset") {
+                this.index = new MergeIndex(this.sources);
+            } 
+            this.clearCaches();
+            this.notify_callbacks();
+            this.eventifyTrigger("change");
+        }
+    }
+}
+addToPrototype(MergeLayer.prototype);
+
+
+
 
 
 /**
@@ -2076,11 +2098,11 @@ class SkewLayer extends Layer {
         this._skew = skew;
         // setup src propterty
         addToInstance(this);
-        this.srcpropRegister("src");
+        this.srcprop_register("src");
         this.src = layer;
     }
 
-    propCheck(propName, src) {
+    srcprop_check(propName, src) {
         if (propName == "src") {
             if (!(src instanceof Layer)) {
                 throw new Error(`"src" must be Layer ${src}`);
@@ -2089,7 +2111,7 @@ class SkewLayer extends Layer {
         }
     }
 
-    propChange(propName, eArg) {
+    srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new SkewIndex(this.src, this._skew);
@@ -2129,7 +2151,7 @@ function layer(options={}) {
     if (src == undefined) {
         src = new LocalStateProvider({items});
     }
-    const layer = new StateLayer(opts);
+    const layer = new InputLayer(opts);
     layer.src = src;
     return layer;
 }

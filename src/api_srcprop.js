@@ -9,7 +9,8 @@
  * 
  * option: mutable:true means that propery may be reset 
  * 
- * source object is assumed to support the callback interface
+ * source object is assumed to support the callback interface,
+ * or be a list of objects all supporting the callback interface
  */
 
 const NAME = "srcprop";
@@ -26,38 +27,29 @@ export function addToPrototype (_prototype) {
         const map = this[`${PREFIX}`]; 
         map.set(propName, {
             init:false,
-            handle: undefined,
-            src: undefined,
-            mutable
+            mutable,
+            entity: undefined,
+            handles: []
         });
 
         // register getters and setters
-        if (mutable) {
-            // getter and setter
-            Object.defineProperty(this, propName, {
-                get: function () {
-                    return map.get(propName).src;
-                },
-                set: function (src) {
-                    if (this.propCheck) {
-                        src = this.propCheck(propName, src)
-                    }
-                    if (src != map.get(propName).src) {
-                        this[`${PREFIX}_attach`](propName, src);
-                    }
+        Object.defineProperty(this, propName, {
+            get: function () {
+                return map.get(propName).entity;
+            },
+            set: function (entity) {
+                if (this[`${NAME}_check`]) {
+                    entity = this[`${NAME}_check`](propName, entity);
                 }
-            });
-        } else {
-            // only getter
-            Object.defineProperty(this, propName, {
-                get: function () {
-                    return m.get(propName).src;
+                if (entity != map.get(propName).entity) {
+                    this[`${PREFIX}_attach`](propName, entity);
                 }
-            });
-        }
+            }
+        });
     }
 
-    function attatch(propName, src) {
+    function attatch(propName, entity) {
+
         const map = this[`${PREFIX}`];
         const state = map.get(propName)
 
@@ -65,29 +57,34 @@ export function addToPrototype (_prototype) {
             throw new Error(`${propName} can not be reassigned`);
         }
 
-        // unsubscribe from source change event
-        if (state.src) {
-            state.src.remove_callback(state.handle);
-            state.src = undefined;
-            state.handle = undefined;
-        }
+        const entities = (Array.isArray(entity)) ? entity : [entity];
 
-        // attatch new src
-        state.src = src;
+        // unsubscribe from entities
+        if (state.handles.length > 0) {
+            for (const [idx, e] of Object.entries(entities)) {
+                e.remove_callback(state.handles[idx]);
+            }    
+        }
+        state.handles = [];
+
+        // attatch new entity
+        state.entity = entity;
         state.init = true;
 
         // subscribe to callback from source
-        if (this.propChange) {
+        if (this[`${NAME}_onchange`]) {
             const handler = function (eArg) {
-                this.propChange(propName, eArg);
+                this[`${NAME}_onchange`](propName, eArg);
             }.bind(this);
-            state.handle = src.add_callback(handler);
-            this.propChange(propName, "reset"); 
+            for (const e of entities) {
+                state.handles.push(e.add_callback(handler));
+            }
+            this[`${NAME}_onchange`](propName, "reset"); 
         }
     }
 
     const api = {};
-    api[`${NAME}Register`] = register;
+    api[`${NAME}_register`] = register;
     api[`${PREFIX}_attach`] = attatch;
     Object.assign(_prototype, api);
 }

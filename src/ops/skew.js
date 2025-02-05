@@ -76,11 +76,11 @@ class SkewLayer extends Layer {
         this._skew = skew;
         // setup src propterty
         srcprop.addToInstance(this);
-        this.srcpropRegister("src");
+        this.srcprop_register("src");
         this.src = layer;
     }
 
-    propCheck(propName, src) {
+    srcprop_check(propName, src) {
         if (propName == "src") {
             if (!(src instanceof Layer)) {
                 throw new Error(`"src" must be Layer ${src}`);
@@ -89,7 +89,7 @@ class SkewLayer extends Layer {
         }
     }
 
-    propChange(propName, eArg) {
+    srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new SkewIndex(this.src, this._skew)

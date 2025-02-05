@@ -4,7 +4,7 @@
 import { LocalStateProvider } from "./stateprovider_simple.js";
 import { merge } from "./ops/merge.js"
 import { skew } from "./ops/skew.js";
-import { StateLayer } from "./layers.js";
+import { InputLayer } from "./layers.js";
 
 /*********************************************************************
     LAYER FACTORY
@@ -15,7 +15,7 @@ function layer(options={}) {
     if (src == undefined) {
         src = new LocalStateProvider({items})
     }
-    const layer = new StateLayer(opts);
+    const layer = new InputLayer(opts);
     layer.src = src;
     return layer;
 }

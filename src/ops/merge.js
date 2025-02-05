@@ -1,6 +1,7 @@
 import { endpoint, interval } from "../intervals.js";
 import { NearbyIndexBase } from "../nearbyindex.js";
 import { Layer } from "../layers.js"
+import * as srcprop from "../api_srcprop.js";
 
 /**
  * 
@@ -11,27 +12,50 @@ import { Layer } from "../layers.js"
 
 export function merge (sources, options) {
     
-    const layer = new Layer(options);
-    layer.index = new MergeIndex(sources);
-
-    // getter for sources
-    Object.defineProperty(layer, "sources", {
-        get: function () {
-            return sources;
-        }
-    });
- 
-    // subscrive to change callbacks from sources 
-    function handle_src_change(eArg) {
-        layer.clearCaches();
-        layer.notify_callback();
-        layer.eventifyTrigger("change"); 
-    }
-    for (let src of sources) {
-        src.add_callback(handle_src_change);            
-    }
-    return layer;
+    return new MergeLayer(sources, options);
 }
+
+
+class MergeLayer extends Layer {
+
+    constructor(sources, options) {
+        super(options);
+
+        // setup sources property
+        srcprop.addToInstance(this);
+        this.srcprop_register("sources", {mutable:false});
+        this.sources = sources;
+    }
+
+    srcprop_check(propName, sources) {
+        if (propName == "sources") {
+            // check that sources is array of layers
+            if (!Array.isArray(sources)) {
+                throw new Error(`sources must be array ${sources}`)
+            }
+            const all_layers = sources.map((e) => e instanceof Layer).every(e => e);
+            if (!all_layers) {
+                throw new Error(`sources must all be layers ${sources}`);
+            }
+        }
+        return sources;
+    }
+
+    srcprop_onchange(propName, eArg) {
+        if (propName == "sources") {
+            if (this.index == undefined || eArg == "reset") {
+                this.index = new MergeIndex(this.sources)
+            } 
+            this.clearCaches();
+            this.notify_callbacks();
+            this.eventifyTrigger("change");
+        }
+    }
+}
+srcprop.addToPrototype(MergeLayer.prototype);
+
+
+
 
 
 /**

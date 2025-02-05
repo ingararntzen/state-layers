@@ -114,7 +114,7 @@ export class LayerCache {
     }
 
     clear() {
-        this._itv = undefined;
+        this._nearby = undefined;
         this._state = undefined;
     }
 }
@@ -122,24 +122,24 @@ export class LayerCache {
 
 
 /*********************************************************************
-    STATE LAYER
+    INPUT LAYER
 *********************************************************************/
 
 /**
  * Layer with a StateProvider as src
  */
 
-export class StateLayer extends Layer {
+export class InputLayer extends Layer {
 
     constructor(options={}) {
         const {queryFuncs} = options;
-        super({queryFuncs, CacheClass:StateLayerCache});
+        super({queryFuncs, CacheClass:InputLayerCache});
         // setup src propterty
         srcprop.addToInstance(this);
-        this.srcpropRegister("src");
+        this.srcprop_register("src");
     }
 
-    propCheck(propName, src) {
+    srcprop_check(propName, src) {
         if (propName == "src") {
             if (!(src instanceof StateProviderBase)) {
                 throw new Error(`"src" must be state provider ${src}`);
@@ -148,35 +148,33 @@ export class StateLayer extends Layer {
         }
     }
 
-    propChange(propName, eArg) {
+    srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new NearbyIndexSimple(this.src)
-            } else {
-                this.clearCaches();
-            }
+            } 
+            this.clearCaches();
             this.notify_callbacks();
             this.eventifyTrigger("change");
         }        
     }
 }
-srcprop.addToPrototype(StateLayer.prototype);
+srcprop.addToPrototype(InputLayer.prototype);
 
 
 
 /*********************************************************************
-    STATE LAYER CACHE
+    INPUT LAYER CACHE
 *********************************************************************/
 
 /*
     Layer with a StateProvider uses a specific cache implementation.    
 
-    Since Source Layer has a state provider, its index is
-    items, and the cache will instantiate segments corresponding to
-    these items. 
+    The cache will instantiate segments corresponding to
+    items in the index. 
 */
 
-export class StateLayerCache {
+export class InputLayerCache {
     constructor(layer) {
         // layer
         this._layer = layer;
