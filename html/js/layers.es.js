@@ -4,32 +4,32 @@
     This decorates an object/prototype with basic (synchronous) callback support.
 */
 
-const PREFIX$2 = "__callback";
+const PREFIX$1 = "__callback";
 
-function addToInstance$2(object) {
-    object[`${PREFIX$2}_handlers`] = [];
+function addToInstance$1(object) {
+    object[`${PREFIX$1}_handlers`] = [];
 }
 
 function add_callback (handler) {
     let handle = {
         handler: handler
     };
-    this[`${PREFIX$2}_handlers`].push(handle);
+    this[`${PREFIX$1}_handlers`].push(handle);
     return handle;
 }
 function remove_callback (handle) {
-    let index = this[`${PREFIX$2}_handlers`].indexof(handle);
+    let index = this[`${PREFIX$1}_handlers`].indexof(handle);
     if (index > -1) {
-        this[`${PREFIX$2}_handlers`].splice(index, 1);
+        this[`${PREFIX$1}_handlers`].splice(index, 1);
     }
 }
 function notify_callbacks (eArg) {
-    this[`${PREFIX$2}_handlers`].forEach(function(handle) {
+    this[`${PREFIX$1}_handlers`].forEach(function(handle) {
         handle.handler(eArg);
     });
 }
 
-function addToPrototype$2 (_prototype) {
+function addToPrototype$1 (_prototype) {
     const api = {
         add_callback, remove_callback, notify_callbacks
     };
@@ -50,7 +50,7 @@ function addToPrototype$2 (_prototype) {
 class StateProviderBase {
 
     constructor() {
-        addToInstance$2(this);
+        addToInstance$1(this);
     }
 
     /**
@@ -83,7 +83,7 @@ class StateProviderBase {
         return {overlapping: true};
     }
 }
-addToPrototype$2(StateProviderBase.prototype);
+addToPrototype$1(StateProviderBase.prototype);
 
 /*
     
@@ -884,77 +884,6 @@ class EventVariable {
 eventifyPrototype(EventVariable.prototype);
 
 /************************************************
- * LAYER QUERY INTERFACE
- ************************************************/
-
-/**
- * Decorate an object/prototype of a Layer to implement 
- * the LayerQuery interface.
- * 
- * The layer query interface implements a query
- * mechanism for layers, with built-in caching
- * 
- * Example use
- * cache = object.getCache() 
- * cache.query();
- * 
- * - clearCaches is for internal use
- * - index is the actual target of of the query
- * - queryOptions specializes the query output
- * 
- * 
- * NOTE - this might be part of the BaseLayer class instead.
- */
-
-const PREFIX$1 = "__layerquery";
-
-function addToInstance$1 (object, CacheClass, queryOptions) {
-    object[`${PREFIX$1}_index`];
-    object[`${PREFIX$1}_queryOptions`] = queryOptions;
-    object[`${PREFIX$1}_cacheClass`] = CacheClass;
-    object[`${PREFIX$1}_cacheObject`] = new CacheClass(object);
-    object[`${PREFIX$1}_cacheObjects`] = [];
-}
-
-function addToPrototype$1 (_prototype) {
-
-    Object.defineProperty(_prototype, "index", {
-        get: function () {
-            return this[`${PREFIX$1}_index`];
-        },
-        set: function (index) {
-            this[`${PREFIX$1}_index`] = index;
-        }
-    });
-    Object.defineProperty(_prototype, "queryOptions", {
-        get: function () {
-            return this[`${PREFIX$1}_queryOptions`];
-        }
-    });
-
-    function getCache () {
-        let CacheClass = this[`${PREFIX$1}_cacheClass`];
-        const cache = new CacheClass(this);
-        this[`${PREFIX$1}_cacheObjects`].push(cache);
-        return cache;
-    }
-
-    function clearCaches () {
-        this[`${PREFIX$1}_cacheObject`].clear();
-        for (let cache of this[`${PREFIX$1}_cacheObjects`]) {
-            cache.clear();
-        }
-    }
-
-    function query (offset) {
-        return this[`${PREFIX$1}_cacheObject`].query(offset);
-    }
-
-    
-    Object.assign(_prototype, {getCache, clearCaches, query});
-}
-
-/************************************************
  * SOURCE PROPERTY (SRCPROP)
  ************************************************/
 
@@ -1563,12 +1492,56 @@ class Layer {
         const {CacheClass=LayerCache} = options;
         const {valueFunc, stateFunc} = options;
         // callbacks
-        addToInstance$2(this);
+        addToInstance$1(this);
         // layer query api
-        addToInstance$1(this, CacheClass, {valueFunc, stateFunc});
+        //layerquery.addToInstance(this, CacheClass, {valueFunc, stateFunc});
         // define change event
         eventifyInstance(this);
         this.eventifyDefine("change", {init:true});
+
+        // index
+        this._index;
+        // cache
+        this._CacheClass = CacheClass;
+        this._cache_object;
+        this._cache_objects = [];
+
+        // query options
+        this._queryOptions = {valueFunc, stateFunc};
+
+    }
+
+    // index
+    get index () {return this._index}
+    set index (index) {this._index = index;}
+
+    // queryOptions
+    get queryOptions () {
+        return this._queryOptions;
+    }
+
+    // cache
+    get cache () {
+        if (this._cache_object == undefined) {
+            this._cache_object = new this._CacheClass(this);
+        }
+        return this._cache_object;
+    }
+
+    getCache () {
+        const cache = new this._CacheClass(this);
+        this._cache_objects.push(cache);
+        return cache;
+    }
+
+    clearCaches() {
+        for (const cache of this._cache_objects){
+            cache.clear();
+        }
+    }
+
+    query(offset) {
+        return this.cache.query(offset);
     }
 
     /*
@@ -1595,7 +1568,6 @@ class Layer {
             });
     }
 }
-addToPrototype$2(Layer.prototype);
 addToPrototype$1(Layer.prototype);
 eventifyPrototype(Layer.prototype);
 
@@ -2093,13 +2065,13 @@ function shift (layer, offset) {
 
 class ClockProviderBase {
     constructor() {
-        addToInstance$2(this);
+        addToInstance$1(this);
     }
     now () {
         throw new Error("not implemented");
     }
 }
-addToPrototype$2(ClockProviderBase.prototype);
+addToPrototype$1(ClockProviderBase.prototype);
 
 
 
@@ -2565,20 +2537,16 @@ class CursorIndex extends NearbyIndexBase {
 class CursorCache {
     constructor(cursor) {
         this._cursor = cursor;
+        this._cache = this._cursor.src.getCache();
     }
 
     query() {
         const offset = this._cursor._get_ctrl_state().value; 
-        if (this._cache == undefined) {
-            this._cache = this._cursor.src.getCache();
-        }
         return this._cache.query(offset);
     }
 
     clear() {
-        if (this._cache != undefined) {
-            this._cache.clear();
-        }
+        this._cache.clear();
     }
 }
 

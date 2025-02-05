@@ -1,5 +1,4 @@
 import * as eventify from "./api_eventify.js";
-import * as layerquery from "./api_layerquery.js";
 import * as callback from "./api_callback.js";
 import * as srcprop from "./api_srcprop.js";
 import * as segment from "./segments.js";
@@ -28,10 +27,54 @@ export class Layer {
         // callbacks
         callback.addToInstance(this);
         // layer query api
-        layerquery.addToInstance(this, CacheClass, {valueFunc, stateFunc});
+        //layerquery.addToInstance(this, CacheClass, {valueFunc, stateFunc});
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
+
+        // index
+        this._index;
+        // cache
+        this._CacheClass = CacheClass;
+        this._cache_object;
+        this._cache_objects = [];
+
+        // query options
+        this._queryOptions = {valueFunc, stateFunc};
+
+    }
+
+    // index
+    get index () {return this._index}
+    set index (index) {this._index = index}
+
+    // queryOptions
+    get queryOptions () {
+        return this._queryOptions;
+    }
+
+    // cache
+    get cache () {
+        if (this._cache_object == undefined) {
+            this._cache_object = new this._CacheClass(this);
+        }
+        return this._cache_object;
+    }
+
+    getCache () {
+        const cache = new this._CacheClass(this);
+        this._cache_objects.push(cache);
+        return cache;
+    }
+
+    clearCaches() {
+        for (const cache of this._cache_objects){
+            cache.clear();
+        }
+    }
+
+    query(offset) {
+        return this.cache.query(offset);
     }
 
     /*
@@ -59,7 +102,6 @@ export class Layer {
     }
 }
 callback.addToPrototype(Layer.prototype);
-layerquery.addToPrototype(Layer.prototype);
 eventify.addToPrototype(Layer.prototype);
 
 

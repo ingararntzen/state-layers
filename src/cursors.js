@@ -52,20 +52,16 @@ class CursorIndex extends NearbyIndexBase {
 class CursorCache {
     constructor(cursor) {
         this._cursor = cursor;
+        this._cache = this._cursor.src.getCache();
     }
 
     query() {
         const offset = this._cursor._get_ctrl_state().value; 
-        if (this._cache == undefined) {
-            this._cache = this._cursor.src.getCache();
-        }
         return this._cache.query(offset);
     }
 
     clear() {
-        if (this._cache != undefined) {
-            this._cache.clear();
-        }
+        this._cache.clear();
     }
 }
 
