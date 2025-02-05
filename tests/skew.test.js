@@ -20,15 +20,12 @@ describe('SkewLayerTest', () => {
 
         ]});
 
-        const l2 = sl.skew(l1, OFFSET);
+        const l2 = sl.shift(l1, OFFSET);
 
         const samples_1 = l2.sample(0,10);
         const samples_2 = l2.sample(0 + OFFSET, 10 + OFFSET);
 
         expect(samples_1).toStrictEqual(samples_2);
-            
-
+    
     });
-
-
 });

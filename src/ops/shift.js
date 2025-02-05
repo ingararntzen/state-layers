@@ -2,7 +2,7 @@ import { NearbyIndexBase } from "../nearbyindex.js";
 import { Layer } from "../layers.js"
 import * as srcprop from "../api_srcprop.js";
 
-function skewed(p, offset) {
+function shifted(p, offset) {
     if (p == undefined || !isFinite(p)) {
         // p - no skew
         return p;
@@ -19,10 +19,10 @@ function skewed(p, offset) {
 
 
 /*********************************************************************
-    SKEW INDEX
+    SHIFT INDEX
 *********************************************************************/
 
-class SkewIndex extends NearbyIndexBase {
+class ShiftIndex extends NearbyIndexBase {
 
     constructor (layer, skew) {
         super();
@@ -31,10 +31,10 @@ class SkewIndex extends NearbyIndexBase {
         this._cache = layer.getCache();
 
         // skewing cache object
-        this._skewed_cache = {
+        this._shifted_cache = {
             query: function (offset) {
                 // skew query (negative) - override result offset
-                return {...this._cache.query(skewed(offset, -this._skew)), offset};
+                return {...this._cache.query(shifted(offset, -this._skew)), offset};
             }.bind(this)
         };
     }
@@ -42,34 +42,29 @@ class SkewIndex extends NearbyIndexBase {
     // skewing index.nearby
     nearby(offset) {
         // skew query (negative)
-        const nearby = this._layer.index.nearby(skewed(offset, -this._skew));
+        const nearby = this._layer.index.nearby(shifted(offset, -this._skew));
         // skew result (positive) 
         const itv = nearby.itv.slice();
-        itv[0] = skewed(nearby.itv[0], this._skew);
-        itv[1] = skewed(nearby.itv[1], this._skew)
+        itv[0] = shifted(nearby.itv[0], this._skew);
+        itv[1] = shifted(nearby.itv[1], this._skew)
         return {
             itv,
-            left: skewed(nearby.left, this._skew),
-            right: skewed(nearby.right, this._skew),
-            next: skewed(nearby.next, this._skew),
-            prev: skewed(nearby.prev, this._skew),
-            center: nearby.center.map(() => this._skewed_cache)
+            left: shifted(nearby.left, this._skew),
+            right: shifted(nearby.right, this._skew),
+            next: shifted(nearby.next, this._skew),
+            prev: shifted(nearby.prev, this._skew),
+            center: nearby.center.map(() => this._shifted_cache)
         }
     }
 }
 
 
 /*********************************************************************
-    SKEW LAYER
+    SHIFT LAYER
 *********************************************************************/
 
-/**
- * Todo - make SkewLayer use a dynamic Skew Cursor
- * as ctrl.
- */
 
-
-class SkewLayer extends Layer {
+class ShiftLayer extends Layer {
 
     constructor(layer, skew, options={}) {
         super(options);
@@ -92,7 +87,7 @@ class SkewLayer extends Layer {
     srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
-                this.index = new SkewIndex(this.src, this._skew)
+                this.index = new ShiftIndex(this.src, this._skew)
             } else {
                 this.clearCaches();
             }
@@ -101,7 +96,7 @@ class SkewLayer extends Layer {
         }
     }
 }
-srcprop.addToPrototype(SkewLayer.prototype);
+srcprop.addToPrototype(ShiftLayer.prototype);
 
 /**
  * Skewing a Layer by an offset
@@ -112,6 +107,6 @@ srcprop.addToPrototype(SkewLayer.prototype);
  * 
  */
 
-export function skew (layer, offset) {
-    return new SkewLayer(layer, offset);
+export function shift (layer, offset) {
+    return new ShiftLayer(layer, offset);
 }

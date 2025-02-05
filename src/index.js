@@ -1,6 +1,6 @@
 import { LocalStateProvider } from "./stateprovider_simple.js";
 import { merge } from "./ops/merge.js"
-import { skew } from "./ops/skew.js";
+import { shift } from "./ops/shift.js";
 import { InputLayer, Layer } from "./layers.js";
 import { Cursor } from "./cursors.js";
 import { cmd } from "./cmd.js";
@@ -36,4 +36,4 @@ function cursor(options={}) {
     return new Cursor({ctrl, src});
 }
 
-export { layer, cursor, merge, skew, cmd }
+export { layer, cursor, merge, shift, cmd }
