@@ -1,23 +1,39 @@
-// import { Cursor } from "./cursors.js";
-// import { cmd } from "./cmd.js";
-
 import { LocalStateProvider } from "./stateprovider_simple.js";
 import { merge } from "./ops/merge.js"
 import { skew } from "./ops/skew.js";
-import { InputLayer } from "./layers.js";
+import { InputLayer, Layer } from "./layers.js";
+import { Cursor } from "./cursors.js";
+import { cmd } from "./cmd.js";
 
 /*********************************************************************
     LAYER FACTORY
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, items, ...opts} = options;
+    let {src, items=[], value, ...opts} = options;
+    if (src instanceof Layer) {
+        return src;
+    } 
     if (src == undefined) {
-        src = new LocalStateProvider({items})
+        if (value != undefined) {
+            items = [{
+                itv: [-Infinity, Infinity],
+                data: value
+            }];
+        } 
+        src = new LocalStateProvider({items});
     }
-    const layer = new InputLayer(opts);
-    layer.src = src;
-    return layer;
+    return new InputLayer({src, ...opts}); 
 }
 
-export { layer, merge, skew }
+/*********************************************************************
+    CURSOR FACTORY
+*********************************************************************/
+
+function cursor(options={}) {
+    const {ctrl, ...opts} = options;
+    const src = layer(opts);    
+    return new Cursor({ctrl, src});
+}
+
+export { layer, cursor, merge, skew, cmd }

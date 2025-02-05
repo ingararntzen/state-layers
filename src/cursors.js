@@ -1,31 +1,11 @@
 import * as callback from "./api_callback.js";
-import * as sourceprop from "./api_sourceprop.js";
+import * as srcprop from "./api_srcprop.js";
 import * as eventify from "./api_eventify.js";
-import { CLOCK } from "./util.js";
-import { 
-    ClockProviderBase,
-    MotionProviderBase,
-    StateProviderBase
-} from "./stateprovider_bases.js";
+import { ClockProviderBase, localClockProvider } from "./stateprovider_clock.js";
 import { cmd } from "./cmd.js";
 import { Layer } from "./layers.js";
-import { LocalStateProvider } from "./stateprovider_simple.js";
-import { MotionStateProvider } from "./stateprovider_motion.js";
 import { interval } from "./intervals.js";
 import { bind, release } from "./monitor.js";
-
-
-/************************************************
- * LOCAL CLOCK PROVIDER
- ************************************************/
-
-class LocalClockProvider extends ClockProviderBase {
-    now () {
-        return CLOCK.now();
-    }
-}
-const localClockProvider = new LocalClockProvider();
-
 
 
 /************************************************
@@ -91,69 +71,55 @@ eventify.addToPrototype(CursorBase.prototype);
  * - has mutable ctrl cursor (default LocalClockProvider)
  * - has mutable state provider (src) (default state undefined)
  * - methods for assign, move, transition, intepolation
- * 
+ * - cursors do not have their own index, but uses the index
+ *   of their src, which is a layer
  */
 
 export class Cursor extends CursorBase {
 
     constructor (options={}) {
         super();
-        // ctrl
-        sourceprop.addToInstance(this, "ctrl");
-        // src
-        sourceprop.addToInstance(this, "src");
-        // index
-        this._index;
-        // cursor maintains a cashe object for querying src layer
+
+        // setup src properties
+        srcprop.addToInstance(this);
+        this.srcprop_register("src");
+        this.srcprop_register("ctrl");
+
+        // cache object for querying src layer
         this._cache;
         // timeout
         this._tid;
         // polling
         this._pid;
-        // options
-        let {src, ctrl, ...opts} = options;
 
-        // initialise ctrl
+        // initialise ctrl, src
+        let {src, ctrl} = options;
         this.ctrl = ctrl || localClockProvider;
-        // initialise src
-        this.src = src || new LocalStateProvider(opts);
+        this.src = src;
     }
 
     /**********************************************************
-     * CTRL (cursor)
+     * SRCPROP: CTRL and SRC
      **********************************************************/
 
-    __ctrl_check(ctrl) {
-        if (ctrl instanceof ClockProviderBase) {
-            return ctrl;
-        } else if (ctrl instanceof CursorBase) {
-            return ctrl;
-        } else {
-            throw new Error(`"ctrl" must be cursor ${ctrl}`)
+    srcprop_check(propName, obj) {
+        if (propName == "ctrl") {
+            const ok = [ClockProviderBase, CursorBase]
+                .map((cl) => obj instanceof cl)
+                .some(e=>e == true);
+            if (!ok) {
+                throw new Error(`"ctrl" must be ClockProvider or Cursor ${obj}`)
+            }
+        } else if (propName == "src") {
+            if (!(obj instanceof Layer)) {
+                throw new Error(`"src" must be Layer ${obj}`);
+            }
         }
-    }
-    __ctrl_handle_change(reason) {
-        this.__handle_change("ctrl", reason);
+        return obj;
     }
 
-    /**********************************************************
-     * SRC (layer)
-     **********************************************************/
-
-    __src_check(src) {
-        if (src instanceof StateProviderBase) {
-            return new Layer({src});
-        } else if (src instanceof Layer) {
-            return src;
-        } else  if (src instanceof MotionProviderBase) {
-            src = new MotionStateProvider(src);
-            return new Layer({src});
-        } else {
-            throw new Error(`"src" must be Layer ${src}`);
-        }
-    }    
-    __src_handle_change(reason) {
-        this.__handle_change("src", reason);
+    srcprop_onchange(propName, eArg) {
+        this.__handle_change(propName, eArg);
     }
 
     /**********************************************************
@@ -166,7 +132,7 @@ export class Cursor extends CursorBase {
         if (this.src && this.ctrl) {
             if (origin == "src") {
                 if (this._cache == undefined) {
-                    this._cache = this.src.getQueryObject();
+                    this._cache = this.src.getCache();
                 }
             }
             if (origin == "src" || origin == "ctrl") {
@@ -433,7 +399,7 @@ export class Cursor extends CursorBase {
      **********************************************************/
 
     assign(value) {
-        return cmd(this.src.src.src).assign(value);
+        return cmd(this.src.src).assign(value);
     }
     move ({position, velocity}) {
         let {value, offset:timestamp} = this.query();
@@ -442,14 +408,14 @@ export class Cursor extends CursorBase {
         }
         position = (position != undefined) ? position : value;
         velocity = (velocity != undefined) ? velocity: 0;
-        return cmd(this.src.src.src).move({position, velocity, timestamp});
+        return cmd(this.src.src).move({position, velocity, timestamp});
     }
     transition ({target, duration, easing}) {
         let {value:v0, offset:t0} = this.query();
         if (typeof v0 !== 'number') {
             throw new Error(`warning: cursor state must be number ${v0}`);
         }
-        return cmd(this.src.src.src).transition(v0, target, t0, t0 + duration, easing);
+        return cmd(this.src.src).transition(v0, target, t0, t0 + duration, easing);
     }
     interpolate ({tuples, duration}) {
         let t0 = this.query().offset;
@@ -458,10 +424,10 @@ export class Cursor extends CursorBase {
         tuples = tuples.map(([v,t]) => {
             return [v, t0 + t*duration];
         })
-        return cmd(this.src.src.src).interpolate(tuples);
+        return cmd(this.src.src).interpolate(tuples);
     }
 
 }
-sourceprop.addToPrototype(Cursor.prototype, "src", {mutable:true});
-sourceprop.addToPrototype(Cursor.prototype, "ctrl", {mutable:true});
+srcprop.addToPrototype(Cursor.prototype);
+srcprop.addToPrototype(Cursor.prototype);
 

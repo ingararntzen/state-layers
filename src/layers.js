@@ -132,11 +132,13 @@ export class LayerCache {
 export class InputLayer extends Layer {
 
     constructor(options={}) {
-        const {queryFuncs} = options;
-        super({queryFuncs, CacheClass:InputLayerCache});
+        const {src, valueFunc, stateFunc} = options;
+        super({CacheClass:InputLayerCache, valueFunc, stateFunc});
         // setup src propterty
         srcprop.addToInstance(this);
         this.srcprop_register("src");
+        // initialize
+        this.src = src;
     }
 
     srcprop_check(propName, src) {

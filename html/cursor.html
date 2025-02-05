@@ -32,6 +32,7 @@
 
 
         const offset = sl.cursor({value:0});
+        
         const color = sl.cursor({src:colors, ctrl:offset});
 
         offset.bind(render_html("#offset", ({value}) => `${value}`), 200);

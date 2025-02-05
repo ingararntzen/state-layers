@@ -37,100 +37,6 @@ function addToPrototype$2 (_prototype) {
 }
 
 /************************************************
- * CLOCK PROVIDER BASE
- ************************************************/
-
-/**
- * Base class for ClockProviders
- * 
- * Clock Providers implement the callback
- * interface to be compatible with other state
- * providers, even though they are not required to
- * provide any callbacks after clock adjustments
- */
-
-class ClockProviderBase {
-    constructor() {
-        addToInstance$2(this);
-    }
-    now () {
-        throw new Error("not implemented");
-    }
-}
-addToPrototype$2(ClockProviderBase.prototype);
-
-
-/**
- * Base class for MotionProviders
- * 
- * This is a convenience class offering a simpler way
- * of implementing state provider which deal exclusively
- * with motion segments.
- * 
- * Motionproviders do not deal with items, but with simpler
- * statements of motion state
- * 
- * state = {
- *      position: 0,
- *      velocity: 0,
- *      acceleration: 0,
- *      timestamp: 0
- *      range: [undefined, undefined]
- * }
- * 
- * Internally, MotionProvider will be wrapped so that they
- * become proper StateProviders.
- */
-
-class MotionProviderBase {
-
-    constructor(options={}) {
-        addToInstance$2(this);
-        let {state} = options;
-        if (state == undefined) {
-            this._state = {
-                position: 0,
-                velocity: 0,
-                acceleration: 0,
-                timestamp: 0,
-                range: [undefined, undefined]
-            };
-        } else {
-            this._state = state;
-        }
-    }
-
-    /**
-     * set motion state
-     * 
-     * implementations of online motion providers will
-     * use this to send an update request,
-     * and set _state on response and then call notify_callbaks
-     * If the proxy wants to set the state immediatedly - 
-     * it should be done using a Promise - to break the control flow.
-     * 
-     * return Promise.resolve()
-     *      .then(() => {
-     *           this._state = state;
-     *           this.notify_callbacks();
-     *       });
-     * 
-     */
-    set_state (state) {
-        throw new Error("not implemented");
-    }
-
-    // return current motion state
-    get_state () {
-        return {...this._state};
-    }
-}
-addToPrototype$2(MotionProviderBase.prototype);
-
-
-
-
-/************************************************
  * STATE PROVIDER BASE
  ************************************************/
 
@@ -1314,7 +1220,7 @@ class TransitionSegment extends BaseSegment {
  * interpolated or extrapolated value.
  */
 
-function interpolate(tuples) {
+function interpolate$1(tuples) {
 
     if (tuples.length < 1) {
         return function interpolator () {return undefined;}
@@ -1361,7 +1267,7 @@ class InterpolationSegment extends BaseSegment {
     constructor(itv, tuples) {
         super(itv);
         // setup interpolation function
-        this._trans = interpolate(tuples);
+        this._trans = interpolate$1(tuples);
     }
 
     state(offset) {
@@ -1392,7 +1298,7 @@ const epoch = function () {
  * time adjustments.
  */
 
-(function () {
+const CLOCK = function () {
     const t0_local = local();
     const t0_epoch = epoch();
     return {
@@ -1400,7 +1306,18 @@ const epoch = function () {
             return t0_epoch + (local() - t0_local)
         }
     }
-})();
+}();
+
+
+// ovverride modulo to behave better for negative numbers
+function mod(n, m) {
+    return ((n % m) + m) % m;
+}
+function divmod(x, base) {
+    let n = Math.floor(x / base);
+    let r = mod(x, base);
+    return [n, r];
+}
 
 
 /*
@@ -1744,11 +1661,13 @@ class LayerCache {
 class InputLayer extends Layer {
 
     constructor(options={}) {
-        const {queryFuncs} = options;
-        super({queryFuncs, CacheClass:InputLayerCache});
+        const {src, valueFunc, stateFunc} = options;
+        super({CacheClass:InputLayerCache, valueFunc, stateFunc});
         // setup src propterty
         addToInstance(this);
         this.srcprop_register("src");
+        // initialize
+        this.src = src;
     }
 
     srcprop_check(propName, src) {
@@ -2138,22 +2057,901 @@ function skew (layer, offset) {
     return new SkewLayer(layer, offset);
 }
 
-// import { Cursor } from "./cursors.js";
-// import { cmd } from "./cmd.js";
+/************************************************
+ * CLOCK PROVIDER BASE
+ ************************************************/
 
+/**
+ * Base class for ClockProviders
+ * 
+ * Clock Providers implement the callback
+ * interface to be compatible with other state
+ * providers, even though they are not required to
+ * provide any callbacks after clock adjustments
+ */
+
+class ClockProviderBase {
+    constructor() {
+        addToInstance$2(this);
+    }
+    now () {
+        throw new Error("not implemented");
+    }
+}
+addToPrototype$2(ClockProviderBase.prototype);
+
+
+
+/************************************************
+ * LOCAL CLOCK PROVIDER
+ ************************************************/
+
+class LocalClockProvider extends ClockProviderBase {
+    now () {
+        return CLOCK.now();
+    }
+}
+
+const localClockProvider = new LocalClockProvider();
+
+const METHODS = {assign, move, transition, interpolate};
+
+
+function cmd (target) {
+    if (!(target instanceof StateProviderBase)) {
+        throw new Error(`target.src must be stateprovider ${target}`);
+    }
+    let entries = Object.entries(METHODS)
+        .map(([name, method]) => {
+            return [
+                name,
+                function(...args) { 
+                    let items = method.call(this, ...args);
+                    return target.update(items);  
+                }
+            ]
+        });
+    return Object.fromEntries(entries);
+}
+
+function assign(value) {
+    if (value == undefined) {
+        return [];
+    } else {
+        let item = {
+            itv: [-Infinity, Infinity, true, true],
+            type: "static",
+            data: value                 
+        };
+        return [item];
+    }
+}
+
+function move(vector) {
+    let item = {
+        itv: [-Infinity, Infinity, true, true],
+        type: "motion",
+        data: vector  
+    };
+    return [item];
+}
+
+function transition(v0, v1, t0, t1, easing) {
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "transition",
+            data: {v0, v1, t0, t1, easing}
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            data: v1
+        }
+    ];
+    return items;
+}
+
+function interpolate(tuples) {
+    let [v0, t0] = tuples[0];
+    let [v1, t1] = tuples[tuples.length-1];
+
+    let items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "interpolation",
+            data: tuples
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            data: v1
+        }
+    ];    
+    return items;
+}
+
+/*
+    Timeout Monitor
+
+    Timeout Monitor is similar to setInterval, in the sense that 
+    it allows callbacks to be fired periodically 
+    with a given delay (in millis).  
+    
+    Timeout Monitor is made to sample the state 
+    of a dynamic object, periodically. For this reason, each callback is 
+    bound to a monitored object, which we here call a variable. 
+    On each invocation, a callback will provide a freshly sampled 
+    value from the variable.
+
+    This value is assumed to be available by querying the variable. 
+
+        v.query() -> {value, dynamic, offset, ts}
+
+    In addition, the variable object may switch back and 
+    forth between dynamic and static behavior. The Timeout Monitor
+    turns polling off when the variable is no longer dynamic, 
+    and resumes polling when the object becomes dynamic.
+
+    State changes are expected to be signalled through a <change> event.
+
+        sub = v.on("change", callback)
+        v.off(sub)
+
+    Callbacks are invoked on every <change> event, as well
+    as periodically when the object is in <dynamic> state.
+
+        callback({value, dynamic, offset, ts})
+
+    Furthermore, in order to support consistent rendering of
+    state changes from many dynamic variables, it is important that
+    callbacks are invoked at the same time as much as possible, so
+    that changes that occur near in time can be part of the same
+    screen refresh. 
+
+    For this reason, the TimeoutMonitor groups callbacks in time
+    and invokes callbacks at at fixed maximum rate (20Hz/50ms).
+    This implies that polling callbacks will fall on a shared 
+    polling frequency.
+
+    At the same time, callbacks may have individual frequencies that
+    are much lower rate than the maximum rate. The implementation
+    does not rely on a fixed 50ms timeout frequency, but is timeout based,
+    thus there is no processing or timeout between callbacks, even
+    if all callbacks have low rates.
+
+    It is safe to define multiple callabacks for a single variable, each
+    callback with a different polling frequency.
+
+    options
+        <rate> - default 50: specify minimum frequency in ms
+
+*/
+
+
+const RATE_MS = 50;
+
+
+/*********************************************************************
+    TIMEOUT MONITOR
+*********************************************************************/
+
+/*
+    Base class for Timeout Monitor and Framerate Monitor
+*/
+
+class TimeoutMonitor {
+
+    constructor(options={}) {
+
+        this._options = Object.assign({rate: RATE_MS}, options);
+        if (this._options.rate < RATE_MS) {
+            throw new Error(`illegal rate ${rate}, minimum rate is ${RATE_MS}`);
+        }
+        /*
+            map
+            handle -> {callback, variable, delay}
+            - variable: target for sampling
+            - callback: function(value)
+            - delay: between samples (when variable is dynamic)
+        */
+        this._set = new Set();
+        /*
+            variable map
+            variable -> {sub, polling, handles:[]}
+            - sub associated with variable
+            - polling: true if variable needs polling
+            - handles: list of handles associated with variable
+        */
+        this._variable_map = new Map();
+        // variable change handler
+        this.__onvariablechange = this._onvariablechange.bind(this);
+    }
+
+    bind(variable, callback, delay, options={}) {
+        // register binding
+        let handle = {callback, variable, delay};
+        this._set.add(handle);
+        // register variable
+        if (!this._variable_map.has(variable)) {
+            let sub = variable.on("change", this.__onvariablechange);
+            let item = {sub, polling:false, handles: [handle]};
+            this._variable_map.set(variable, item);
+            //this._reevaluate_polling(variable);
+        } else {
+            this._variable_map.get(variable).handles.push(handle);
+        }
+        return handle;
+    }
+
+    release(handle) {
+        // cleanup
+        let removed = this._set.delete(handle);
+        if (!removed) return;
+        handle.tid = undefined;
+        // cleanup variable map
+        let variable = handle.variable;
+        let {sub, handles} = this._variable_map.get(variable);
+        let idx = handles.indexOf(handle);
+        if (idx > -1) {
+            handles.splice(idx, 1);
+        }
+        if (handles.length == 0) {
+            // variable has no handles
+            // cleanup variable map
+            this._variable_map.delete(variable);
+            variable.off(sub);
+        }
+    }
+
+    /*
+        variable emits a change event
+    */
+    _onvariablechange (eArg, eInfo) {
+        let variable = eInfo.src;
+        // direct callback - could use eArg here
+        let {handles} = this._variable_map.get(variable);
+        let state = eArg;
+        // reevaluate polling
+        this._reevaluate_polling(variable, state);
+        // callbacks
+        for (let handle of handles) {
+            handle.callback(state);
+        }
+    }
+
+    /*
+        start or stop polling if needed
+    */
+    _reevaluate_polling(variable, state) {
+        let item = this._variable_map.get(variable);
+        let {polling:was_polling} = item;
+        state = state || variable.query();
+        let should_be_polling = state.dynamic;
+        if (!was_polling && should_be_polling) {
+            item.polling = true;
+            this._set_timeouts(variable);
+        } else if (was_polling && !should_be_polling) {
+            item.polling = false;
+            this._clear_timeouts(variable);
+        }
+    }
+
+    /*
+        set timeout for all callbacks associated with variable
+    */
+    _set_timeouts(variable) {
+        let {handles} = this._variable_map.get(variable);
+        for (let handle of handles) {
+            this._set_timeout(handle);
+        }
+    }
+
+    _set_timeout(handle) {
+        let delta = this._calculate_delta(handle.delay);
+        let handler = function () {
+            this._handle_timeout(handle);
+        }.bind(this);
+        handle.tid = setTimeout(handler, delta);
+    }
+
+    /*
+        adjust delay so that if falls on
+        the main tick rate
+    */
+    _calculate_delta(delay) {
+        let rate = this._options.rate;
+        let now = Math.round(performance.now());
+        let [now_n, now_r] = divmod(now, rate);
+        let [n, r] = divmod(now + delay, rate);
+        let target = Math.max(n, now_n + 1)*rate;
+        return target - performance.now();
+    }
+
+    /*
+        clear all timeouts associated with variable
+    */
+    _clear_timeouts(variable) {
+        let {handles} = this._variable_map.get(variable);
+        for (let handle of handles) {
+            if (handle.tid != undefined) {
+                clearTimeout(handle.tid);
+                handle.tid = undefined;
+            }
+        }
+    }
+
+    /*
+        handle timeout
+    */
+    _handle_timeout(handle) {
+        // drop if handle tid has been cleared
+        if (handle.tid == undefined) return;
+        handle.tid = undefined;
+        // callback
+        let {variable} = handle;
+        let state = variable.query();
+        // reschedule timeouts for callbacks
+        if (state.dynamic) {
+            this._set_timeout(handle);
+        } else {
+            /*
+                make sure polling state is also false
+                this would only occur if the variable
+                went from reporting dynamic true to dynamic false,
+                without emmitting a change event - thus
+                violating the assumption. This preserves
+                internal integrity i the monitor.
+            */
+            let item = this._variable_map.get(variable);
+            item.polling = false;
+        }
+        //
+        handle.callback(state);
+    }
+}
+
+
+
+/*********************************************************************
+    FRAMERATE MONITOR
+*********************************************************************/
+
+
+class FramerateMonitor extends TimeoutMonitor {
+
+    constructor(options={}) {
+        super(options);
+        this._handle;
+    }
+
+    /*
+        timeouts are obsolete
+    */
+    _set_timeouts(variable) {}
+    _set_timeout(handle) {}
+    _calculate_delta(delay) {}
+    _clear_timeouts(variable) {}
+    _handle_timeout(handle) {}
+
+    _onvariablechange (eArg, eInfo) {
+        super._onvariablechange(eArg, eInfo);
+        // kick off callback loop driven by request animationframe
+        this._callback();
+    }
+
+    _callback() {
+        // callback to all variables which require polling
+        let variables = [...this._variable_map.entries()]
+            .filter(([variable, item]) => item.polling)
+            .map(([variable, item]) => variable);
+        if (variables.length > 0) {
+            // callback
+            for (let variable of variables) {
+                let {handles} = this._variable_map.get(variable);
+                let res = variable.query();
+                for (let handle of handles) {
+                    handle.callback(res);
+                }
+            }
+            /* 
+                request next callback as long as at least one variable 
+                is requiring polling
+            */
+            this._handle = requestAnimationFrame(this._callback.bind(this));
+        }
+    }
+}
+
+
+/*********************************************************************
+    BIND RELEASE
+*********************************************************************/
+
+const monitor = new TimeoutMonitor();
+const framerate_monitor = new FramerateMonitor();
+
+function bind(variable, callback, delay, options={}) {
+    let handle;
+    if (Boolean(parseFloat(delay))) {
+        handle = monitor.bind(variable, callback, delay, options);
+        return ["timeout", handle];
+    } else {
+        handle = framerate_monitor.bind(variable, callback, 0, options);
+        return ["framerate", handle];
+    }
+}
+function release(handle) {
+    let [type, _handle] = handle;
+    if (type == "timeout") {
+        return monitor.release(_handle);
+    } else if (type == "framerate") {
+        return framerate_monitor.release(_handle);
+    }
+}
+
+/************************************************
+ * CURSOR BASE
+ ************************************************/
+
+class CursorBase {
+
+    constructor () {
+        addToInstance$2(this);
+        // define change event
+        eventifyInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+    
+    /**********************************************************
+     * QUERY
+     **********************************************************/
+
+    query () {
+        throw new Error("Not implemented");
+    }
+
+    get index() {
+        throw new Error("Not implemented");
+    }
+
+    /*
+        Eventify: immediate events
+    */
+    eventifyInitEventArgs(name) {
+        if (name == "change") {
+            return [this.query()];
+        }
+    }
+
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay, options);
+    }
+    release(handle) {
+        return release(handle);
+    }
+
+}
+addToPrototype$2(CursorBase.prototype);
+eventifyPrototype(CursorBase.prototype);
+
+
+
+
+
+/************************************************
+ * CURSOR
+ ************************************************/
+
+/**
+ * 
+ * Cursor is a variable
+ * - has mutable ctrl cursor (default LocalClockProvider)
+ * - has mutable state provider (src) (default state undefined)
+ * - methods for assign, move, transition, intepolation
+ * - cursors do not have their own index, but uses the index
+ *   of their src, which is a layer
+ */
+
+class Cursor extends CursorBase {
+
+    constructor (options={}) {
+        super();
+
+        // setup src properties
+        addToInstance(this);
+        this.srcprop_register("src");
+        this.srcprop_register("ctrl");
+
+        // cache object for querying src layer
+        this._cache;
+        // timeout
+        this._tid;
+        // polling
+        this._pid;
+
+        // initialise ctrl, src
+        let {src, ctrl} = options;
+        this.ctrl = ctrl || localClockProvider;
+        this.src = src;
+    }
+
+    /**********************************************************
+     * SRCPROP: CTRL and SRC
+     **********************************************************/
+
+    srcprop_check(propName, obj) {
+        if (propName == "ctrl") {
+            const ok = [ClockProviderBase, CursorBase]
+                .map((cl) => obj instanceof cl)
+                .some(e=>e == true);
+            if (!ok) {
+                throw new Error(`"ctrl" must be ClockProvider or Cursor ${obj}`)
+            }
+        } else if (propName == "src") {
+            if (!(obj instanceof Layer)) {
+                throw new Error(`"src" must be Layer ${obj}`);
+            }
+        }
+        return obj;
+    }
+
+    srcprop_onchange(propName, eArg) {
+        this.__handle_change(propName, eArg);
+    }
+
+    /**********************************************************
+     * CALLBACK
+     **********************************************************/
+
+    __handle_change(origin, msg) {
+        clearTimeout(this._tid);
+        clearInterval(this._pid);
+        if (this.src && this.ctrl) {
+            if (origin == "src") {
+                if (this._cache == undefined) {
+                    this._cache = this.src.getCache();
+                }
+            }
+            if (origin == "src" || origin == "ctrl") {
+                this._cache.clear();
+            }
+            this.notify_callbacks();
+            // trigger change event for cursor
+            this.eventifyTrigger("change", this.query());
+            // detect future change event - if needed
+            this.__detect_future_change();
+        }
+    }
+
+    /**
+     * DETECT FUTURE CHANGE
+     * 
+     * PROBLEM:
+     * 
+     * During playback (cursor.ctrl is dynamic), there is a need to 
+     * detect the passing from one segment interval of src
+     * to the next - ideally at precisely the correct time
+     * 
+     * nearby.itv (derived from cursor.src) gives the 
+     * interval (i) we are currently in, i.e., 
+     * containing the current offset (value of cursor.ctrl), 
+     * and (ii) where nearby.center stays constant
+     * 
+     * The event that needs to be detected is therefore the
+     * moment when we leave this interval, through either
+     * the low or high interval endpoint
+     * 
+     * GOAL:
+     * 
+     * At this moment, we simply need to reevaluate the state (query) and
+     * emit a change event to notify observers. 
+     * 
+     * APPROACHES:
+     * 
+     * Approach [0] 
+     * The trivial solution is to do nothing, in which case
+     * observers will simply find out themselves according to their 
+     * own poll frequency. This is suboptimal, particularly for low frequency 
+     * observers. If there is at least one high-frequency poller, 
+     * this would trigger trigger the state change, causing all
+     * observers to be notified. The problem though, is if no observers
+     * are actively polling, but only depending on change events.
+     * 
+     * Approach [1] 
+     * In cases where the ctrl is deterministic, a timeout
+     * can be calculated. This is trivial if ctrl is a ClockCursor, and
+     * it is fairly easy if the ctrl is Cursor representing motion
+     * or linear transition. However, calculations can become more
+     * complex if motion supports acceleration, or if transitions
+     * are set up with non-linear easing.
+     *   
+     * Note, however, that these calculations assume that the cursor.ctrl is 
+     * a ClockCursor, or that cursor.ctrl.ctrl is a ClockCursor. 
+     * In principle, though, there could be a recursive chain of cursors,
+     * (cursor.ctrl.ctrl....ctrl) of some length, where only the last is a 
+     * ClockCursor. In order to do deterministic calculations in the general
+     * case, all cursors in the chain would have to be limited to 
+     * deterministic linear transformations.
+     * 
+     * Approch [2] 
+     * It might also be possible to sample future values of 
+     * cursor.ctrl to see if the values violate the nearby.itv at some point. 
+     * This would essentially be treating ctrl as a layer and sampling 
+     * future values. This approch would work for all types, 
+     * but there is no knowing how far into the future one 
+     * would have to seek. However, again - as in [1] the ability to sample future values
+     * is predicated on cursor.ctrl being a ClockCursor. Also, there 
+     * is no way of knowing how long into the future sampling would be necessary.
+     * 
+     * Approach [3] 
+     * In the general case, the only way to reliabley detect the event is through repeated
+     * polling. Approach [3] is simply the idea that this polling is performed
+     * internally by the cursor itself, as a way of securing its own consistent
+     * state, and ensuring that observer get change events in a timely manner, event
+     * if they do low-frequency polling, or do not do polling at all. 
+     * 
+     * SOLUTION:
+     * As there is no perfect solution in the general case, we opportunistically
+     * use approach [1] when this is possible. If not, we are falling back on 
+     * approach [3]
+     * 
+     * CONDITIONS when NO event detection is needed (NOOP)
+     * (i) cursor.ctrl is not dynamic
+     * or
+     * (ii) nearby.itv stretches into infinity in both directions
+     * 
+     * CONDITIONS when approach [1] can be used
+     * 
+     * (i) if ctrl is a ClockCursor && nearby.itv.high < Infinity
+     * or
+     * (ii) ctrl.ctrl is a ClockCursor
+     *      (a) ctrl.nearby.center has exactly 1 item
+     *      &&
+     *      (b) ctrl.nearby.center[0].type == ("motion") || ("transition" && easing=="linear")
+     *      &&
+     *      (c) ctrl.nearby.center[0].data.velocity != 0.0
+     *      && 
+     *      (d) future intersecton point with cache.nearby.itv 
+     *          is not -Infinity or Infinity
+     * 
+     * Though it seems complex, conditions for [1] should be met for common cases involving
+     * playback. Also, use of transition etc might be rare.
+     * 
+     */
+
+    __detect_future_change() {
+
+        // ctrl 
+        const ctrl_vector = this._get_ctrl_state();
+        const {value:current_pos, offset:current_ts} = ctrl_vector;
+
+        // ctrl must be dynamic
+        if (!ctrl_vector.dynamic) {
+            // no future event to detect
+            return;
+        }
+
+        // get nearby from src - use value from ctrl
+        const src_nearby = this.src.index.nearby(current_pos);
+        const [low, high] = src_nearby.itv.slice(0,2);
+
+        // approach [1]
+        if (this.ctrl instanceof ClockProviderBase) {
+            if (isFinite(high)) {
+                this.__set_timeout(high, current_pos, 1.0, current_ts);
+                return;
+            }
+            // no future event to detect
+            return;
+        } 
+        if (this.ctrl.ctrl instanceof ClockProviderBase) {
+            /** 
+             * this.ctrl 
+             * 
+             * has many possible behaviors
+             * this.ctrl has an index use this to figure out which
+             * behaviour is current.
+             * 
+            */
+            // use the same offset that was used in the ctrl.query
+            const ctrl_nearby = this.ctrl.index.nearby(current_ts);
+
+            if (!isFinite(low) && !isFinite(high)) {
+                // no future event to detect
+                return;
+            }
+            if (ctrl_nearby.center.length == 1) {
+                const ctrl_item = ctrl_nearby.center[0];
+                if (ctrl_item.type == "motion") {
+                    const {velocity, acceleration=0.0} = ctrl_item.data;
+                    if (acceleration == 0.0) {
+                        // figure out which boundary we hit first
+                        let target_pos = (velocity > 0) ? high : low;
+                        if (isFinite(target_pos)) {
+                            this.__set_timeout(target_pos, current_pos, velocity, current_ts);
+                            return;                           
+                        } 
+                        // no future event to detect
+                        return;
+                    }
+                    // acceleration - possible event to detect
+                } else if (ctrl_item.type == "transition") {
+                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.data;
+                    if (easing == "linear") {
+                        // linear transtion
+                        let velocity = (p1-p0)/(t1-t0);
+                        // figure out which boundary we hit first
+                        const target_pos = (velocity > 0) ? Math.min(high, p1) : Math.max(low, p1);
+                        this.__set_timeout(target_pos, current_pos, 
+                            velocity, current_ts);
+                        //
+                        return;
+                    }
+                    // other easing - possible event to detect
+                }
+                // other type (interpolation) - possible event to detect
+            }
+            // more than one segment - possible event to detect
+        }
+
+        // possible event to detect - approach [3]
+        this.__set_polling(src_nearby.itv);
+    }
+
+    /**
+     * set timeout
+     * - protects against too early callbacks by rescheduling
+     * timeout if neccessary.
+     * - adds a millisecond to original timeout to avoid
+     * frequent rescheduling 
+     */
+
+    __set_timeout(target_pos, current_pos, velocity, current_ts) {
+        const delta_sec = (target_pos - current_pos) / velocity;
+        const target_ts = current_ts + delta_sec;
+        this._tid = setTimeout(() => {
+            this.__handle_timeout(target_ts);
+        }, delta_sec*1000 + 1);
+    }
+
+    __handle_timeout(target_ts) {
+        const ts = this._get_ctrl_state().offset;
+        const remaining_sec = target_ts - ts; 
+        if (remaining_sec <= 0) {
+            // done
+            this.__handle_change("timeout");
+        } else {
+            // reschedule timeout
+            this._tid = setTimeout(() => {
+                this.__handle_timeout(target_ts);
+            }, remaining_sec*1000);
+        }
+    }
+
+    /**
+     * set polling
+     */
+
+    __set_polling(itv) {
+        this._pid = setInterval(() => {
+            this.__handle_poll(itv);
+        }, 100);
+    }
+
+    __handle_poll(itv) {
+        let offset = this.query().value;
+        if (!interval.covers_point(itv, offset)) {
+            this.__handle_change("timeout");
+        }
+    }
+
+    /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    _get_ctrl_state () {
+        if (this.ctrl instanceof ClockProviderBase) {
+            let ts = this.ctrl.now();
+            return {value:ts, dynamic:true, offset:ts};
+        } else {
+            let state = this.ctrl.query();
+            // TODO - protect against non-float values
+            if (typeof state.value !== 'number') {
+                throw new Error(`warning: ctrl state must be number ${state.value}`);
+            }
+            return state;
+        }
+    }
+
+    query () {
+        const offset = this._get_ctrl_state().value;  
+        return this._cache.query(offset);
+    }
+
+    get value () {return this.query().value};
+    get index () {return this.src.index};
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
+
+    assign(value) {
+        return cmd(this.src.src).assign(value);
+    }
+    move ({position, velocity}) {
+        let {value, offset:timestamp} = this.query();
+        if (typeof value !== 'number') {
+            throw new Error(`warning: cursor state must be number ${value}`);
+        }
+        position = (position != undefined) ? position : value;
+        velocity = (velocity != undefined) ? velocity: 0;
+        return cmd(this.src.src).move({position, velocity, timestamp});
+    }
+    transition ({target, duration, easing}) {
+        let {value:v0, offset:t0} = this.query();
+        if (typeof v0 !== 'number') {
+            throw new Error(`warning: cursor state must be number ${v0}`);
+        }
+        return cmd(this.src.src).transition(v0, target, t0, t0 + duration, easing);
+    }
+    interpolate ({tuples, duration}) {
+        let t0 = this.query().offset;
+        // assuming timstamps are in range [0,1]
+        // scale timestamps to duration
+        tuples = tuples.map(([v,t]) => {
+            return [v, t0 + t*duration];
+        });
+        return cmd(this.src.src).interpolate(tuples);
+    }
+
+}
+addToPrototype(Cursor.prototype);
+addToPrototype(Cursor.prototype);
 
 /*********************************************************************
     LAYER FACTORY
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, items, ...opts} = options;
+    let {src, items=[], value, ...opts} = options;
+    if (src instanceof Layer) {
+        return src;
+    } 
     if (src == undefined) {
+        if (value != undefined) {
+            items = [{
+                itv: [-Infinity, Infinity],
+                data: value
+            }];
+        } 
         src = new LocalStateProvider({items});
     }
-    const layer = new InputLayer(opts);
-    layer.src = src;
-    return layer;
+    return new InputLayer({src, ...opts}); 
 }
 
-export { layer, merge, skew };
+/*********************************************************************
+    CURSOR FACTORY
+*********************************************************************/
+
+function cursor(options={}) {
+    const {ctrl, ...opts} = options;
+    const src = layer(opts);    
+    return new Cursor({ctrl, src});
+}
+
+export { cmd, cursor, layer, merge, skew };
