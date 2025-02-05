@@ -1760,15 +1760,47 @@ function load_segment(itv, item) {
 }
 
 /**
+ * Convenience merge options
+ */
+const merge_options = {
+    sum: {
+        valueFunc: function (info) {
+            // returns the sum of values of active layers
+            return info.states
+                .map(state => state.value) 
+                .reduce((acc, value) => acc + value, 0);
+        }
+    },
+    stack: {
+        stateFunc: function (info) {
+            // returns values from first active layer
+            return {...info.states[0]}
+        }
+    },
+    array: {
+        valueFunc: function (info) {
+            // returns an array with values from active layers
+            return info.states.map(state => state.value);
+        }
+    }
+};
+
+
+/**
  * 
  * This implements a merge operation for layers.
  * List of sources is immutable.
  * 
  */
 
-function merge (sources, options) {
-    
-    return new MergeLayer(sources, options);
+function merge (sources, options={}) {
+    const {type=""} = options;
+
+    if (type in merge_options) {
+        return new MergeLayer(sources, merge_options[type])
+    } else {
+        return new MergeLayer(sources, options);
+    }
 }
 
 
