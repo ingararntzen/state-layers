@@ -2056,9 +2056,8 @@ class ShiftLayer extends Layer {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new ShiftIndex(this.src, this._skew);
-            } else {
-                this.clearCaches();
-            }
+            } 
+            this.clearCaches();
             this.notify_callbacks();
             this.eventifyTrigger("change");    
         }
@@ -2522,57 +2521,66 @@ function release(handle) {
     }
 }
 
-/************************************************
- * CURSOR BASE
- ************************************************/
+/**
+ * Cursor emulates Layer interface.
+ * Part of this is to prove an index for the timeline. 
+ * However, when considered as a layer, the cursor value is 
+ * independent of timeline offset, which is to say that
+ * it has the same value for all timeline offsets.
+ * 
+ * Unlike other Layers, the Cursor do not actually
+ * use this index to resolve queries. It is only needed
+ * for some generic Layer functionnality, like sampling,
+ * which uses index.first() and index.last().
+ */
 
-class CursorBase {
+class CursorIndex extends NearbyIndexBase {
 
-    constructor () {
-        addToInstance$2(this);
-        // define change event
-        eventifyInstance(this);
-        this.eventifyDefine("change", {init:true});
-    }
-    
-    /**********************************************************
-     * QUERY
-     **********************************************************/
-
-    query () {
-        throw new Error("Not implemented");
-    }
-
-    get index() {
-        throw new Error("Not implemented");
+    constructor(cursor) {
+        super();
+        this._cache = cursor.getCache();
     }
 
-    /*
-        Eventify: immediate events
-    */
-    eventifyInitEventArgs(name) {
-        if (name == "change") {
-            return [this.query()];
+    nearby(offset) {
+        // cursor index is defined for entire timeline
+        return {
+            itv: [-Infinity, Infinity, true, true],
+            center: [this._cache],
+            left: [-Infinity, 0],
+            prev: [-Infinity, 0],
+            right: [Infinity, 0],
+            next: [Infinity, 0],
         }
     }
-
-    /**********************************************************
-     * BIND RELEASE (convenience)
-     **********************************************************/
-
-    bind(callback, delay, options={}) {
-        return bind(this, callback, delay, options);
-    }
-    release(handle) {
-        return release(handle);
-    }
-
 }
-addToPrototype$2(CursorBase.prototype);
-eventifyPrototype(CursorBase.prototype);
 
+/**
+ * 
+ * Cursor cache implements the query operation for 
+ * the Cursor, ignoring the given offset, replacing it 
+ * with an offset from the ctrl instead. 
+ * The layer cache is used to resolve the query 
+ */
 
+class CursorCache {
+    constructor(cursor) {
+        this._cursor = cursor;
+    }
 
+    query() {
+        const offset = this._cursor._get_ctrl_state().value; 
+        if (this._cache == undefined) {
+            this._cache = this._cursor.src.getCache();
+        }
+        return this._cache.query(offset);
+    }
+
+    clear() {
+        if (this._cache != undefined) {
+            this._cache.clear();
+        }
+    }
+}
 
 
 /************************************************
@@ -2581,26 +2589,23 @@ eventifyPrototype(CursorBase.prototype);
 
 /**
  * 
- * Cursor is a variable
- * - has mutable ctrl cursor (default LocalClockProvider)
- * - has mutable state provider (src) (default state undefined)
- * - methods for assign, move, transition, intepolation
- * - cursors do not have their own index, but uses the index
- *   of their src, which is a layer
+ * Cursor glides along a layer and exposes the current layer
+ * value at any time
+ * - has mutable ctrl (localClockProvider or Cursor)
+ * - has mutable src (layer)
+ * - methods for assign, move, transition, interpolation
  */
 
-class Cursor extends CursorBase {
+class Cursor extends Layer {
 
     constructor (options={}) {
-        super();
+        super({CacheClass:CursorCache});
 
         // setup src properties
         addToInstance(this);
         this.srcprop_register("src");
         this.srcprop_register("ctrl");
 
-        // cache object for querying src layer
-        this._cache;
         // timeout
         this._tid;
         // polling
@@ -2618,7 +2623,7 @@ class Cursor extends CursorBase {
 
     srcprop_check(propName, obj) {
         if (propName == "ctrl") {
-            const ok = [ClockProviderBase, CursorBase]
+            const ok = [ClockProviderBase, Cursor]
                 .map((cl) => obj instanceof cl)
                 .some(e=>e == true);
             if (!ok) {
@@ -2640,18 +2645,15 @@ class Cursor extends CursorBase {
      * CALLBACK
      **********************************************************/
 
-    __handle_change(origin, msg) {
+    __handle_change(origin, eArg) {
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {
-            if (origin == "src") {
-                if (this._cache == undefined) {
-                    this._cache = this.src.getCache();
-                }
+            if (this.index == undefined || eArg == "reset") {
+                // NOT used for cursor query 
+                this.index = new CursorIndex(this);
             }
-            if (origin == "src" || origin == "ctrl") {
-                this._cache.clear();
-            }
+            this.clearCaches();
             this.notify_callbacks();
             // trigger change event for cursor
             this.eventifyTrigger("change", this.query());
@@ -2892,7 +2894,7 @@ class Cursor extends CursorBase {
             return {value:ts, dynamic:true, offset:ts};
         } else {
             let state = this.ctrl.query();
-            // TODO - protect against non-float values
+            // protect against non-float values
             if (typeof state.value !== 'number') {
                 throw new Error(`warning: ctrl state must be number ${state.value}`);
             }
@@ -2900,13 +2902,27 @@ class Cursor extends CursorBase {
         }
     }
 
-    query () {
-        const offset = this._get_ctrl_state().value;  
-        return this._cache.query(offset);
-    }
-
     get value () {return this.query().value};
-    get index () {return this.src.index};
+    
+    /*
+        Eventify: immediate events
+    */
+    eventifyInitEventArgs(name) {
+        if (name == "change") {
+            return [this.query()];
+        }
+    }
+    
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay, options);
+    }
+    release(handle) {
+        return release(handle);
+    }
 
     /**********************************************************
      * UPDATE API

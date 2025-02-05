@@ -88,9 +88,8 @@ class ShiftLayer extends Layer {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new ShiftIndex(this.src, this._skew)
-            } else {
-                this.clearCaches();
-            }
+            } 
+            this.clearCaches();
             this.notify_callbacks();
             this.eventifyTrigger("change");    
         }
