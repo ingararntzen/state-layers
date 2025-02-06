@@ -19,12 +19,24 @@
 
         import * as sl from './js/layers.es.js';
 
+        const items = [
+            {itv: [0, 1], data: "red"},
+            {itv: [1, 2], data: "blue"},
+            {itv: [2, 3], data: "green"},
+            {itv: [3, 4], data: "yellow"},
+            {itv: [4, 5], data: "orange"},
+            {itv: [5, 6], data: "#4B0082"},
+            {itv: [6, 7], data: "violet"},
+        ];
+        const colors = sl.layer({items})
 
 
         const offset = sl.cursor({value:0});
         
+        const color = sl.cursor({src:colors, ctrl:offset});
 
         offset.bind(render_html("#offset", ({value}) => `${value}`), 200);
+        color.bind(render_html("#color", ({value}) => `${value}`), 200);
 
         document.querySelector("#valueBtn").onclick = () => {
             offset.assign(getRandomInt(10))
