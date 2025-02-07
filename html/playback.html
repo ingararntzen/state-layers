@@ -28,12 +28,10 @@
             {itv: [5, 6], data: "#4B0082"},
             {itv: [6, 7], data: "violet"},
         ];
+
         const colors = sl.layer({items})
-
-
-        const offset = sl.cursor({value:0});
-        
-        const color = sl.cursor({src:colors, ctrl:offset});
+        const offset = sl.variable({value:0});
+        const color = sl.playback({src:colors, ctrl:offset});
 
         offset.bind(render_html("#offset", ({value}) => `${value}`), 200);
         color.bind(render_html("#color", ({value}) => `${value}`), 200);
@@ -72,7 +70,7 @@
 </script>
 </head>
 <body>
-    <h1>Hello, Cursor!</h1>
+    <h1>Hello, Layer Playback!</h1>
 
     <h3> Value </h3>
 

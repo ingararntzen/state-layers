@@ -2951,7 +2951,7 @@ function layer(options={}) {
 }
 
 /*********************************************************************
-    CURSOR FACTORY
+    CURSOR FACTORIES
 *********************************************************************/
 
 function cursor(options={}) {
@@ -2960,4 +2960,4 @@ function cursor(options={}) {
     return new Cursor({ctrl, src});
 }
 
-export { cmd, cursor, layer, merge, shift };
+export { cmd, cursor, layer, merge, cursor as playback, shift, cursor as variable };
