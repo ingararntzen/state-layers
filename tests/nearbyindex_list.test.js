@@ -30,5 +30,30 @@ describe('NearbyIndexList', () => {
         });
     });
 
+    test.only('test region iterator', () => {
+
+        const intervals = [
+            [-Infinity, 0, true, false],
+            [0, 1, true, false],
+            // gap
+            [2, 4, true, false],
+            [4, Infinity, true, true],
+        ]
+
+        const items = intervals.map(itv => {
+            return {itv};
+        })
+
+        const src = new LocalStateProvider({items});
+        const index = new NearbyIndexSimple(src);
+
+        for (let region of index.regions({start:-1, stop:5})) {
+            console.log(region);
+        }
+    });
+
+
+
+
 
 });

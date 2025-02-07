@@ -161,9 +161,75 @@ import { endpoint } from "./intervals.js";
         }
         return results;
     }
+
+
+    regions(options) {
+        return new RegionIteratorRight(this, options);
+    }
+
 }
 
+class RegionIteratorRight {
 
+    constructor(index, options={}) {
+        let {start=-Infinity, stop=Infinity, includeEmpty=false} = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        start = [start, 0];
+        stop = [stop, 0];
+
+        this._index = index;
+        this._current = start;
+        this._includeEmpty = includeEmpty;
+        this._done = false;
+        this._stop = stop;
+    }
+
+    next() {
+        if (this._done) {
+            return {value:undefined, done:true};
+        }
+        if (endpoint.gt(this._current, this._stop)) {
+            // exhausted
+            this._done = true;
+            return {value:undefined, done:true};
+        }
+        while(true) {
+            const {itv, center, right} = this._index.nearby(this._current);
+            if (center.length == 0) {
+                // center empty
+                if (right[0] == Infinity) {
+                    // last region - iterator exhausted
+                    this._done = true;
+                } else {
+                    // right defined - increment offset
+                    this._current = right;
+                    if (!this._includeEmpty) {
+                        continue;
+                    }
+                }
+            } else {
+                // center non-empty
+                if (right[0] == Infinity) {
+                    // last region - iterator exhausted
+                    this._done = true;
+                } else {
+                    // right defined - increment offset
+                    this._current = right;
+                }
+            }
+            return {value:{itv, center}, done:false};
+        }
+    }
+
+    [Symbol.iterator]() {
+        return this;
+    }
+
+
+
+}
 
 
 
