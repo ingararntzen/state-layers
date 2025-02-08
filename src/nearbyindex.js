@@ -73,7 +73,29 @@ import { endpoint, interval } from "./intervals.js";
  * 
  * / */
 
- export class NearbyIndexBase {
+
+/**
+ * return first high endpoint on the left from nearby,
+ * which is not in center
+ */
+export function left_endpoint (nearby) {
+    const low = endpoint.from_interval(nearby.itv)[0];
+    return endpoint.flip(low, "high");
+}
+
+/**
+ * return first low endpoint on the right from nearby,
+ * which is not in center
+ */
+
+export function right_endpoint (nearby) {
+    const high = endpoint.from_interval(nearby.itv)[1];
+    return endpoint.flip(high, "low");
+}
+
+
+
+export class NearbyIndexBase {
 
 
     /* 
@@ -110,6 +132,69 @@ import { endpoint, interval } from "./intervals.js";
     }
 
 
+    /**
+     * return nearby of first region to the right
+     * which is not the center region. If not exists, return
+     * undefined. 
+     */
+    right_region(nearby) {
+        const right = right_endpoint(nearby);
+        if (right[0] == Infinity) {
+            return undefined;
+        }
+        return this.nearby(right);
+    }
+
+    /**
+     * return nearby of first non-empty region to the right
+     * which is not the center region. If not exists, return
+     * undefined. 
+     */
+    next_region(nearby) {
+        const next_nearby = this.right_region(nearby);
+        if (next_nearby == undefined) {
+            return undefined;
+        }
+        if (next_nearby.center.length > 0) {
+            // center non-empty 
+            return next_nearby;
+        }
+        // center empty
+        // find first non-empty region to the right (recursively)
+        return this.next_region(next_nearby);
+    }
+
+    /**
+     * return nearby of first region to the left
+     * which is not the center region. If not exists, return
+     * undefined. 
+     */
+    left_region(nearby) {
+        const left = left_endpoint(nearby);
+        if (left[0] == -Infinity) {
+            return undefined;
+        }
+        return this.nearby(left);    
+    }
+
+    /** 
+     * return nearby of first non-empty region to the left
+     * which is not the center region. If not exists, return
+     * undefined. 
+    */
+    prev_region(nearby) {
+        const next_nearby = this.left_region(nearby);
+        if (next_nearby == undefined) {
+            return undefined;
+        }
+        if (next_nearby.center.length > 0) {
+            // center non-empty 
+            return next_nearby;
+        }
+        // center empty
+        // find first non-empty region to the left (recursively)
+        return this.prev_region(next_nearby);
+    }
 
     regions(options) {
         return new RegionIterator(this, options);
@@ -129,58 +214,76 @@ import { endpoint, interval } from "./intervals.js";
     - includeEmpty
 */
 
-
 class RegionIterator {
 
     constructor(index, options={}) {
-        let {start=-Infinity, stop=Infinity, includeEmpty=true} = options;
+        let {
+            start=-Infinity, 
+            stop=Infinity, 
+            includeEmpty=true
+        } = options;
         if (start > stop) {
             throw new Error ("stop must be larger than start", start, stop)
         }
-        start = [start, 0];
-        stop = [stop, 0];
-
         this._index = index;
-        this._current = start;
-        this._includeEmpty = includeEmpty;
+        this._start = [start, 0];
+        this._stop = [stop, 0];
+        this._includeEmpty = includeEmpty;        
+        this._current;
         this._done = false;
-        this._stop = stop;
     }
 
     next() {
+        let current;
         if (this._done) {
             return {value:undefined, done:true};
         }
-        if (endpoint.gt(this._current, this._stop)) {
-            // exhausted
-            this._done = true;
-            return {value:undefined, done:true};
-        }
-        while(true) {
-            const {itv, center, right} = this._index.nearby(this._current);
-            if (center.length == 0) {
-                // center empty
-                if (right[0] == Infinity) {
-                    // last region - iterator exhausted
-                    this._done = true;
-                } else {
-                    // right defined - increment offset
-                    this._current = right;
-                    if (!this._includeEmpty) {
-                        continue;
-                    }
+        if (this._current == undefined) {
+            // initialise
+            this._current = this._index.nearby(this._start);
+        } 
+        /* 
+            need multiple passes to skip over
+            empty regions within this next invocation
+        */
+        while (true) {
+            current = this._current;
+
+            // check if stop < region.low
+            let low = endpoint.from_interval(current.itv)[0] 
+            if (endpoint.gt(low, this._stop)) {
+                return {value:undefined, done:true};
+            }
+
+            const is_last = current.itv[1] == Infinity;
+
+            /* 
+                check if we need to skip to next within 
+                this next invocation
+            */
+            const skip_empty = (
+                is_last == false &&
+                this._includeEmpty == false &&
+                current.center.length == 0
+            );
+            if (skip_empty) {
+                this._current = this._index.right_region(current);
+                if (current == undefined) {
+                    return {value:undefined, done:true}
                 }
+                continue;
+            }
+
+            if (is_last) {
+                this._done = true;
             } else {
-                // center non-empty
-                if (right[0] == Infinity) {
-                    // last region - iterator exhausted
+                // increment current
+                this._current = this._index.right_region(current);
+                if (current == undefined) {
                     this._done = true;
-                } else {
-                    // right defined - increment offset
-                    this._current = right;
                 }
             }
-            return {value:{itv, center}, done:false};
+            return {value:current, done:false};
         }
     }
 
