@@ -88,7 +88,18 @@ class MergeLayer extends Layer {
 srcprop.addToPrototype(MergeLayer.prototype);
 
 
+class LogicalMergeLayer extends MergeLayer {
+    constructor(sources, options) {
+        super(options);
 
+        // if layers arent boolean - make them
+        // support an expression
+        // not("a").and("b", xor("c", "d"))
+
+
+    }
+
+}
 
 
 /**
