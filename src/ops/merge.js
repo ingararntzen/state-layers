@@ -126,6 +126,7 @@ export class MergeIndex extends NearbyIndexBase {
     }
 
     nearby(offset) {
+        offset = this.check(offset);
         // accumulate nearby from all sources
         const prev_list = [], next_list = [];
         const center_list = [];

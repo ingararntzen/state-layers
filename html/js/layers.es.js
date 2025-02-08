@@ -539,7 +539,7 @@ function check_input(items) {
 class RegionIterator {
 
     constructor(index, options={}) {
-        let {start=-Infinity, stop=Infinity, includeEmpty=false} = options;
+        let {start=-Infinity, stop=Infinity, includeEmpty=true} = options;
         if (start > stop) {
             throw new Error ("stop must be larger than start", start, stop)
         }
@@ -593,9 +593,6 @@ class RegionIterator {
     [Symbol.iterator]() {
         return this;
     }
-
-
-
 }
 
 /*
@@ -1890,6 +1887,7 @@ class MergeIndex extends NearbyIndexBase {
     }
 
     nearby(offset) {
+        offset = this.check(offset);
         // accumulate nearby from all sources
         const prev_list = [], next_list = [];
         const center_list = [];
