@@ -418,20 +418,19 @@ function check_input(items) {
  * 
  * NEARBY INDEX
  * 
- * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
+ * NearbyIndex provides indexing support of effectively
+ * looking up regions by offset, 
  * given that
- * (i) each entriy is associated with an interval and,
- * (ii) entries are non-overlapping.
- * Each ITEM must be associated with an interval on the timeline 
+ * (i) each region is associated with an interval and,
+ * (ii) regions are non-overlapping.
  * 
  * NEARBY
- * The nearby method returns information about the neighborhood around endpoint. 
- * 
- * Primary use is for iteration 
+ * The nearby method returns information about the neighborhood 
+ * around endpoint. 
  * 
  * Returns {
- *      center: list of ITEMS/LAYERS covering endpoint,
- *      itv: interval where nearby returns identical {center}
+ *      center: list of objects covered by region,
+ *      itv: region interval - validity of center 
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}
@@ -440,31 +439,18 @@ function check_input(items) {
  *          first interval endpoint to the right
  *          which will produce different {center}
  *          always a low-endpoint or [Infinity, 0]    
- *      prev:
- *          first interval endpoint to the left 
- *          which will produce different && non-empty {center}
- *          always a high-endpoint or [-Infinity, 0] if no more intervals to the left
- *      next:
- *          first interval endpoint to the right
- *          which will produce different && non-empty {center}
- *          always a low-endpoint or [Infinity, 0] if no more intervals to the right
- * }
  * 
  * 
- * The nearby state is well-defined for every timeline position.
- * 
- * 
- * NOTE left/right and prev/next are mostly the same. The only difference is 
- * that prev/next will skip over regions where there are no intervals. This
- * ensures practical iteration of items as prev/next will only be undefined  
- * at the end of iteration.
+ * The nearby state is well-defined for every endpoint
+ * on the timeline.
  * 
  * INTERVALS
  * 
  * [low, high, lowInclusive, highInclusive]
  * 
- * This representation ensures that the interval endpoints are ordered and allows
- * intervals to be exclusive or inclusive, yet cover the entire real line 
+ * This representation ensures that the interval endpoints 
+ * are ordered and allows intervals to be exclusive or inclusive, 
+ * yet cover the entire real line 
  * 
  * [a,b], (a,b), [a,b), [a, b) are all valid intervals
  * 
@@ -477,7 +463,8 @@ function check_input(items) {
  * [4, 4, 4] -> [4, 0] - endpoint is at 4 
  * (4 -> [4, 1] - endpoint is on the right of 4)
  * 
- * / */
+ *  
+ */
 
 
 /**
@@ -1455,16 +1442,6 @@ function get_low_value(item) {
     return item.itv[0];
 }
 
-// get interval low endpoint
-function get_low_endpoint(item) {
-    return endpoint.from_interval(item.itv)[0]
-}
-
-// get interval high endpoint
-function get_high_endpoint(item) {
-    return endpoint.from_interval(item.itv)[1]
-}
-
 
 class NearbyIndexSimple extends NearbyIndexBase {
 
@@ -1475,95 +1452,70 @@ class NearbyIndexSimple extends NearbyIndexBase {
 
     get src () {return this._src;}
 
-    /*
-        nearby by offset
-        
-        returns {left, center, right}
 
-        binary search based on offset
-        1) found, idx
-            offset matches value of interval.low of an item
-            idx gives the index of this item in the array
-        2) not found, idx
-            offset is either covered by item at (idx-1),
-            or it is not => between entries
-            in this case - idx gives the index where an item
-            should be inserted - if it had low == offset
-    */
     nearby(offset) {
         offset = this.check(offset);
-        const result = {
-            center: [],
-            itv: [-Infinity, Infinity, true, true],
-            left: [-Infinity, 0],
-            prev: [-Infinity, 0],
-            right: [Infinity, 0],
-            next: [Infinity, 0]
-        };
+        let item = undefined;
+        let center_idx = undefined;
         let items = this._src.get_items();
-        let indexes, item;
-        const size = items.length;
-        if (size == 0) {
-            return result; 
-        }
+
+        // binary search for index
         let [found, idx] = find_index(offset[0], items, get_low_value);
         if (found) {
             // search offset matches item low exactly
-            // check that it indeed covered by item interval
+            // check that it is indeed covered by item interval
             item = items[idx];
             if (interval.covers_endpoint(item.itv, offset)) {
-                indexes = {left:idx-1, center:idx, right:idx+1};
+                center_idx = idx;
             }
         }
-        if (indexes == undefined) {
-            // check prev item
+        if (center_idx == undefined) {
+            // check if previous item covers offset
             item = items[idx-1];
             if (item != undefined) {
-                // check if search offset is covered by item interval
                 if (interval.covers_endpoint(item.itv, offset)) {
-                    indexes = {left:idx-2, center:idx-1, right:idx};
-                } 
-            }
-        }	
-        if (indexes == undefined) {
-            // prev item either does not exist or is not relevant
-            indexes = {left:idx-1, center:-1, right:idx};
+                    center_idx = idx-1;
+                }
+            } 
         }
 
-        // center
-        if (0 <= indexes.center && indexes.center < size) {
-            result.center =  [items[indexes.center]];
-        }
-        // prev/next
-        if (0 <= indexes.left && indexes.left < size) {
-            result.prev =  get_high_endpoint(items[indexes.left]);
-        }
-        if (0 <= indexes.right && indexes.right < size) {
-            result.next =  get_low_endpoint(items[indexes.right]);
-        }        
-        // left/right
-        let low = [-Infinity, 0], high= [Infinity, 0];
-        if (result.center.length > 0) {
-            let itv = result.center[0].itv;
-            [low, high] = endpoint.from_interval(itv);
-            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : [-Infinity, 0];
-            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : [Infinity, 0];
-            result.itv = result.center[0].itv;
-        } else {
-            result.left = result.prev;
-            result.right = result.next;
-            // interval
-            let left = result.left;
-            if (low[0] == -Infinity) {
-                low = endpoint.flip(left, "low");
+        /* 
+            center is non-empty 
+        */
+        if (center_idx != undefined) {
+            item = items[center_idx];
+            const [low, high] = endpoint.from_interval(item.itv);
+            return {
+                center: [item],
+                itv: item.itv,
+                left: endpoint.flip(low, "high"),
+                right: endpoint.flip(high, "low")
             }
-            let right = result.right;
-            if (high[0] == Infinity) {
-                high = endpoint.flip(right, "high");
-            }
-            result.itv = interval.from_endpoints(low, high);
         }
-        return result;
+
+        /* 
+            center is empty 
+        */
+        // left is based on previous item
+        item = items[idx-1];
+        let left = [-Infinity, 0];
+        if (item != undefined) {
+            left = endpoint.from_interval(item.itv)[1];
+        }
+        // right is based on next item
+        item = items[idx];
+        let right = [Infinity, 0];
+        if (item != undefined) {
+            right = endpoint.from_interval(item.itv)[0];
+        }
+        // itv based on left and right        
+        let low = endpoint.flip(left, "low");
+        let high = endpoint.flip(right, "high");
+
+        return {
+            center: [], left, right,
+            itv: interval.from_endpoints(low, high)
+        };
     }
 }
 
@@ -1997,12 +1949,18 @@ class MergeIndex extends NearbyIndexBase {
         const center_high_list = [];
         const center_low_list = [];
         for (let src of this._sources) {
-            let {prev, center, next, itv} = src.index.nearby(offset);
-            if (prev[0] > -Infinity) prev_list.push(prev);            
-            if (next[0] < Infinity) next_list.push(next);
-            if (center.length > 0) {
+            let nearby = src.index.nearby(offset);
+            let prev_region = src.index.prev_region(nearby);
+            let next_region = src.index.next_region(nearby);
+            if (prev_region != undefined) {
+                prev_list.push(endpoint.from_interval(prev_region.itv)[1]);
+            }
+            if (next_region != undefined) {
+                next_list.push(endpoint.from_interval(next_region.itv)[0]);
+            }
+            if (nearby.center.length > 0) {
                 center_list.push(this._caches.get(src));
-                let [low, high] = endpoint.from_interval(itv);
+                let [low, high] = endpoint.from_interval(nearby.itv);
                 center_high_list.push(high);
                 center_low_list.push(low);    
             }
@@ -2025,10 +1983,10 @@ class MergeIndex extends NearbyIndexBase {
         if (center_list.length == 0) {
 
             // empty center
-            result.right = min_next_low;       
-            result.next = min_next_low;
+            result.right = min_next_low;  
+            //result.next = min_next_low;
             result.left = max_prev_high;
-            result.prev = max_prev_high;
+            //result.prev = max_prev_high;
 
         } else {
             // non-empty center
@@ -2121,8 +2079,6 @@ class ShiftIndex extends NearbyIndexBase {
             itv,
             left: shifted(nearby.left, this._skew),
             right: shifted(nearby.right, this._skew),
-            next: shifted(nearby.next, this._skew),
-            prev: shifted(nearby.prev, this._skew),
             center: nearby.center.map(() => this._shifted_cache)
         }
     }

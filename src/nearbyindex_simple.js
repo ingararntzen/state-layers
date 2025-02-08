@@ -39,95 +39,70 @@ export class NearbyIndexSimple extends NearbyIndexBase {
 
     get src () {return this._src;}
 
-    /*
-        nearby by offset
-        
-        returns {left, center, right}
 
-        binary search based on offset
-        1) found, idx
-            offset matches value of interval.low of an item
-            idx gives the index of this item in the array
-        2) not found, idx
-            offset is either covered by item at (idx-1),
-            or it is not => between entries
-            in this case - idx gives the index where an item
-            should be inserted - if it had low == offset
-    */
     nearby(offset) {
         offset = this.check(offset);
-        const result = {
-            center: [],
-            itv: [-Infinity, Infinity, true, true],
-            left: [-Infinity, 0],
-            prev: [-Infinity, 0],
-            right: [Infinity, 0],
-            next: [Infinity, 0]
-        };
+        let item = undefined;
+        let center_idx = undefined;
         let items = this._src.get_items();
-        let indexes, item;
-        const size = items.length;
-        if (size == 0) {
-            return result; 
-        }
+
+        // binary search for index
         let [found, idx] = find_index(offset[0], items, get_low_value);
         if (found) {
             // search offset matches item low exactly
-            // check that it indeed covered by item interval
+            // check that it is indeed covered by item interval
             item = items[idx]
             if (interval.covers_endpoint(item.itv, offset)) {
-                indexes = {left:idx-1, center:idx, right:idx+1};
+                center_idx = idx
             }
         }
-        if (indexes == undefined) {
-            // check prev item
+        if (center_idx == undefined) {
+            // check if previous item covers offset
             item = items[idx-1];
             if (item != undefined) {
-                // check if search offset is covered by item interval
                 if (interval.covers_endpoint(item.itv, offset)) {
-                    indexes = {left:idx-2, center:idx-1, right:idx};
-                } 
-            }
-        }	
-        if (indexes == undefined) {
-            // prev item either does not exist or is not relevant
-            indexes = {left:idx-1, center:-1, right:idx};
+                    center_idx = idx-1;
+                }
+            } 
         }
 
-        // center
-        if (0 <= indexes.center && indexes.center < size) {
-            result.center =  [items[indexes.center]];
-        }
-        // prev/next
-        if (0 <= indexes.left && indexes.left < size) {
-            result.prev =  get_high_endpoint(items[indexes.left]);
-        }
-        if (0 <= indexes.right && indexes.right < size) {
-            result.next =  get_low_endpoint(items[indexes.right]);
-        }        
-        // left/right
-        let low = [-Infinity, 0], high= [Infinity, 0];
-        if (result.center.length > 0) {
-            let itv = result.center[0].itv;
-            [low, high] = endpoint.from_interval(itv);
-            result.left = (low[0] > -Infinity) ? endpoint.flip(low, "high") : [-Infinity, 0];
-            result.right = (high[0] < Infinity) ? endpoint.flip(high, "low") : [Infinity, 0];
-            result.itv = result.center[0].itv;
-        } else {
-            result.left = result.prev;
-            result.right = result.next;
-            // interval
-            let left = result.left;
-            if (low[0] == -Infinity) {
-                low = endpoint.flip(left, "low");
+        /* 
+            center is non-empty 
+        */
+        if (center_idx != undefined) {
+            item = items[center_idx];
+            const [low, high] = endpoint.from_interval(item.itv);
+            return {
+                center: [item],
+                itv: item.itv,
+                left: endpoint.flip(low, "high"),
+                right: endpoint.flip(high, "low")
             }
-            let right = result.right;
-            if (high[0] == Infinity) {
-                high = endpoint.flip(right, "high");
-            }
-            result.itv = interval.from_endpoints(low, high);
         }
-        return result;
+
+        /* 
+            center is empty 
+        */
+        // left is based on previous item
+        item = items[idx-1];
+        let left = [-Infinity, 0];
+        if (item != undefined) {
+            left = endpoint.from_interval(item.itv)[1];
+        }
+        // right is based on next item
+        item = items[idx];
+        let right = [Infinity, 0];
+        if (item != undefined) {
+            right = endpoint.from_interval(item.itv)[0];
+        }
+        // itv based on left and right        
+        let low = endpoint.flip(left, "low");
+        let high = endpoint.flip(right, "high");
+
+        return {
+            center: [], left, right,
+            itv: interval.from_endpoints(low, high)
+        };
     }
 }
 

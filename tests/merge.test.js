@@ -21,7 +21,6 @@ function runtest(intervals, expected) {
     let result = index.nearby(OFFSET);
     expect(expected.itv).toStrictEqual(result.itv);
     expect(expected.left).toStrictEqual(result.left);
-    expect(expected.prev).toStrictEqual(result.prev);
     expect(expected.right).toStrictEqual(result.right);
     expect(expected.center_length).toStrictEqual(result.center.length);    
 }

@@ -133,12 +133,18 @@ export class MergeIndex extends NearbyIndexBase {
         const center_high_list = [];
         const center_low_list = []
         for (let src of this._sources) {
-            let {prev, center, next, itv} = src.index.nearby(offset);
-            if (prev[0] > -Infinity) prev_list.push(prev);            
-            if (next[0] < Infinity) next_list.push(next);
-            if (center.length > 0) {
+            let nearby = src.index.nearby(offset);
+            let prev_region = src.index.prev_region(nearby);
+            let next_region = src.index.next_region(nearby);
+            if (prev_region != undefined) {
+                prev_list.push(endpoint.from_interval(prev_region.itv)[1]);
+            }
+            if (next_region != undefined) {
+                next_list.push(endpoint.from_interval(next_region.itv)[0]);
+            }
+            if (nearby.center.length > 0) {
                 center_list.push(this._caches.get(src));
-                let [low, high] = endpoint.from_interval(itv);
+                let [low, high] = endpoint.from_interval(nearby.itv);
                 center_high_list.push(high);
                 center_low_list.push(low);    
             }
@@ -161,10 +167,10 @@ export class MergeIndex extends NearbyIndexBase {
         if (center_list.length == 0) {
 
             // empty center
-            result.right = min_next_low;       
-            result.next = min_next_low;
+            result.right = min_next_low;  
+            //result.next = min_next_low;
             result.left = max_prev_high;
-            result.prev = max_prev_high;
+            //result.prev = max_prev_high;
 
         } else {
             // non-empty center

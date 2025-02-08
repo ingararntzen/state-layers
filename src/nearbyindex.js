@@ -12,20 +12,19 @@ import { endpoint, interval } from "./intervals.js";
  * 
  * NEARBY INDEX
  * 
- * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
+ * NearbyIndex provides indexing support of effectively
+ * looking up regions by offset, 
  * given that
- * (i) each entriy is associated with an interval and,
- * (ii) entries are non-overlapping.
- * Each ITEM must be associated with an interval on the timeline 
+ * (i) each region is associated with an interval and,
+ * (ii) regions are non-overlapping.
  * 
  * NEARBY
- * The nearby method returns information about the neighborhood around endpoint. 
- * 
- * Primary use is for iteration 
+ * The nearby method returns information about the neighborhood 
+ * around endpoint. 
  * 
  * Returns {
- *      center: list of ITEMS/LAYERS covering endpoint,
- *      itv: interval where nearby returns identical {center}
+ *      center: list of objects covered by region,
+ *      itv: region interval - validity of center 
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}
@@ -34,31 +33,18 @@ import { endpoint, interval } from "./intervals.js";
  *          first interval endpoint to the right
  *          which will produce different {center}
  *          always a low-endpoint or [Infinity, 0]    
- *      prev:
- *          first interval endpoint to the left 
- *          which will produce different && non-empty {center}
- *          always a high-endpoint or [-Infinity, 0] if no more intervals to the left
- *      next:
- *          first interval endpoint to the right
- *          which will produce different && non-empty {center}
- *          always a low-endpoint or [Infinity, 0] if no more intervals to the right
- * }
  * 
  * 
- * The nearby state is well-defined for every timeline position.
- * 
- * 
- * NOTE left/right and prev/next are mostly the same. The only difference is 
- * that prev/next will skip over regions where there are no intervals. This
- * ensures practical iteration of items as prev/next will only be undefined  
- * at the end of iteration.
+ * The nearby state is well-defined for every endpoint
+ * on the timeline.
  * 
  * INTERVALS
  * 
  * [low, high, lowInclusive, highInclusive]
  * 
- * This representation ensures that the interval endpoints are ordered and allows
- * intervals to be exclusive or inclusive, yet cover the entire real line 
+ * This representation ensures that the interval endpoints 
+ * are ordered and allows intervals to be exclusive or inclusive, 
+ * yet cover the entire real line 
  * 
  * [a,b], (a,b), [a,b), [a, b) are all valid intervals
  * 
@@ -71,7 +57,8 @@ import { endpoint, interval } from "./intervals.js";
  * [4, 4, 4] -> [4, 0] - endpoint is at 4 
  * (4 -> [4, 1] - endpoint is on the right of 4)
  * 
- * / */
+ *  
+ */
 
 
 /**
