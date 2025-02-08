@@ -515,67 +515,28 @@ function check_input(items) {
         return (center.length > 0) ? [Infinity, 0] : left
     }
 
-    /*
-        List items of NearbyIndex (order left to right)
-        interval defines [start, end] offset on the timeline.
-        Returns list of item-lists.
-        options
-        - start
-        - stop
-    */
-    list(options={}) {
-        let {start=-Infinity, stop=Infinity} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
-        }
-        start = [start, 0];
-        stop = [stop, 0];
-        let current = start;
-        let nearby;
-        const results = [];
-        let limit = 5;
-        while (limit) {
-            if (endpoint.gt(current, stop)) {
-                // exhausted
-                break;
-            }
-            nearby = this.nearby(current);
-            if (nearby.center.length == 0) {
-                // center empty (typically first iteration)
-                if (nearby.right[0] == Infinity) {
-                    // right undefined
-                    // no entries - already exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            } else {
-                results.push(nearby.center);
-                if (nearby.right[0] == Infinity) {
-                    // right undefined
-                    // last entry - mark iteractor exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            }
-            limit--;
-        }
-        return results;
-    }
 
 
     regions(options) {
-        return new RegionIteratorRight(this, options);
+        return new RegionIterator(this, options);
     }
 
 }
 
-class RegionIteratorRight {
+
+/*
+    Iterate regions of index from left to right
+
+    Iteration limited to interval [start, stop] on the timeline.
+    Returns list of item-lists.
+    options
+    - start
+    - stop
+    - includeEmpty
+*/
+
+
+class RegionIterator {
 
     constructor(index, options={}) {
         let {start=-Infinity, stop=Infinity, includeEmpty=false} = options;

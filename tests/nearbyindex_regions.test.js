@@ -5,7 +5,7 @@ import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
 
 // Add your test cases here
 describe('NearbyIndexList', () => {
-    test('should list items of nearby index', () => {
+    test.only('should list items of nearby index', () => {
 
         const intervals = [
             [-Infinity, 0, true, false],
@@ -21,16 +21,15 @@ describe('NearbyIndexList', () => {
         const src = new LocalStateProvider({items});
         const index = new NearbyIndexSimple(src);
 
-        let result = index.list();
-
+        let result = Array.from(index.regions({includeEmpty:false}));
         expect(result.length).toBe(3);
         result.forEach((items, index) => {
-            expect(items.length).toBe(1);
-            expect(items[0].itv).toStrictEqual(intervals[index])
+            expect(items.center.length).toBe(1);
+            expect(items.itv).toStrictEqual(intervals[index])
         });
     });
 
-    test.only('test region iterator', () => {
+    test('test region iterator', () => {
 
         const intervals = [
             [-Infinity, 0, true, false],
