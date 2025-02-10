@@ -1,4 +1,4 @@
-import { endpoint } from "./intervals.js";
+import { endpoint, interval } from "./intervals.js";
 
 /*********************************************************************
     NEARBY INDEX
@@ -12,20 +12,19 @@ import { endpoint } from "./intervals.js";
  * 
  * NEARBY INDEX
  * 
- * NearbyIndex provides indexing support of effectivelylooking up ITEMS by offset, 
+ * NearbyIndex provides indexing support of effectively
+ * looking up regions by offset, 
  * given that
- * (i) each entriy is associated with an interval and,
- * (ii) entries are non-overlapping.
- * Each ITEM must be associated with an interval on the timeline 
+ * (i) each region is associated with an interval and,
+ * (ii) regions are non-overlapping.
  * 
  * NEARBY
- * The nearby method returns information about the neighborhood around endpoint. 
- * 
- * Primary use is for iteration 
+ * The nearby method returns information about the neighborhood 
+ * around endpoint. 
  * 
  * Returns {
- *      center: list of ITEMS/LAYERS covering endpoint,
- *      itv: interval where nearby returns identical {center}
+ *      center: list of objects covered by region,
+ *      itv: region interval - validity of center 
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}
@@ -34,31 +33,18 @@ import { endpoint } from "./intervals.js";
  *          first interval endpoint to the right
  *          which will produce different {center}
  *          always a low-endpoint or [Infinity, 0]    
- *      prev:
- *          first interval endpoint to the left 
- *          which will produce different && non-empty {center}
- *          always a high-endpoint or [-Infinity, 0] if no more intervals to the left
- *      next:
- *          first interval endpoint to the right
- *          which will produce different && non-empty {center}
- *          always a low-endpoint or [Infinity, 0] if no more intervals to the right
- * }
  * 
  * 
- * The nearby state is well-defined for every timeline position.
- * 
- * 
- * NOTE left/right and prev/next are mostly the same. The only difference is 
- * that prev/next will skip over regions where there are no intervals. This
- * ensures practical iteration of items as prev/next will only be undefined  
- * at the end of iteration.
+ * The nearby state is well-defined for every endpoint
+ * on the timeline.
  * 
  * INTERVALS
  * 
  * [low, high, lowInclusive, highInclusive]
  * 
- * This representation ensures that the interval endpoints are ordered and allows
- * intervals to be exclusive or inclusive, yet cover the entire real line 
+ * This representation ensures that the interval endpoints 
+ * are ordered and allows intervals to be exclusive or inclusive, 
+ * yet cover the entire real line 
  * 
  * [a,b], (a,b), [a,b), [a, b) are all valid intervals
  * 
@@ -71,9 +57,32 @@ import { endpoint } from "./intervals.js";
  * [4, 4, 4] -> [4, 0] - endpoint is at 4 
  * (4 -> [4, 1] - endpoint is on the right of 4)
  * 
- * / */
+ *  
+ */
 
- export class NearbyIndexBase {
+
+/**
+ * return first high endpoint on the left from nearby,
+ * which is not in center
+ */
+export function left_endpoint (nearby) {
+    const low = endpoint.from_interval(nearby.itv)[0];
+    return endpoint.flip(low, "high");
+}
+
+/**
+ * return first low endpoint on the right from nearby,
+ * which is not in center
+ */
+
+export function right_endpoint (nearby) {
+    const high = endpoint.from_interval(nearby.itv)[1];
+    return endpoint.flip(high, "low");
+}
+
+
+
+export class NearbyIndexBase {
 
 
     /* 
@@ -109,61 +118,166 @@ import { endpoint } from "./intervals.js";
         return (center.length > 0) ? [Infinity, 0] : left
     }
 
-    /*
-        List items of NearbyIndex (order left to right)
-        interval defines [start, end] offset on the timeline.
-        Returns list of item-lists.
-        options
-        - start
-        - stop
-    */
-    list(options={}) {
-        let {start=-Infinity, stop=Infinity} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
+
+    /**
+     * return nearby of first region to the right
+     * which is not the center region. If not exists, return
+     * undefined. 
+     */
+    right_region(nearby) {
+        const right = right_endpoint(nearby);
+        if (right[0] == Infinity) {
+            return undefined;
         }
-        start = [start, 0];
-        stop = [stop, 0];
-        let current = start;
-        let nearby;
-        const results = [];
-        let limit = 5
-        while (limit) {
-            if (endpoint.gt(current, stop)) {
-                // exhausted
-                break;
-            }
-            nearby = this.nearby(current);
-            if (nearby.center.length == 0) {
-                // center empty (typically first iteration)
-                if (nearby.right[0] == Infinity) {
-                    // right undefined
-                    // no entries - already exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            } else {
-                results.push(nearby.center);
-                if (nearby.right[0] == Infinity) {
-                    // right undefined
-                    // last entry - mark iteractor exhausted
-                    break;
-                } else {
-                    // right defined
-                    // increment offset
-                    current = nearby.right;
-                }
-            }
-            limit--;
-        }
-        return results;
+        return this.nearby(right);
     }
+
+    /**
+     * return nearby of first non-empty region to the right
+     * which is not the center region. If not exists, return
+     * undefined. 
+     */
+    next_region(nearby) {
+        const next_nearby = this.right_region(nearby);
+        if (next_nearby == undefined) {
+            return undefined;
+        }
+        if (next_nearby.center.length > 0) {
+            // center non-empty 
+            return next_nearby;
+        }
+        // center empty
+        // find first non-empty region to the right (recursively)
+        return this.next_region(next_nearby);
+    }
+
+    /**
+     * return nearby of first region to the left
+     * which is not the center region. If not exists, return
+     * undefined. 
+     */
+    left_region(nearby) {
+        const left = left_endpoint(nearby);
+        if (left[0] == -Infinity) {
+            return undefined;
+        }
+        return this.nearby(left);    
+    }
+
+    /** 
+     * return nearby of first non-empty region to the left
+     * which is not the center region. If not exists, return
+     * undefined. 
+    */
+    prev_region(nearby) {
+        const next_nearby = this.left_region(nearby);
+        if (next_nearby == undefined) {
+            return undefined;
+        }
+        if (next_nearby.center.length > 0) {
+            // center non-empty 
+            return next_nearby;
+        }
+        // center empty
+        // find first non-empty region to the left (recursively)
+        return this.prev_region(next_nearby);
+    }
+
+    regions(options) {
+        return new RegionIterator(this, options);
+    }
+
 }
 
 
+/*
+    Iterate regions of index from left to right
+
+    Iteration limited to interval [start, stop] on the timeline.
+    Returns list of item-lists.
+    options
+    - start
+    - stop
+    - includeEmpty
+*/
+
+class RegionIterator {
+
+    constructor(index, options={}) {
+        let {
+            start=-Infinity, 
+            stop=Infinity, 
+            includeEmpty=true
+        } = options;
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        this._index = index;
+        this._start = [start, 0];
+        this._stop = [stop, 0];
+        this._includeEmpty = includeEmpty;        
+        this._current;
+        this._done = false;
+    }
+
+    next() {
+        let current;
+        if (this._done) {
+            return {value:undefined, done:true};
+        }
+        if (this._current == undefined) {
+            // initialise
+            this._current = this._index.nearby(this._start);
+        } 
+        /* 
+            need multiple passes to skip over
+            empty regions within this next invocation
+        */
+        while (true) {
+            current = this._current;
+
+            // check if stop < region.low
+            let low = endpoint.from_interval(current.itv)[0] 
+            if (endpoint.gt(low, this._stop)) {
+                return {value:undefined, done:true};
+            }
+
+            const is_last = current.itv[1] == Infinity;
+
+            /* 
+                check if we need to skip to next within 
+                this next invocation
+            */
+            const skip_empty = (
+                is_last == false &&
+                this._includeEmpty == false &&
+                current.center.length == 0
+            );
+            if (skip_empty) {
+                this._current = this._index.right_region(current);
+                if (current == undefined) {
+                    return {value:undefined, done:true}
+                }
+                continue;
+            }
+
+            if (is_last) {
+                this._done = true;
+            } else {
+                // increment current
+                this._current = this._index.right_region(current);
+                if (current == undefined) {
+                    this._done = true;
+                }
+            }
+            return {value:current, done:false};
+        }
+    }
+
+    [Symbol.iterator]() {
+        return this;
+    }
+}
 
 
 

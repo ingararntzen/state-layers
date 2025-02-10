@@ -77,6 +77,10 @@ export class Layer {
         return this.cache.query(offset);
     }
 
+    regions (options) {
+        return this.index.regions(options);
+    }
+
     /*
         Sample Layer by timeline offset increments
         return list of tuples [value, offset]

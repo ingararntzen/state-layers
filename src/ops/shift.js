@@ -51,8 +51,6 @@ class ShiftIndex extends NearbyIndexBase {
             itv,
             left: shifted(nearby.left, this._skew),
             right: shifted(nearby.right, this._skew),
-            next: shifted(nearby.next, this._skew),
-            prev: shifted(nearby.prev, this._skew),
             center: nearby.center.map(() => this._shifted_cache)
         }
     }
