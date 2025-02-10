@@ -2,7 +2,7 @@ import { interval, endpoint} from "../intervals.js";
 import { NearbyIndexBase } from "../nearbyindex.js";
 import { Layer } from "../layers.js"
 
-class BooleanLayer extends Layer {
+export class BooleanLayer extends Layer {
 
     constructor(layer) {
         super();
