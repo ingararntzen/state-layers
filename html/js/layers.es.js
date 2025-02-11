@@ -3008,11 +3008,9 @@ function boolean(layer) {
 
 /**
  * Wrapper Index where regions are true/false, based on 
- * on whether the source index is defined or not.
- * Back-to-back regions which are defined 
- * are collapsed into one region
- * 
- * Boolean Index is stateless.
+ * condition on nearby.center.
+ * Back-to-back regions which are true are collapsed 
+ * into one region
  * 
  */
 
@@ -3029,72 +3027,51 @@ class BooleanIndex extends NearbyIndexBase {
     constructor(index, options={}) {
         super();
         this._index = index;
-        this._trueObject = queryObject(true);
-        this._falseObject = queryObject(false);
-        this._options = options;
+        let {condition = (center) => center.length > 0} = options;
+        this._condition = condition;
     }
 
     nearby(offset) {
         offset = this.check(offset);
         const nearby = this._index.nearby(offset);
+        
+        let evaluation = this._condition(nearby.center); 
+        /* 
+            seek left and right for first region
+            which does not have the same evaluation 
+        */
+        const condition = (center) => {
+            return this._condition(center) != evaluation;
+        };
 
-        // left, right is unchanged if center is empty
-        if (nearby.center.length == 0) {
-            nearby.center = [this._falseObject];
-            return nearby;
+        // expand right
+        let right;
+        let right_nearby = this._index.find_region(nearby, {
+            direction:1, condition
+        });        
+        if (right_nearby != undefined) {
+            right = endpoint.from_interval(right_nearby.itv)[0];
         }
 
-        // seek left and right for next gap - expand region
-        let [low, high] = endpoint.from_interval(nearby.itv);
-        let current_nearby;
-
-        // seek right
-        current_nearby = nearby;
-        while (true) {
-            // region on the right
-            const next_nearby = this._index.nearby(current_nearby.right);
-            if (next_nearby.center.length > 0) {
-                // expand region
-                high = endpoint.from_interval(next_nearby.itv)[1];
-                // check if this is last region
-                if (next_nearby.right[0] == Infinity) {
-                    break;
-                } else {
-                    // continue
-                    current_nearby = next_nearby;
-                }
-            } else {
-                // found gap
-                break;
-            }
+        // expand left
+        let left;
+        let left_nearby = this._index.find_region(nearby, {
+            direction:-1, condition
+        });
+        if (left_nearby != undefined) {
+            left = endpoint.from_interval(left_nearby.itv)[1];
         }
 
-        // seek left
-        current_nearby = nearby;
-        while (true) {
-            // region on the left
-            const next_nearby = this._index.nearby(current_nearby.left);
-            if (next_nearby.center.length > 0) {
-                // expand region
-                low = endpoint.from_interval(next_nearby.itv)[0];
-                // check if this is last region
-                if (next_nearby.left[0] == -Infinity) {
-                    break;
-                } else {
-                    // continue
-                    current_nearby = next_nearby;
-                }
-            } else {
-                // found gap
-                break;
-            }
-        }
-
+        // expand to infinity
+        left = left || [-Infinity, 0];
+        right = right || [Infinity, 0];
+        const low = endpoint.flip(left, "low");
+        const high = endpoint.flip(right, "high");
         return {
             itv: interval.from_endpoints(low, high),
-            center : [this._trueObject],
-            left: endpoint.flip(low, "high"),
-            right: endpoint.flip(high, "low"),
+            center : [queryObject(evaluation)],
+            left,
+            right,
         }
     }
 }

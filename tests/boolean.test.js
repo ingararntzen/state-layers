@@ -68,7 +68,7 @@ describe('Test Logical Layer', () => {
             return bool_index.nearby(offset).center[0].query(offset).value;
         });
         expect(bools).toStrictEqual([false, true, false, true, false, true]);
-    
+
         // check regions
         const regions = [...bool_index.regions()];
         expect(regions.length).toBe(6);
