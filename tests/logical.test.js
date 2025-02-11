@@ -18,25 +18,24 @@ describe('Test Logical Merge', () => {
         ]});
 
         const r = sl.logical_expr;
-        
-        const l3 = sl.logical_merge([l1, l2], {expr:r.and(r(l1), r(l2))});
+        const expr = r.and(r(l1), r(l2));
+        const l3 = sl.logical_merge([l1, l2], {expr});
 
-        // regions
-        const regions = [...l3.regions({includeEmpty:false})]
-        console.log(regions)
-
-        /*
-        expect(regions.length).toBe(3);
-        expect(regions[0].itv).toStrictEqual([-Infinity, 0, true, false]);
-        expect(regions[1].itv).toStrictEqual([0, 8, true, false]);
-        expect(regions[2].itv).toStrictEqual([8, Infinity, true, true]);
-        
-
-        // values
-        expect(l2.query(-1).value).toBe(false);
-        expect(l2.query(4).value).toBe(true);
-        expect(l2.query(10).value).toBe(false);
+        /* 
+            l3 should be true only in regions where 
+            both l1 and l2 are defined
         */
+
+        const regions = [...l3.regions()]
+
+        expect(regions.length).toBe(3);
+        expect(regions[0].itv).toStrictEqual([-Infinity, 3, true, false]);
+        expect(regions[1].itv).toStrictEqual([3, 5, true, false]);
+        expect(regions[2].itv).toStrictEqual([5, Infinity, true, true]);
+        
+        expect(l3.query(-1).value).toBe(false);
+        expect(l3.query(4).value).toBe(true);
+        expect(l3.query(10).value).toBe(false);
     });
 
 

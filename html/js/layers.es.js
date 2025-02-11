@@ -1639,6 +1639,8 @@ class LayerCache {
         this._state;
     }
 
+    get src() {return this._layer};
+
     /**
      * query cache
      */
@@ -1741,6 +1743,8 @@ class InputLayerCache {
         // cached segment
         this._segment = undefined;
     }
+
+    get src() {return this._layer};
 
     query(offset) {
         const cache_miss = (
@@ -3079,17 +3083,16 @@ class BooleanIndex extends NearbyIndexBase {
 class LogicalMergeLayer extends Layer {
 
     constructor(sources, options={}) {
-        const r = logical_expr;
+        super();
+        const {expr} = options;
 
-        let {expr=r.or(...sources.map((l) => r(l)))} = options;
-            
-        function stateFunc({offset}) {
-            console.log("stateFunc", offset);
-            return {value:expr.eval(offset), dynamic:false, offset};
-        } 
-
-        super({stateFunc});
-        
+        let condition;
+        if (expr) {
+            condition = (center) => {
+                return expr.eval(center);
+            };    
+        }
+                    
         // subscribe to callbacks from sources
         const handler = this._onchange.bind(this);
         for (let src of sources) {
@@ -3097,7 +3100,8 @@ class LogicalMergeLayer extends Layer {
         }
 
         // index
-        this._index = new MergeIndex(sources);
+        let index = new MergeIndex(sources);
+        this._index = new BooleanIndex(index, {condition});
     }
 
     get index () {return this._index};
@@ -3122,41 +3126,45 @@ function logical_expr (src) {
         throw new Error(`must be layer ${src}`)
     }
     return {
-        eval: function () {
-            src.index;
+        eval: function (center) {
+            for (let cache of center) {
+                if (cache.src == src) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }
 
 logical_expr.and = function and(...exprs) {
     return {
-        eval: function (offset) {
-            console.log("eval");
-            return exprs.every((expr) => expr.eval(offset));
+        eval: function (center) {
+            return exprs.every((expr) => expr.eval(center));
         }    
     }
 };
 
 logical_expr.or = function or(...exprs) {
     return {
-        eval: function (offset) {
-            return exprs.some((expr) => expr.eval(offset));
+        eval: function (center) {
+            return exprs.some((expr) => expr.eval(center));
         }    
     }
 };
 
 logical_expr.xor = function xor(expr1, expr2) {
     return {
-        eval: function (offset) {
-            return expr1.eval(offset) != expr2.eval(offset);
+        eval: function (center) {
+            return expr1.eval(center) != expr2.eval(center);
         }    
     }
 };
 
 logical_expr.not = function not(expr) {
     return {
-        eval: function (offset) {
-            return !expr.eval(offset);
+        eval: function (center) {
+            return !expr.eval(center);
         }    
     }
 };
