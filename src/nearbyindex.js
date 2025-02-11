@@ -1,4 +1,4 @@
-import { endpoint, interval } from "./intervals.js";
+import { endpoint } from "./intervals.js";
 
 /*********************************************************************
     NEARBY INDEX
@@ -133,25 +133,6 @@ export class NearbyIndexBase {
     }
 
     /**
-     * return nearby of first non-empty region to the right
-     * which is not the center region. If not exists, return
-     * undefined. 
-     */
-    next_region(nearby) {
-        const next_nearby = this.right_region(nearby);
-        if (next_nearby == undefined) {
-            return undefined;
-        }
-        if (next_nearby.center.length > 0) {
-            // center non-empty 
-            return next_nearby;
-        }
-        // center empty
-        // find first non-empty region to the right (recursively)
-        return this.next_region(next_nearby);
-    }
-
-    /**
      * return nearby of first region to the left
      * which is not the center region. If not exists, return
      * undefined. 
@@ -164,23 +145,37 @@ export class NearbyIndexBase {
         return this.nearby(left);    
     }
 
-    /** 
-     * return nearby of first non-empty region to the left
-     * which is not the center region. If not exists, return
-     * undefined. 
-    */
-    prev_region(nearby) {
-        const next_nearby = this.left_region(nearby);
-        if (next_nearby == undefined) {
-            return undefined;
+    /**
+     * find first region to the "right" or "left"
+     * which is not the center region, and which meets
+     * a condition on nearby.center.
+     * Default condition is center non-empty
+     * If not exists, return undefined. 
+     */
+    
+    find_region(nearby, options={}) {
+        let {
+            direction = 1,
+            condition = (center) => center.length > 0
+        } = options;
+        let next_nearby;
+        while(true) {
+            if (direction == 1) {
+                next_nearby = this.right_region(nearby);
+            } else {
+                next_nearby = this.left_region(nearby);
+            }
+            if (next_nearby == undefined) {
+                return undefined;
+            }
+            if (condition(next_nearby.center)) {
+                // found region 
+                return next_nearby;
+            }
+            // region not found
+            // continue searching the right
+            nearby = next_nearby;
         }
-        if (next_nearby.center.length > 0) {
-            // center non-empty 
-            return next_nearby;
-        }
-        // center empty
-        // find first non-empty region to the left (recursively)
-        return this.prev_region(next_nearby);
     }
 
     regions(options) {
@@ -215,62 +210,29 @@ class RegionIterator {
         this._index = index;
         this._start = [start, 0];
         this._stop = [stop, 0];
-        this._includeEmpty = includeEmpty;        
+
+        if (includeEmpty) {
+            this._condition = () => true;
+        } else {
+            this._condition = (center) => center.length > 0;
+        }
         this._current;
-        this._done = false;
     }
 
     next() {
-        let current;
-        if (this._done) {
-            return {value:undefined, done:true};
-        }
         if (this._current == undefined) {
-            // initialise
+            // initialse
             this._current = this._index.nearby(this._start);
-        } 
-        /* 
-            need multiple passes to skip over
-            empty regions within this next invocation
-        */
-        while (true) {
-            current = this._current;
-
-            // check if stop < region.low
-            let low = endpoint.from_interval(current.itv)[0] 
-            if (endpoint.gt(low, this._stop)) {
-                return {value:undefined, done:true};
+            if (this._condition(this._current.center)) {
+                return {value:this._current, done:false};
             }
-
-            const is_last = current.itv[1] == Infinity;
-
-            /* 
-                check if we need to skip to next within 
-                this next invocation
-            */
-            const skip_empty = (
-                is_last == false &&
-                this._includeEmpty == false &&
-                current.center.length == 0
-            );
-            if (skip_empty) {
-                this._current = this._index.right_region(current);
-                if (current == undefined) {
-                    return {value:undefined, done:true}
-                }
-                continue;
-            }
-
-            if (is_last) {
-                this._done = true;
-            } else {
-                // increment current
-                this._current = this._index.right_region(current);
-                if (current == undefined) {
-                    this._done = true;
-                }
-            }
-            return {value:current, done:false};
+        }
+        let options = {condition:this._condition, direction:1}
+        this._current = this._index.find_region(this._current, options);
+        if (this._current == undefined) {
+            return {value:undefined, done:true};
+        } else {
+            return {value:this._current, done:false}
         }
     }
 

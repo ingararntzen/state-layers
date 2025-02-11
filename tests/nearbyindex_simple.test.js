@@ -83,7 +83,6 @@ describe('SimpleNearbyIndex', () => {
         // endpoint within gap
         nearby = index.nearby(1.5);
         expect(nearby.center).toStrictEqual([]);
-        console.log(nearby.itv)
         expect(nearby.itv).toStrictEqual([1, 2, false, true]);
 
         // prev/next

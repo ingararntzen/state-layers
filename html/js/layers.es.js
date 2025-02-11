@@ -539,25 +539,6 @@ class NearbyIndexBase {
     }
 
     /**
-     * return nearby of first non-empty region to the right
-     * which is not the center region. If not exists, return
-     * undefined. 
-     */
-    next_region(nearby) {
-        const next_nearby = this.right_region(nearby);
-        if (next_nearby == undefined) {
-            return undefined;
-        }
-        if (next_nearby.center.length > 0) {
-            // center non-empty 
-            return next_nearby;
-        }
-        // center empty
-        // find first non-empty region to the right (recursively)
-        return this.next_region(next_nearby);
-    }
-
-    /**
      * return nearby of first region to the left
      * which is not the center region. If not exists, return
      * undefined. 
@@ -570,23 +551,37 @@ class NearbyIndexBase {
         return this.nearby(left);    
     }
 
-    /** 
-     * return nearby of first non-empty region to the left
-     * which is not the center region. If not exists, return
-     * undefined. 
-    */
-    prev_region(nearby) {
-        const next_nearby = this.left_region(nearby);
-        if (next_nearby == undefined) {
-            return undefined;
+    /**
+     * find first region to the "right" or "left"
+     * which is not the center region, and which meets
+     * a condition on nearby.center.
+     * Default condition is center non-empty
+     * If not exists, return undefined. 
+     */
+    
+    find_region(nearby, options={}) {
+        let {
+            direction = 1,
+            condition = (center) => center.length > 0
+        } = options;
+        let next_nearby;
+        while(true) {
+            if (direction == 1) {
+                next_nearby = this.right_region(nearby);
+            } else {
+                next_nearby = this.left_region(nearby);
+            }
+            if (next_nearby == undefined) {
+                return undefined;
+            }
+            if (condition(next_nearby.center)) {
+                // found region 
+                return next_nearby;
+            }
+            // region not found
+            // continue searching the right
+            nearby = next_nearby;
         }
-        if (next_nearby.center.length > 0) {
-            // center non-empty 
-            return next_nearby;
-        }
-        // center empty
-        // find first non-empty region to the left (recursively)
-        return this.prev_region(next_nearby);
     }
 
     regions(options) {
@@ -621,62 +616,29 @@ class RegionIterator {
         this._index = index;
         this._start = [start, 0];
         this._stop = [stop, 0];
-        this._includeEmpty = includeEmpty;        
+
+        if (includeEmpty) {
+            this._condition = () => true;
+        } else {
+            this._condition = (center) => center.length > 0;
+        }
         this._current;
-        this._done = false;
     }
 
     next() {
-        let current;
-        if (this._done) {
-            return {value:undefined, done:true};
-        }
         if (this._current == undefined) {
-            // initialise
+            // initialse
             this._current = this._index.nearby(this._start);
-        } 
-        /* 
-            need multiple passes to skip over
-            empty regions within this next invocation
-        */
-        while (true) {
-            current = this._current;
-
-            // check if stop < region.low
-            let low = endpoint.from_interval(current.itv)[0]; 
-            if (endpoint.gt(low, this._stop)) {
-                return {value:undefined, done:true};
+            if (this._condition(this._current.center)) {
+                return {value:this._current, done:false};
             }
-
-            const is_last = current.itv[1] == Infinity;
-
-            /* 
-                check if we need to skip to next within 
-                this next invocation
-            */
-            const skip_empty = (
-                is_last == false &&
-                this._includeEmpty == false &&
-                current.center.length == 0
-            );
-            if (skip_empty) {
-                this._current = this._index.right_region(current);
-                if (current == undefined) {
-                    return {value:undefined, done:true}
-                }
-                continue;
-            }
-
-            if (is_last) {
-                this._done = true;
-            } else {
-                // increment current
-                this._current = this._index.right_region(current);
-                if (current == undefined) {
-                    this._done = true;
-                }
-            }
-            return {value:current, done:false};
+        }
+        let options = {condition:this._condition, direction:1};
+        this._current = this._index.find_region(this._current, options);
+        if (this._current == undefined) {
+            return {value:undefined, done:true};
+        } else {
+            return {value:this._current, done:false}
         }
     }
 
@@ -1677,6 +1639,8 @@ class LayerCache {
         this._state;
     }
 
+    get src() {return this._layer};
+
     /**
      * query cache
      */
@@ -1779,6 +1743,8 @@ class InputLayerCache {
         // cached segment
         this._segment = undefined;
     }
+
+    get src() {return this._layer};
 
     query(offset) {
         const cache_miss = (
@@ -1908,6 +1874,7 @@ class MergeLayer extends Layer {
 addToPrototype(MergeLayer.prototype);
 
 
+
 /**
  * Merging indexes from multiple sources into a single index.
  * 
@@ -1951,8 +1918,8 @@ class MergeIndex extends NearbyIndexBase {
         const center_low_list = [];
         for (let src of this._sources) {
             let nearby = src.index.nearby(offset);
-            let prev_region = src.index.prev_region(nearby);
-            let next_region = src.index.next_region(nearby);
+            let prev_region = src.index.find_region(nearby, {direction:-1});
+            let next_region = src.index.find_region(nearby, {direction:1});
             if (prev_region != undefined) {
                 prev_list.push(endpoint.from_interval(prev_region.itv)[1]);
             }
@@ -3045,11 +3012,9 @@ function boolean(layer) {
 
 /**
  * Wrapper Index where regions are true/false, based on 
- * on whether the source index is defined or not.
- * Back-to-back regions which are defined 
- * are collapsed into one region
- * 
- * Boolean Index is stateless.
+ * condition on nearby.center.
+ * Back-to-back regions which are true are collapsed 
+ * into one region
  * 
  */
 
@@ -3063,77 +3028,146 @@ function queryObject (value) {
 
 class BooleanIndex extends NearbyIndexBase {
 
-    constructor(index) {
+    constructor(index, options={}) {
         super();
         this._index = index;
-        this._trueObject = queryObject(true);
-        this._falseObject = queryObject(false);
+        let {condition = (center) => center.length > 0} = options;
+        this._condition = condition;
     }
 
     nearby(offset) {
         offset = this.check(offset);
         const nearby = this._index.nearby(offset);
+        
+        let evaluation = this._condition(nearby.center); 
+        /* 
+            seek left and right for first region
+            which does not have the same evaluation 
+        */
+        const condition = (center) => {
+            return this._condition(center) != evaluation;
+        };
 
-        // left, right is unchanged if center is empty
-        if (nearby.center.length == 0) {
-            nearby.center = [this._falseObject];
-            return nearby;
+        // expand right
+        let right;
+        let right_nearby = this._index.find_region(nearby, {
+            direction:1, condition
+        });        
+        if (right_nearby != undefined) {
+            right = endpoint.from_interval(right_nearby.itv)[0];
         }
 
-        // seek left and right for next gap - expand region
-        let [low, high] = endpoint.from_interval(nearby.itv);
-        let current_nearby;
-
-        // seek right
-        current_nearby = nearby;
-        while (true) {
-            // region on the right
-            const next_nearby = this._index.nearby(current_nearby.right);
-            if (next_nearby.center.length > 0) {
-                // expand region
-                high = endpoint.from_interval(next_nearby.itv)[1];
-                // check if this is last region
-                if (next_nearby.right[0] == Infinity) {
-                    break;
-                } else {
-                    // continue
-                    current_nearby = next_nearby;
-                }
-            } else {
-                // found gap
-                break;
-            }
+        // expand left
+        let left;
+        let left_nearby = this._index.find_region(nearby, {
+            direction:-1, condition
+        });
+        if (left_nearby != undefined) {
+            left = endpoint.from_interval(left_nearby.itv)[1];
         }
 
-        // seek left
-        current_nearby = nearby;
-        while (true) {
-            // region on the left
-            const next_nearby = this._index.nearby(current_nearby.left);
-            if (next_nearby.center.length > 0) {
-                // expand region
-                low = endpoint.from_interval(next_nearby.itv)[0];
-                // check if this is last region
-                if (next_nearby.left[0] == -Infinity) {
-                    break;
-                } else {
-                    // continue
-                    current_nearby = next_nearby;
-                }
-            } else {
-                // found gap
-                break;
-            }
-        }
-
+        // expand to infinity
+        left = left || [-Infinity, 0];
+        right = right || [Infinity, 0];
+        const low = endpoint.flip(left, "low");
+        const high = endpoint.flip(right, "high");
         return {
             itv: interval.from_endpoints(low, high),
-            center : [this._trueObject],
-            left: endpoint.flip(low, "high"),
-            right: endpoint.flip(high, "low"),
+            center : [queryObject(evaluation)],
+            left,
+            right,
         }
     }
 }
+
+class LogicalMergeLayer extends Layer {
+
+    constructor(sources, options={}) {
+        super();
+        const {expr} = options;
+
+        let condition;
+        if (expr) {
+            condition = (center) => {
+                return expr.eval(center);
+            };    
+        }
+                    
+        // subscribe to callbacks from sources
+        const handler = this._onchange.bind(this);
+        for (let src of sources) {
+            src.add_callback(handler);
+        }
+
+        // index
+        let index = new MergeIndex(sources);
+        this._index = new BooleanIndex(index, {condition});
+    }
+
+    get index () {return this._index};
+
+
+    _onchange(eArg) {
+        this.clearCaches();
+        this.notify_callbacks();
+        this.eventifyTrigger("change");
+    }
+
+}
+
+
+function logical_merge(sources, options) {
+    return new LogicalMergeLayer(sources, options);
+}
+
+
+function logical_expr (src) {
+    if (!(src instanceof Layer)) {
+        throw new Error(`must be layer ${src}`)
+    }
+    return {
+        eval: function (center) {
+            for (let cache of center) {
+                if (cache.src == src) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+}
+
+logical_expr.and = function and(...exprs) {
+    return {
+        eval: function (center) {
+            return exprs.every((expr) => expr.eval(center));
+        }    
+    }
+};
+
+logical_expr.or = function or(...exprs) {
+    return {
+        eval: function (center) {
+            return exprs.some((expr) => expr.eval(center));
+        }    
+    }
+};
+
+logical_expr.xor = function xor(expr1, expr2) {
+    return {
+        eval: function (center) {
+            return expr1.eval(center) != expr2.eval(center);
+        }    
+    }
+};
+
+logical_expr.not = function not(expr) {
+    return {
+        eval: function (center) {
+            return !expr.eval(center);
+        }    
+    }
+};
 
 /*********************************************************************
     LAYER FACTORY
@@ -3166,4 +3200,4 @@ function cursor(options={}) {
     return new Cursor({ctrl, src});
 }
 
-export { boolean, cmd, cursor, layer, merge, cursor as playback, shift, cursor as variable };
+export { boolean, cmd, cursor, layer, logical_expr, logical_merge, merge, cursor as playback, shift, cursor as variable };

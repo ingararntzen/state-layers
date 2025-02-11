@@ -175,7 +175,7 @@ describe('MergeTest', () => {
             [layer_2]
         ];
 
-        let regions = Array.from(layer.index.regions({start:0, end:20, includeEmpty:false}));        
+        let regions = [...layer.index.regions({start:0, end:20, includeEmpty:false})];        
         for (let [i, region] of regions.entries()) {
             for (let [j, cache] of region.center.entries()) {
                 expect(cache._layer).toBe(expected[i][j]);
