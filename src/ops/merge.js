@@ -132,8 +132,8 @@ export class MergeIndex extends NearbyIndexBase {
         const center_low_list = []
         for (let src of this._sources) {
             let nearby = src.index.nearby(offset);
-            let prev_region = src.index.prev_region(nearby);
-            let next_region = src.index.next_region(nearby);
+            let prev_region = src.index.find_region(nearby, {direction:-1});
+            let next_region = src.index.find_region(nearby, {direction:1});
             if (prev_region != undefined) {
                 prev_list.push(endpoint.from_interval(prev_region.itv)[1]);
             }

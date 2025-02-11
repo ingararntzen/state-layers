@@ -2,7 +2,6 @@
 
 import { LocalStateProvider } from '../src/stateprovider_simple.js';
 import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
-import { BooleanIndex } from '../src/nearbyindex.js';
 
 // Add your test cases here
 describe('NearbyIndex Regions', () => {
@@ -112,21 +111,21 @@ describe('NearbyIndex Regions', () => {
         let nearby, next, prev;
 
         nearby = index.nearby(2);
-        next = index.next_region(nearby);
+        next = index.find_region(nearby, {direction:1});
         expect(next.itv).toStrictEqual(intervals[1]);
-        prev = index.prev_region(nearby);
+        prev = index.find_region(nearby, {direction:-1});
         expect(prev.itv).toStrictEqual(intervals[0]);
 
         nearby = index.nearby(0.5)
-        next = index.next_region(nearby);
+        next = index.find_region(nearby, {direction:1});
         expect(next.itv).toStrictEqual(intervals[1]);
-        prev = index.prev_region(nearby);
+        prev = index.find_region(nearby, {direction:-1});
         expect(prev).toBe(undefined);
 
         nearby = index.nearby(-1)
-        next = index.next_region(nearby);
+        next = index.find_region(nearby, {direction:1});
         expect(next.itv).toStrictEqual(intervals[0]);
-        prev = index.prev_region(nearby);
+        prev = index.find_region(nearby, {direction:-1});
         expect(prev).toBe(undefined);
 
     });
@@ -148,14 +147,14 @@ describe('NearbyIndex Regions', () => {
 
         const src = new LocalStateProvider({items});
         const index = new NearbyIndexSimple(src);
-        let nearby, next, prev;
+        let nearby, next;
 
         nearby = index.nearby(-Infinity);
-        next = index.next_region(nearby);
+        next = index.find_region(nearby);
         expect(next.itv).toStrictEqual(intervals[1]);
-        next = index.next_region(next);
+        next = index.find_region(next);
         expect(next.itv).toStrictEqual(intervals[2]);
-        next = index.next_region(next);
+        next = index.find_region(next);
         expect(next).toBe(undefined);
     });
 
