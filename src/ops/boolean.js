@@ -49,11 +49,12 @@ function queryObject (value) {
 
 export class BooleanIndex extends NearbyIndexBase {
 
-    constructor(index) {
+    constructor(index, options={}) {
         super();
         this._index = index;
         this._trueObject = queryObject(true);
         this._falseObject = queryObject(false);
+        this._options = options;
     }
 
     nearby(offset) {

@@ -1,7 +1,5 @@
 /* global describe, test, expect */
 import * as sl from "../src/index.js";
-import { LocalStateProvider } from '../src/stateprovider_simple.js';
-import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
 
 
 // Add your test cases here
@@ -20,13 +18,11 @@ describe('Test Logical Merge', () => {
         ]});
 
         const r = sl.logical_expr;
-
-        const and_exp = r.and(r(l1), r(l2));
         
-        const l3 = sl.logical_merge([l1, l2], {expr:and_exp});
+        const l3 = sl.logical_merge([l1, l2], {expr:r.and(r(l1), r(l2))});
 
         // regions
-        const regions = [...l3.regions()]
+        const regions = [...l3.regions({includeEmpty:false})]
         console.log(regions)
 
         /*

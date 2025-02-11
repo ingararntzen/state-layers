@@ -1,26 +1,16 @@
 import { MergeIndex } from "./merge.js";
-import { boolean, BooleanLayer } from "./boolean.js";
 import { Layer } from "../layers.js";
 
 
 class LogicalMergeLayer extends Layer {
 
     constructor(sources, options={}) {
-        // make sure sources are BooleanLayers
-        sources = sources.map((src) => {
-            if (src instanceof BooleanLayer) {
-                return src;
-            }
-            if (src instanceof Layer) {
-                return new BooleanLayer(src);
-            }
-            throw new Error(`sources not supported ${sources}`);
-        });
+        const r = logical_expr;
 
-        // set up stateFunc - default OR
-        let {expr=Builder.or(...sources)} = options
+        let {expr=r.or(...sources.map((l) => r(l)))} = options
             
         function stateFunc({offset}) {
+            console.log("stateFunc", offset)
             return {value:expr.eval(offset), dynamic:false, offset};
         } 
 
@@ -54,12 +44,12 @@ export function logical_merge(sources, options) {
 
 
 export function logical_expr (src) {
-    if (!src instanceof Layer) {
+    if (!(src instanceof Layer)) {
         throw new Error(`must be layer ${src}`)
     }
     return {
-        eval: function (offset) {
-            src.query(offset).value;
+        eval: function () {
+            src.index;
         }
     }
 }
@@ -67,6 +57,7 @@ export function logical_expr (src) {
 logical_expr.and = function and(...exprs) {
     return {
         eval: function (offset) {
+            console.log("eval")
             return exprs.every((expr) => expr.eval(offset));
         }    
     }
