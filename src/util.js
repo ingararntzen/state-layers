@@ -1,3 +1,4 @@
+import { endpoint, interval } from "./intervals";
 
 /***************************************************************
     CLOCKS
@@ -93,4 +94,45 @@ export function toState(sources, states, offset, options={}) {
     // fallback - just use first state
     let state = states[0];
     return {...state, offset}; 
+}
+
+
+/**
+ * check input items to local state providers
+ */
+
+export function check_input(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    // make sure that intervals are well formed
+    for (const item of items) {
+        item.itv = interval.from_input(item.itv);
+    }
+    // sort items based on interval low endpoint
+    items.sort((a, b) => {
+        let a_low = endpoint.from_interval(a.itv)[0];
+        let b_low = endpoint.from_interval(b.itv)[0];
+        return endpoint.cmp(a_low, b_low);
+    });
+    // check that item intervals are non-overlapping
+    for (let i = 1; i < items.length; i++) {
+        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
+        let curr_low = endpoint.from_interval(items[i].itv)[0];
+        // verify that prev high is less that curr low
+        if (!endpoint.lt(prev_high, curr_low)) {
+            throw new Error("Overlapping intervals found");
+        }
+    }
+    return items;
+}
+
+
+export function random_string(length) {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    for(var i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
 }

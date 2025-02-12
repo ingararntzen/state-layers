@@ -8,8 +8,6 @@ class LogicalMergeLayer extends Layer {
     constructor(sources, options={}) {
         super();
 
-
-        const r = logical_expr;
         const {expr} = options;
 
         let condition;
@@ -32,13 +30,11 @@ class LogicalMergeLayer extends Layer {
 
     get index () {return this._index};
 
-
     _onchange(eArg) {
         this.clearCaches();
         this.notify_callbacks();
         this.eventifyTrigger("change");
     }
-
 }
 
 

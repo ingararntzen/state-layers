@@ -36,55 +36,6 @@ function addToPrototype$1 (_prototype) {
     Object.assign(_prototype, api);
 }
 
-/************************************************
- * STATE PROVIDER BASE
- ************************************************/
-
-/*
-    Base class for StateProviders
-
-    - collection of items
-    - {key, itv, type, data}
-*/
-
-class StateProviderBase {
-
-    constructor() {
-        addToInstance$1(this);
-    }
-
-    /**
-     * update function
-     * 
-     * If ItemsProvider is a proxy to an online
-     * Items collection, update requests will 
-     * imply a network request
-     * 
-     * options - support reset flag 
-     */
-    update(items, options={}){
-        throw new Error("not implemented");
-    }
-
-    /**
-     * return array with all items in collection 
-     * - no requirement wrt order
-     */
-
-    get_items() {
-        throw new Error("not implemented");
-    }
-
-    /**
-     * signal if items can be overlapping or not
-     */
-
-    get info () {
-        return {overlapping: true};
-    }
-}
-addToPrototype$1(StateProviderBase.prototype);
-
 /*
     
     INTERVAL ENDPOINTS
@@ -334,51 +285,104 @@ const interval = {
 };
 
 /***************************************************************
-    LOCAL STATE PROVIDER
+    CLOCKS
 ***************************************************************/
 
 /**
- * Local Array with non-overlapping items.
+ * clocks counting in seconds
  */
 
-class LocalStateProvider extends StateProviderBase {
+const local = function () {
+    return performance.now()/1000.0;
+};
 
-    constructor(options={}) {
-        super();
-        // initialization
-        let {items, value} = options;
-        if (items != undefined) {
-            // initialize from items
-            this._items = check_input(items);
-        } else if (value != undefined) {
-            // initialize from value
-            this._items = [{
-                itv:[-Infinity, Infinity, true, true], 
-                type: "static",
-                data:value
-            }];
-        } else {
-            this._items = [];
+const epoch = function () {
+    return new Date()/1000.0;
+};
+
+/**
+ * the clock gives epoch values, but is implemented
+ * using a high performance local clock for better
+ * time resolution and protection against system 
+ * time adjustments.
+ */
+
+const CLOCK = function () {
+    const t0_local = local();
+    const t0_epoch = epoch();
+    return {
+        now: function () {
+            return t0_epoch + (local() - t0_local)
         }
     }
+}();
 
-    update (items, options) {
-        return Promise.resolve()
-            .then(() => {
-                this._items = check_input(items);
-                this.notify_callbacks();
-            });
-    }
 
-    get_items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {overlapping: false};
-    }
+// ovverride modulo to behave better for negative numbers
+function mod(n, m) {
+    return ((n % m) + m) % m;
+}
+function divmod(x, base) {
+    let n = Math.floor(x / base);
+    let r = mod(x, base);
+    return [n, r];
 }
 
+
+/*
+    similar to range function in python
+*/
+
+function range (start, end, step = 1, options={}) {
+    const result = [];
+    const {include_end=false} = options;
+    if (step === 0) {
+        throw new Error('Step cannot be zero.');
+    }
+    if (start < end) {
+        for (let i = start; i < end; i += step) {
+          result.push(i);
+        }
+    } else if (start > end) {
+        for (let i = start; i > end; i -= step) {
+          result.push(i);
+        }
+    }
+    if (include_end) {
+        result.push(end);
+    }
+    return result;
+}
+
+
+/**
+ * Create a single state from a list of states, using a valueFunc
+ * state:{value, dynamic, offset}
+ * 
+ */
+
+function toState(sources, states, offset, options={}) {
+    let {valueFunc, stateFunc} = options; 
+    if (valueFunc != undefined) {
+        let value = valueFunc({sources, states, offset});
+        let dynamic = states.map((v) => v.dymamic).some(e=>e);
+        return {value, dynamic, offset};
+    } else if (stateFunc != undefined) {
+        return {...stateFunc({sources, states, offset}), offset};
+    }
+    // no valueFunc or stateFunc
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
+    }
+    // fallback - just use first state
+    let state = states[0];
+    return {...state, offset}; 
+}
+
+
+/**
+ * check input items to local state providers
+ */
 
 function check_input(items) {
     if (!Array.isArray(items)) {
@@ -404,6 +408,180 @@ function check_input(items) {
         }
     }
     return items;
+}
+
+
+function random_string(length) {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    for(var i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
+/************************************************
+ * STATE PROVIDER BASE
+ ************************************************/
+
+/*
+    Base class for StateProviders
+
+    - collection of items
+    - {key, itv, type, data}
+*/
+
+class StateProviderBase {
+
+    constructor() {
+        addToInstance$1(this);
+    }
+
+    /**
+     * update function
+     * 
+     * If ItemsProvider is a proxy to an online
+     * Items collection, update requests will 
+     * imply a network request
+     * 
+     * options - support reset flag 
+     */
+    update(items, options={}){
+        throw new Error("not implemented");
+    }
+
+    /**
+     * return array with all items in collection 
+     * - no requirement wrt order
+     */
+
+    get_items() {
+        throw new Error("not implemented");
+    }
+
+    /**
+     * signal if items can be overlapping or not
+     */
+
+    get info () {
+        return {overlapping: true};
+    }
+}
+addToPrototype$1(StateProviderBase.prototype);
+
+
+
+/************************************************
+ * LOCAL STATE PROVIDER BASE
+ ************************************************/
+
+
+class LocalStateProviderBase extends StateProviderBase {
+
+
+    initialise(options={}) {
+        // initialization with items or single value 
+        let {items, value} = options;
+        if (items != undefined) {
+            // initialize from items
+            this._update(check_input(items));
+        } else if (value != undefined) {
+            // initialize from value
+            this._update([{
+                itv:[-Infinity, Infinity, true, true], 
+                type: "static",
+                data:value
+            }]);
+        }        
+    }
+
+
+    update (items, options={}) {
+        items = check_input(items);
+        return Promise.resolve()
+            .then(() => {
+                const eArgList = this._update(items, options);
+                this.notify_callbacks(eArgList);
+            });
+    }
+
+
+    get (id) {
+        throw new Error("not implemented");
+    }
+
+    /**
+     * common - check input 
+     * - calculate eArgs
+     * 
+     * */
+
+    _update (items, options={}) {
+
+        // support single item
+        if (!Array.isArray(items)) {
+            items = [items];
+        }
+
+
+    	const batchMap = new Map();
+    	let eArg;
+
+		// create batchmap with eArgs
+    	for (let item of items) {
+            if (item.id == undefined) {
+                item.id = random_string(10);
+            }
+            let id = item.id;
+            if (batchMap.has(id)) {
+                eArg = {id, old: batchMap.get(id).old};
+            } else {
+                eArg = {id, old: this.get(id)};
+            }
+    		// if id property is only propery of item - this means delete
+			if (Object.keys(item).length == 1) {
+                eArg.new = undefined;
+            } else {
+                eArg.new = item;
+            }
+            if (eArg.new == undefined && eArg.old == undefined) {
+                batchMap.delete(eArg.id);
+            } else {
+                batchMap.set(id, eArg);                
+            }
+    	}
+        
+
+    }
+}
+
+/***************************************************************
+    SIMPLE STATE PROVIDER
+***************************************************************/
+
+/**
+ * StateProvider based on array with non-overlapping items.
+ */
+
+class LocalStateProvider extends LocalStateProviderBase {
+
+    constructor(options={}) {
+        super(options);
+        this._items = [];
+        this.initialise(options);
+    }
+
+    _update(items) {
+        this._items = items;
+    }
+
+    get_items () {
+        return this._items.slice();
+    }
+
+    get info () {
+        return {overlapping: false};
+    }
 }
 
 /*********************************************************************
@@ -1289,101 +1467,6 @@ class InterpolationSegment extends BaseSegment {
     state(offset) {
         return {value: this._trans(offset), dynamic:true};
     }
-}
-
-/***************************************************************
-    CLOCKS
-***************************************************************/
-
-/**
- * clocks counting in seconds
- */
-
-const local = function () {
-    return performance.now()/1000.0;
-};
-
-const epoch = function () {
-    return new Date()/1000.0;
-};
-
-/**
- * the clock gives epoch values, but is implemented
- * using a high performance local clock for better
- * time resolution and protection against system 
- * time adjustments.
- */
-
-const CLOCK = function () {
-    const t0_local = local();
-    const t0_epoch = epoch();
-    return {
-        now: function () {
-            return t0_epoch + (local() - t0_local)
-        }
-    }
-}();
-
-
-// ovverride modulo to behave better for negative numbers
-function mod(n, m) {
-    return ((n % m) + m) % m;
-}
-function divmod(x, base) {
-    let n = Math.floor(x / base);
-    let r = mod(x, base);
-    return [n, r];
-}
-
-
-/*
-    similar to range function in python
-*/
-
-function range (start, end, step = 1, options={}) {
-    const result = [];
-    const {include_end=false} = options;
-    if (step === 0) {
-        throw new Error('Step cannot be zero.');
-    }
-    if (start < end) {
-        for (let i = start; i < end; i += step) {
-          result.push(i);
-        }
-    } else if (start > end) {
-        for (let i = start; i > end; i -= step) {
-          result.push(i);
-        }
-    }
-    if (include_end) {
-        result.push(end);
-    }
-    return result;
-}
-
-
-/**
- * Create a single state from a list of states, using a valueFunc
- * state:{value, dynamic, offset}
- * 
- */
-
-function toState(sources, states, offset, options={}) {
-    let {valueFunc, stateFunc} = options; 
-    if (valueFunc != undefined) {
-        let value = valueFunc({sources, states, offset});
-        let dynamic = states.map((v) => v.dymamic).some(e=>e);
-        return {value, dynamic, offset};
-    } else if (stateFunc != undefined) {
-        return {...stateFunc({sources, states, offset}), offset};
-    }
-    // no valueFunc or stateFunc
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
-    }
-    // fallback - just use first state
-    let state = states[0];
-    return {...state, offset}; 
 }
 
 /**
@@ -3084,6 +3167,7 @@ class LogicalMergeLayer extends Layer {
 
     constructor(sources, options={}) {
         super();
+
         const {expr} = options;
 
         let condition;
@@ -3106,13 +3190,11 @@ class LogicalMergeLayer extends Layer {
 
     get index () {return this._index};
 
-
     _onchange(eArg) {
         this.clearCaches();
         this.notify_callbacks();
         this.eventifyTrigger("change");
     }
-
 }
 
 
