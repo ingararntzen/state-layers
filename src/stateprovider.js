@@ -90,7 +90,15 @@ export class NewLocalStateProvider extends StateProviderBase {
         return {items, remove, clear};
     }
 
-    get_items() {
+    has(id) {
+        return this._map.has(id);
+    };
+
+    get(id) {
+        return this._map.get(id);
+    };
+
+    items() {
         return [...this._map.values()];
     };
 }
