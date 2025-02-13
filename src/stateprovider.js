@@ -1,6 +1,6 @@
-import { StateProviderBase } from "./stateprovider_bases.js";
+import { StateProviderBase } from "./stateprovider_base.js";
 import { interval } from "./intervals.js";
-import { random_string } from "./util";
+import { random_string } from "./util.js";
 
 function check_item(item) {
     item.itv = interval.from_input(item.itv);
@@ -23,7 +23,7 @@ function check_item(item) {
  * 
 */
 
-export class LocalStateProvider extends StateProviderBase {
+export class NewLocalStateProvider extends StateProviderBase {
 
     constructor(options={}) {
         super(options);

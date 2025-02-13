@@ -1,5 +1,5 @@
 import { endpoint, interval } from "../intervals.js";
-import { NearbyIndexBase } from "../nearbyindex.js";
+import { NearbyIndexBase } from "../nearbyindex_base.js";
 import { Layer } from "../layers.js"
 import * as srcprop from "../api_srcprop.js";
 

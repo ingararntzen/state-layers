@@ -1,4 +1,4 @@
-import { StateProviderBase } from "./stateprovider_bases.js";
+import { StateProviderBase } from "./stateprovider_base.js";
 
 /***************************************************************
     SIMPLE STATE PROVIDER

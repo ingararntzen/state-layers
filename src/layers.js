@@ -5,8 +5,8 @@ import * as segment from "./segments.js";
 
 import { interval, endpoint } from "./intervals.js";
 import { range, toState } from "./util.js";
-import { StateProviderBase } from "./stateprovider_bases.js";
-import { NearbyIndexSimple } from "./nearbyindex_simple";
+import { StateProviderBase } from "./stateprovider_base.js";
+import { NearbyIndexSimple } from "./nearbyindex_simple.js";
 
 
 /************************************************

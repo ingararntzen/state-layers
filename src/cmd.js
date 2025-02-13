@@ -1,5 +1,5 @@
 
-import { StateProviderBase } from "./stateprovider_bases";
+import { StateProviderBase } from "./stateprovider_base";
 const METHODS = {assign, move, transition, interpolate};
 
 

@@ -1,7 +1,7 @@
 import * as callback from "./api_callback.js";
 import { 
     StateProviderBase,
-} from "./stateprovider_bases.js";
+} from "./stateprovider_base.js";
 import { MotionSegment } from "./segments.js";
 
 

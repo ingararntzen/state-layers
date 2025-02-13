@@ -1,10 +1,10 @@
 import * as srcprop from "./api_srcprop.js";
-import { ClockProviderBase, localClockProvider } from "./stateprovider_clock.js";
+import { ClockProviderBase, localClockProvider } from "./clockprovider.js";
 import { cmd } from "./cmd.js";
 import { Layer } from "./layers.js";
 import { interval } from "./intervals.js";
 import { bind, release } from "./monitor.js";
-import { NearbyIndexBase } from "./nearbyindex.js";
+import { NearbyIndexBase } from "./nearbyindex_base.js";
 
 
 
