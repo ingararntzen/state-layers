@@ -92,16 +92,6 @@ export class NearbyIndexBase {
         throw new Error("Not implemented");
     }
 
-    check(offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (!Array.isArray(offset)) {
-            throw new Error("Endpoint must be an array");
-        }
-        return offset;
-    }
-
     /*
         return low point of leftmost entry
     */

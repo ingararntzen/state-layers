@@ -38,7 +38,7 @@ export class SortedArray {
 	}
 
 	get size() {return this._array.length;}
-
+	get array() {return this._array;}
 	/*
 		find index of given value
 

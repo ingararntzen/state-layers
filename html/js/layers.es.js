@@ -263,6 +263,24 @@ function endpoints_from_interval(itv) {
     return [low_p, high_p];
 }
 
+/*
+    returns endpoints from interval
+*/
+
+function endpoint_from_input(offset) {
+    if (typeof offset === 'number') {
+        return [offset, 0];
+    }
+    if (!Array.isArray(offset) || offset.length != 2) {
+        throw new Error("Endpoint must be a length-2 array");
+    }
+    let [value, sign] = offset;
+    if (typeof value !== "number") {
+        throw new Error("Endpoint value must be number");
+    }
+    return [value, Math.sign(sign)];
+}
+
 
 /*
     INTERVALS
@@ -387,7 +405,8 @@ const endpoint = {
     min: endpoint_min,
     max: endpoint_max,
     flip: endpoint_flip,
-    from_interval: endpoints_from_interval
+    from_interval: endpoints_from_interval,
+    from_input: endpoint_from_input
 };
 const interval = {
     covers_endpoint: interval_covers_endpoint,
@@ -487,16 +506,6 @@ class NearbyIndexBase {
     */
     nearby(offset) {
         throw new Error("Not implemented");
-    }
-
-    check(offset) {
-        if (typeof offset === 'number') {
-            offset = [offset, 0];
-        }
-        if (!Array.isArray(offset)) {
-            throw new Error("Endpoint must be an array");
-        }
-        return offset;
     }
 
     /*
@@ -1407,7 +1416,7 @@ class NearbyIndexSimple extends NearbyIndexBase {
 
 
     nearby(offset) {
-        offset = this.check(offset);
+        offset = endpoint.from_input(offset);
         let item = undefined;
         let center_idx = undefined;
         let items = this._src.get_items();
@@ -1901,7 +1910,7 @@ class MergeIndex extends NearbyIndexBase {
     }
 
     nearby(offset) {
-        offset = this.check(offset);
+        offset = endpoint.from_input(offset);
         // accumulate nearby from all sources
         const prev_list = [], next_list = [];
         const center_list = [];
@@ -2028,6 +2037,7 @@ class ShiftIndex extends NearbyIndexBase {
 
     // skewing index.nearby
     nearby(offset) {
+        offset = endpoint.from_input(offset);
         // skew query (negative)
         const nearby = this._layer.index.nearby(shifted(offset, -this._skew));
         // skew result (positive) 
@@ -3027,7 +3037,7 @@ class BooleanIndex extends NearbyIndexBase {
     }
 
     nearby(offset) {
-        offset = this.check(offset);
+        offset = endpoint.from_input(offset);
         const nearby = this._index.nearby(offset);
         
         let evaluation = this._condition(nearby.center); 

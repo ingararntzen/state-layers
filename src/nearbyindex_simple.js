@@ -41,7 +41,7 @@ export class NearbyIndexSimple extends NearbyIndexBase {
 
 
     nearby(offset) {
-        offset = this.check(offset);
+        offset = endpoint.from_input(offset);
         let item = undefined;
         let center_idx = undefined;
         let items = this._src.get_items();

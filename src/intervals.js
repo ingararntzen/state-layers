@@ -112,6 +112,24 @@ function endpoints_from_interval(itv) {
     return [low_p, high_p];
 }
 
+/*
+    returns endpoints from interval
+*/
+
+function endpoint_from_input(offset) {
+    if (typeof offset === 'number') {
+        return [offset, 0];
+    }
+    if (!Array.isArray(offset) || offset.length != 2) {
+        throw new Error("Endpoint must be a length-2 array");
+    }
+    let [value, sign] = offset;
+    if (typeof value !== "number") {
+        throw new Error("Endpoint value must be number");
+    }
+    return [value, Math.sign(sign)];
+}
+
 
 /*
     INTERVALS
@@ -237,7 +255,8 @@ export const endpoint = {
     min: endpoint_min,
     max: endpoint_max,
     flip: endpoint_flip,
-    from_interval: endpoints_from_interval
+    from_interval: endpoints_from_interval,
+    from_input: endpoint_from_input
 }
 export const interval = {
     covers_endpoint: interval_covers_endpoint,

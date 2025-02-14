@@ -5,6 +5,7 @@ import { random_string } from "./util.js";
 function check_item(item) {
     item.itv = interval.from_input(item.itv);
     item.id = item.id || random_string(10);
+    return item;
 }
 
 /***************************************************************
@@ -72,22 +73,26 @@ export class NewLocalStateProvider extends StateProviderBase {
             remove=[],
             clear=true
         } = changes;
-
+        const remove_items = [];
         if (clear) {
             // clear all items
             this._map = new Map();
         } else {
             // remove items by id
             for (const id of remove) {
+                let item = this._map.get(id);
+                if (item != undefined) {
+                    remove_items.push(item);
+                }
                 this._map.delete(id);
             }
         }
         // insert items
-        for (const item of items) {
+        for (let item of items) {
             item = check_item(item);
             this._map.set(item.id, item);
         }
-        return {items, remove, clear};
+        return {items, remove:remove_items, clear};
     }
 
     has(id) {

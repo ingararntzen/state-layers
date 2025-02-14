@@ -55,7 +55,7 @@ export class BooleanIndex extends NearbyIndexBase {
     }
 
     nearby(offset) {
-        offset = this.check(offset);
+        offset = endpoint.from_input(offset);
         const nearby = this._index.nearby(offset);
         
         let evaluation = this._condition(nearby.center); 

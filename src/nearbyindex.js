@@ -3,15 +3,6 @@ import { NearbyIndexBase } from "./nearbyindex_base.js";
 import { StateProviderBase } from "./stateprovider_base.js";
 import { SortedArray } from "./sortedarray.js";
 
-// get interval low endpoint
-function get_low_endpoint(item) {
-    return endpoint.from_interval(item.itv)[0]
-}
-
-// get interval high endpoint
-function get_high_endpoint(item) {
-    return endpoint.from_interval(item.itv)[1]
-}
 
 const pfi = endpoint.from_interval;
 const ifp = interval.from_endpoints;
@@ -36,10 +27,13 @@ export class NearbyIndex extends NearbyIndexBase {
         }
         this._sp = stateProvider;
 
-		// sorted arrays of endpoints
+        this._initialise();
+    }
+
+    _initialise() {
+        // sorted arrays of endpoints
 		this._low_points = new SortedArray();
 		this._high_points = new SortedArray();
-
 		/* 
 			items by endpoint
 			[value, sign] = endpoint
@@ -60,13 +54,44 @@ export class NearbyIndex extends NearbyIndexBase {
 		nearby (offset)
     */
     nearby(offset) { 
-        let center = this.covers(offset);
-        let left = this._high_points.lt(offset);
-        let right = this._low_points.gt(offset);
-        return {left, center, right};
+        offset = endpoint.from_input(offset);
+        let nearby = {
+            center: this.covers(offset)
+        }
+
+
+        // TODO - gaps
+
+        // left if the rightmost endpoint left of offset
+        const low_left = this._low_points.lt(offset) || [-Infinity, 0];
+        const high_left = this._high_points.lt(offset) || [-Infinity, 0];
+        let low;
+        if (endpoint.gt(low_left, high_left)) {
+            nearby.left = endpoint.flip(low_left, "high");
+            low = low_left;
+        } else {
+            nearby.left = high_left;
+            low = endpoint.flip(high_left, "low")
+        }
+
+        // right is the leftmost endpoint right of offset
+        const low_right = this._low_points.gt(offset) || [Infinity, 0];
+        const high_right = this._high_points.gt(offset) || [Infinity, 0]
+        let high;
+        if (endpoint.gt(low_right, high_right)) {
+            high = high_right;
+            nearby.right = endpoint.flip(high_right, "low");
+        } else {
+            high = endpoint.flip(low_right, "high");
+            nearby.right = low_right;
+        }
+        nearby.itv = interval.from_endpoints(low, high);
+        return nearby;
     }
 
-
+    /*
+		refresh index based on changes
+    */
 	refresh (changes) {
 		const low_clear_cache = make_set_cache();
 		const high_clear_cache = make_set_cache();
@@ -75,42 +100,31 @@ export class NearbyIndex extends NearbyIndexBase {
 
         const {items, remove, clear} = changes;
 
-        for (const id of remove) {
-            this._sp.get(id)
+        if (clear) {
+            this._initialise();
+        } else {
+            for (const item of remove) {
+                let [low, high] = pfi(item.itv);
+                this._remove(low, item, low_clear_cache);
+                this._remove(high, item, high_clear_cache);
+            }    
         }
-
-
 
         for (const item of items) {
-
+            let [low, high] = pfi(item.itv);
+            this._insert(low, item, low_create_cache);
+            this._insert(high, item, high_create_cache);	
         }
 
-
-
-		for (let eArg of eArgList) {
-	        // remove
-	        if (eArg.old != undefined) {
-	        	let [low, high] = pfi(eArg.old.valid);
-	        	this._remove(low, eArg.old, low_clear_cache);
-	        	this._remove(high, eArg.old, high_clear_cache);        	
-			}
-			// insert
-			if (eArg.new != undefined) {
-				let [low, high] = pfi(eArg.new.valid);
-	        	this._insert(low, eArg.new, low_create_cache);
-	        	this._insert(high, eArg.new, high_create_cache);	
-			}
-		}
 		/*
 			flush changes to sorted arrays
 			
-			After this operation low_points and high_points index should 
+			Ensure that low_points and high_points indexes 
 			match exactly with endpoints mapped to items in _itemsmap.
 			
 			This could be solved by rebuilding indexes from
 			itemsmap. However, in the event that the indexes are large and 
-			changes are small, we can optimise, based on hints collected in
-			cleared_once and created_once.
+			changes are small, we can optimise, based on caches
 
 		*/
 
@@ -119,16 +133,17 @@ export class NearbyIndex extends NearbyIndexBase {
 		const low_create = [];
 		const high_create = [];
 
-		let cache, array;
+
+
 		for (let sign of [-1, 0, 1]) {
 
 			// clear
-			let clear_tasks = [
+			const clear_tasks = [
 				[low_clear, low_clear_cache], 
 				[high_clear, high_clear_cache]
 			]
-			for (let [array, cache] of clear_tasks) {
-				for (let value of cache.get(sign).values()) {
+			for (const [array, cache] of clear_tasks) {
+				for (const value of cache.get(sign).values()) {
 					// verify that itemsmap is indeed empty
 					if (!this._itemsmap.get(sign).has(value)) {
 						array.push([value, sign]);
@@ -137,12 +152,12 @@ export class NearbyIndex extends NearbyIndexBase {
 			}
 
 			// create			
-			let create_tasks = [
+			const create_tasks = [
 				[low_create, low_create_cache], 
 				[high_create, high_create_cache]
 			]
-			for (let [array, cache] of create_tasks) {
-				for (let value of cache.get(sign).values()) {
+			for (const [array, cache] of create_tasks) {
+				for (const value of cache.get(sign).values()) {
 					// verify that itemsmap is indeed non-empty
 					if (this._itemsmap.get(sign).has(value)) {
 						array.push([value, sign]);
@@ -152,24 +167,9 @@ export class NearbyIndex extends NearbyIndexBase {
 		}
 		
 		// update indexes
-		this._low_points.update(low_clear, low_create);
+        this._low_points.update(low_clear, low_create);
 		this._high_points.update(high_clear, high_create);
-
-
-		if (low_clear.length + low_create.length + 
-			high_clear.length + high_create.length > 0) {
-			// something has changed
-			// TODO : figure out what has really has been changed
-			let itv = [-Infinity, Infinity, true, true];
-			return {change:true, itv};
-		}
-		return {change:false, itv:undefined};
 	}
-
-
-
-
-
 
 	/*
 		remove item for endpoint
@@ -177,9 +177,9 @@ export class NearbyIndex extends NearbyIndexBase {
 	*/
 
     _remove(endpoint, item, cleared_endpoints) {
-    	let [value, sign] = endpoint;
-    	let map = this._itemsmap.get(sign);
-    	let items = map.get(value);    	
+    	const [value, sign] = endpoint;
+    	const map = this._itemsmap.get(sign);
+    	const items = map.get(value);    	
 		cleared_endpoints.get(sign).add(value);
         if (items != undefined) {
         	// remove item
@@ -197,9 +197,9 @@ export class NearbyIndex extends NearbyIndexBase {
 		- if first item to be inserted - add to created endpoints
     */
 	_insert(endpoint, item, created_endpoints) {
-    	let [value, sign] = endpoint;
-    	let map = this._itemsmap.get(sign);
-      	let items = map.get(value);
+    	const [value, sign] = endpoint;
+    	const map = this._itemsmap.get(sign);
+      	const items = map.get(value);
         created_endpoints.get(sign).add(value);
         if (items == undefined) {
             map.set(value, [item]);
@@ -208,7 +208,6 @@ export class NearbyIndex extends NearbyIndexBase {
         }
     }
 
-
     /*
 		covers : all items which cover offset
 
@@ -216,28 +215,25 @@ export class NearbyIndex extends NearbyIndexBase {
 		TODO - make more efficient by limiting search
     */
     covers(offset) {
-    	let p0 = [-Infinity, 0];
-    	let p1 = endpoint.from_input(offset);
-    	let itv = ifp(p0, p1);
-    	let points = this._low_points.lookup(itv);
-    	let len = points.length;
-    	let ids = new Set();
-    	let items = [];
-    	for (let i=len-1; i >= 0; i--) {
-    		let [value, sign] = points[i];
-    		for (let item of this._itemsmap.get(sign).get(value)) {
-    			// avoid duplicates
-    			if (ids.has(item.id)) {
-    				continue;
-    			} else {
-    				ids.add(item.id);
-    			}
-    			// check if item covers offset
-    			if (interval.covers_endpoint(item.valid, offset)) {    				
-    				items.push(item);
-    			}
-    		}
-    	}
-    	return items
+        offset = endpoint.from_input(offset);
+        // check all items with low to the left of offset
+    	const checked_ids = new Set();
+        const items = [];
+        for (const [value, sign] of this._low_points.array) {
+            if (endpoint.gt([value, sign], offset)) {
+                break;
+            }
+            for (const item of this._itemsmap.get(sign).get(value)) {
+                if (checked_ids.has(item.id)) {
+                    continue;
+                }
+                // check item
+                if (interval.covers_endpoint(item.itv, offset)) {
+                    items.push(item);
+                }
+                checked_ids.add(item.id);
+            }
+        } 
+        return items;
     }
 }

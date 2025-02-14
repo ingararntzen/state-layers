@@ -11,14 +11,16 @@ function setup(changes) {
         index.refresh(_changes);
     });
     sp._update(changes);
+    sp.notify_callbacks(changes);
+    return index;
 }
 
 // Add your test cases here
 describe('Test NearbyIndex', () => {
 
-    test('test covers', () => {
+    test('test nearbyindex covers', () => {
     
-        let data = [
+        const items = [
             // outside 3.5 left
             {type: "static", itv: [1, 3, true, false], value: 1.0},
 
@@ -37,7 +39,7 @@ describe('Test NearbyIndex', () => {
             {type: "static", itv: [4, 6, true, false], value: 7.0},
         ];
 
-        let index = setup(data);
+        let index = setup({items, clear:true});
 
         let values = new Set(index.covers(3.5).map(item => item.value));
         expect(values.has(3));
@@ -48,4 +50,116 @@ describe('Test NearbyIndex', () => {
         values = new Set(index.covers(0).map(item => item.value));
         expect(values.size == 0)
     });
+
+    test('should handle -Infinity and Infinity correctly', () => {
+
+        const intervals = [
+            [-Infinity, 0, true, false],
+            [0, 1, true, true],
+            // gap
+            [2, Infinity, false, true],
+        ]
+
+        const items = intervals.map(itv => {
+            return {itv};
+        });
+
+        const index = setup({items, clear:true});
+
+        // Test -Infinity
+        let nearby = index.nearby(-Infinity);
+
+        expect(nearby.center[0]).toBe(items[0]);
+        expect(nearby.itv).toStrictEqual(intervals[0]);
+
+        // Test Infinity
+        nearby = index.nearby(Infinity);
+        expect(nearby.center[0]).toBe(items[2]);
+        expect(nearby.itv).toStrictEqual(intervals[2]);
+    });
+
+    test.only('test nearbyindex nearby', () => {
+    
+        const intervals = [
+            [-Infinity, 0, true, false],
+            [0, 1, true, true],
+            // gap
+            [2, Infinity, false, true],
+        ]
+
+        const items = intervals.map(itv => {
+            return {itv};
+        })
+
+        const index = setup({items, clear:true});
+
+        // FIRST ITEM
+
+        // hit within first item
+        let nearby = index.nearby(-1);
+        console.log(nearby)
+        expect(nearby.center[0]).toBe(items[0]);
+
+        // last endpoint that hits first item
+        nearby = index.nearby([0, -1]);
+        expect(nearby.center[0]).toBe(items[0]);
+
+        // interval
+        expect(nearby.itv).toStrictEqual(intervals[0]);
+        // left/right
+        expect(nearby.left).toStrictEqual([-Infinity, 0]);
+        expect(nearby.right).toStrictEqual([0, 0]);
+
+        // SECOND ITEM
+
+        // first endpoint that hits second item
+        nearby = index.nearby(0);
+        expect(nearby.center[0]).toBe(items[1]);
+
+        // last endpoint that hits second item
+        nearby = index.nearby([1, 0]);
+        expect(nearby.center[0]).toBe(items[1]);
+
+        // interval
+        console.log(nearby)
+        expect(nearby.itv).toStrictEqual(intervals[1]);
+        // left/right
+        expect(nearby.left).toStrictEqual([0, -1]);
+        expect(nearby.right).toStrictEqual([1, 1]);
+
+        // THIRD ITEM
+
+        // first endpoint that hits third item
+        nearby = index.nearby([2,1]);
+        expect(nearby.center[0]).toBe(items[2]);
+
+        // endpoint that hits within third item
+        nearby = index.nearby(3);
+        expect(nearby.center[0]).toBe(items[2]);
+
+        // interval
+        expect(nearby.itv).toStrictEqual(intervals[2]);
+        // prev/next
+        //expect(nearby.prev).toStrictEqual([1, 0]);
+        //expect(nearby.next).toStrictEqual([Infinity, 0]);
+        // left/right
+        expect(nearby.left).toStrictEqual([2, 0]);
+        expect(nearby.right).toStrictEqual([Infinity, 0]);
+
+        // GAP
+        // endpoint within gap
+        nearby = index.nearby(1.5);
+        expect(nearby.center).toStrictEqual([]);
+        expect(nearby.itv).toStrictEqual([1, 2, false, true]);
+
+        // prev/next
+        //expect(nearby.prev).toStrictEqual([1, 0]);
+        //expect(nearby.next).toStrictEqual([2, 1]);
+        // left/right
+        expect(nearby.left).toStrictEqual([1, 0]);
+        expect(nearby.right).toStrictEqual([2, 1]);
+
+    });
+
+
 });

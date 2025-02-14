@@ -1,3 +1,4 @@
+import { endpoint } from "../intervals.js";
 import { NearbyIndexBase } from "../nearbyindex_base.js";
 import { Layer } from "../layers.js"
 import * as srcprop from "../api_srcprop.js";
@@ -41,6 +42,7 @@ class ShiftIndex extends NearbyIndexBase {
 
     // skewing index.nearby
     nearby(offset) {
+        offset = endpoint.from_input(offset);
         // skew query (negative)
         const nearby = this._layer.index.nearby(shifted(offset, -this._skew));
         // skew result (positive) 
