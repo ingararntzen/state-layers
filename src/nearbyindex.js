@@ -13,6 +13,9 @@ function get_high_endpoint(item) {
     return endpoint.from_interval(item.itv)[1]
 }
 
+const pfi = endpoint.from_interval;
+const ifp = interval.from_endpoints;
+
 function make_set_cache () {
 	return new Map([
 		[-1, new Set()], 
@@ -70,8 +73,18 @@ export class NearbyIndex extends NearbyIndexBase {
 		const low_create_cache = make_set_cache();
 		const high_create_cache = make_set_cache();
 
+        const {items, remove, clear} = changes;
 
-        
+        for (const id of remove) {
+            this._sp.get(id)
+        }
+
+
+
+        for (const item of items) {
+
+        }
+
 
 
 		for (let eArg of eArgList) {
