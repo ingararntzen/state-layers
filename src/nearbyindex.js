@@ -26,8 +26,7 @@ export class NearbyIndex extends NearbyIndexBase {
             throw new Error(`must be stateprovider ${stateProvider}`);
         }
         this._sp = stateProvider;
-
-        this._initialise();
+		this.refresh({items:this._sp.get_items(), clear:true})
     }
 
     _initialise() {

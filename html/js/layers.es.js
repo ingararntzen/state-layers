@@ -1794,8 +1794,7 @@ class NearbyIndex extends NearbyIndexBase {
             throw new Error(`must be stateprovider ${stateProvider}`);
         }
         this._sp = stateProvider;
-
-        this._initialise();
+		this.refresh({items:this._sp.get_items(), clear:true});
     }
 
     _initialise() {
@@ -2180,9 +2179,8 @@ class InputLayer extends Layer {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new NearbyIndex(this.src);
             } 
-            if (eArg == "reset") {
-                this.index.refresh({items:this.src.get_items(), clear:true});
-            } else {
+            if (eArg != "reset") {
+                // eArg is {items, remove, clear}
                 this.index.refresh(eArg);
             }
             this.clearCaches();

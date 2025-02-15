@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
-import { LocalStateProvider } from '../src/stateprovider_simple.js';
-import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
+import { LocalStateProvider } from '../src/stateprovider.js';
+import { NearbyIndex } from '../src/nearbyindex.js';
 
 // Add your test cases here
 describe('NearbyIndex Regions', () => {
@@ -19,7 +19,7 @@ describe('NearbyIndex Regions', () => {
         })
 
         const src = new LocalStateProvider({items});
-        const index = new NearbyIndexSimple(src);
+        const index = new NearbyIndex(src);
 
         let result = [...index.regions({includeEmpty:false})];
 
@@ -46,7 +46,7 @@ describe('NearbyIndex Regions', () => {
         })
 
         const src = new LocalStateProvider({items});
-        const index = new NearbyIndexSimple(src);
+        const index = new NearbyIndex(src);
 
         let regions = [...index.regions({includeEmpty:true})];
 
@@ -80,7 +80,7 @@ describe('NearbyIndex Regions', () => {
         })
 
         const src = new LocalStateProvider({items});
-        const index = new NearbyIndexSimple(src);
+        const index = new NearbyIndex(src);
         const regions = [...index.regions({start:1.5, stop:5})];
 
         expect(regions.length).toBe(3);
@@ -107,7 +107,7 @@ describe('NearbyIndex Regions', () => {
         });
 
         const src = new LocalStateProvider({items});
-        const index = new NearbyIndexSimple(src);
+        const index = new NearbyIndex(src);
         let nearby, next, prev;
 
         nearby = index.nearby(2);
@@ -146,7 +146,7 @@ describe('NearbyIndex Regions', () => {
         });
 
         const src = new LocalStateProvider({items});
-        const index = new NearbyIndexSimple(src);
+        const index = new NearbyIndex(src);
         let nearby, next;
 
         nearby = index.nearby(-Infinity);
