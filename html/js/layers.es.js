@@ -647,6 +647,86 @@ class RegionIterator {
     }
 }
 
+/**
+ * nearby_from
+ * 
+ * utility function for creating a nearby object in circumstances
+ * where there are overlapping intervals This could be when a 
+ * stateprovider for a layer has overlapping items or when 
+ * multiple nearby indexes are merged into one.
+ * 
+ * 
+ * @param {*} prev_high : the rightmost high-endpoint left of offset
+ * @param {*} center_low_list : low-endpoints of center
+ * @param {*} center : center
+ * @param {*} center_high_list : high-endpoints of center
+ * @param {*} next_low : the leftmost low-endpoint right of offset
+ * @returns 
+ */
+
+function cmp_ascending$1(p1, p2) {
+    return endpoint.cmp(p1, p2)
+}
+
+function cmp_descending$1(p1, p2) {
+    return endpoint.cmp(p2, p1)
+}
+
+function nearby_from (
+    prev_high, 
+    center_low_list, 
+    center,
+    center_high_list,
+    next_low) {
+
+    // nearby
+    const result = {center};
+
+    if (center.length == 0) {
+        // empty center
+        result.right = next_low;
+        result.left = prev_high;
+    } else {
+        // non-empty center
+        
+        // center high
+        center_high_list.sort(cmp_ascending$1);
+        let min_center_high = center_high_list[0];
+        let max_center_high = center_high_list.slice(-1)[0];
+        let multiple_center_high = !endpoint.eq(min_center_high, max_center_high);
+
+        // center low
+        center_low_list.sort(cmp_descending$1);
+        let max_center_low = center_low_list[0];
+        let min_center_low = center_low_list.slice(-1)[0];
+        let multiple_center_low = !endpoint.eq(max_center_low, min_center_low);
+
+        // next/right
+        if (endpoint.le(next_low, min_center_high)) {
+            result.right = next_low;
+        } else {
+            result.right = endpoint.flip(min_center_high, "low");
+        }
+        result.next = (multiple_center_high) ? result.right : next_low;
+
+        // prev/left
+        if (endpoint.ge(prev_high, max_center_low)) {
+            result.left = prev_high;
+        } else {
+            result.left = endpoint.flip(max_center_low, "high");
+        }
+        result.prev = (multiple_center_low) ? result.left : prev_high;
+
+    }
+
+    // interval from left/right
+    let low = endpoint.flip(result.left, "low");
+    let high = endpoint.flip(result.right, "high");
+    result.itv = interval.from_endpoints(low, high);
+
+    return result;
+}
+
 /*
 	Copyright 2020
 	Author : Ingar Arntzen
@@ -1913,7 +1993,7 @@ class MergeIndex extends NearbyIndexBase {
         offset = endpoint.from_input(offset);
         // accumulate nearby from all sources
         const prev_list = [], next_list = [];
-        const center_list = [];
+        const center = [];
         const center_high_list = [];
         const center_low_list = [];
         for (let src of this._sources) {
@@ -1927,7 +2007,7 @@ class MergeIndex extends NearbyIndexBase {
                 next_list.push(endpoint.from_interval(next_region.itv)[0]);
             }
             if (nearby.center.length > 0) {
-                center_list.push(this._caches.get(src));
+                center.push(this._caches.get(src));
                 let [low, high] = endpoint.from_interval(nearby.itv);
                 center_high_list.push(high);
                 center_low_list.push(low);    
@@ -1936,65 +2016,19 @@ class MergeIndex extends NearbyIndexBase {
         
         // find closest endpoint to the right (not in center)
         next_list.sort(cmp_ascending);
-        const min_next_low = next_list[0] || [Infinity, 0];
+        const next_low = next_list[0] || [Infinity, 0];
 
         // find closest endpoint to the left (not in center)
         prev_list.sort(cmp_descending);
-        const max_prev_high = prev_list[0] || [-Infinity, 0];
+        const prev_high = prev_list[0] || [-Infinity, 0];
 
-        // nearby
-        let low, high; 
-        const result = {
-            center: center_list, 
-        };
-
-        if (center_list.length == 0) {
-
-            // empty center
-            result.right = min_next_low;  
-            //result.next = min_next_low;
-            result.left = max_prev_high;
-            //result.prev = max_prev_high;
-
-        } else {
-            // non-empty center
-            
-            // center high
-            center_high_list.sort(cmp_ascending);
-            let min_center_high = center_high_list[0];
-            let max_center_high = center_high_list.slice(-1)[0];
-            let multiple_center_high = !endpoint.eq(min_center_high, max_center_high);
-
-            // center low
-            center_low_list.sort(cmp_descending);
-            let max_center_low = center_low_list[0];
-            let min_center_low = center_low_list.slice(-1)[0];
-            let multiple_center_low = !endpoint.eq(max_center_low, min_center_low);
-
-            // next/right
-            if (endpoint.le(min_next_low, min_center_high)) {
-                result.right = min_next_low;
-            } else {
-                result.right = endpoint.flip(min_center_high, "low");
-            }
-            result.next = (multiple_center_high) ? result.right : min_next_low;
-
-            // prev/left
-            if (endpoint.ge(max_prev_high, max_center_low)) {
-                result.left = max_prev_high;
-            } else {
-                result.left = endpoint.flip(max_center_low, "high");
-            }
-            result.prev = (multiple_center_low) ? result.left : max_prev_high;
-
-        }
-
-        // interval from left/right
-        low = endpoint.flip(result.left, "low");
-        high = endpoint.flip(result.right, "high");
-        result.itv = interval.from_endpoints(low, high);
-
-        return result;
+        return nearby_from(
+                prev_high, 
+                center_low_list, 
+                center,
+                center_high_list,
+                next_low
+            );
     }
 }
 

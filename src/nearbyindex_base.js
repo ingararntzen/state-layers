@@ -1,4 +1,4 @@
-import { endpoint } from "./intervals.js";
+import { endpoint, interval } from "./intervals.js";
 
 /*********************************************************************
     NEARBY INDEX
@@ -231,5 +231,83 @@ class RegionIterator {
     }
 }
 
+/**
+ * nearby_from
+ * 
+ * utility function for creating a nearby object in circumstances
+ * where there are overlapping intervals This could be when a 
+ * stateprovider for a layer has overlapping items or when 
+ * multiple nearby indexes are merged into one.
+ * 
+ * 
+ * @param {*} prev_high : the rightmost high-endpoint left of offset
+ * @param {*} center_low_list : low-endpoints of center
+ * @param {*} center : center
+ * @param {*} center_high_list : high-endpoints of center
+ * @param {*} next_low : the leftmost low-endpoint right of offset
+ * @returns 
+ */
 
+function cmp_ascending(p1, p2) {
+    return endpoint.cmp(p1, p2)
+}
+
+function cmp_descending(p1, p2) {
+    return endpoint.cmp(p2, p1)
+}
+
+export function nearby_from (
+    prev_high, 
+    center_low_list, 
+    center,
+    center_high_list,
+    next_low) {
+
+    // nearby
+    const result = {center};
+
+    if (center.length == 0) {
+        // empty center
+        result.right = next_low;
+        result.left = prev_high;
+    } else {
+        // non-empty center
+        
+        // center high
+        center_high_list.sort(cmp_ascending);
+        let min_center_high = center_high_list[0];
+        let max_center_high = center_high_list.slice(-1)[0];
+        let multiple_center_high = !endpoint.eq(min_center_high, max_center_high)
+
+        // center low
+        center_low_list.sort(cmp_descending);
+        let max_center_low = center_low_list[0];
+        let min_center_low = center_low_list.slice(-1)[0];
+        let multiple_center_low = !endpoint.eq(max_center_low, min_center_low)
+
+        // next/right
+        if (endpoint.le(next_low, min_center_high)) {
+            result.right = next_low;
+        } else {
+            result.right = endpoint.flip(min_center_high, "low")
+        }
+        result.next = (multiple_center_high) ? result.right : next_low;
+
+        // prev/left
+        if (endpoint.ge(prev_high, max_center_low)) {
+            result.left = prev_high;
+        } else {
+            result.left = endpoint.flip(max_center_low, "high");
+        }
+        result.prev = (multiple_center_low) ? result.left : prev_high;
+
+    }
+
+    // interval from left/right
+    let low = endpoint.flip(result.left, "low");
+    let high = endpoint.flip(result.right, "high");
+    result.itv = interval.from_endpoints(low, high);
+
+    return result;
+}
 

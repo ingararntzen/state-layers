@@ -1,5 +1,5 @@
 import { interval, endpoint } from "./intervals.js";
-import { NearbyIndexBase } from "./nearbyindex_base.js";
+import { NearbyIndexBase, nearby_from } from "./nearbyindex_base.js";
 import { StateProviderBase } from "./stateprovider_base.js";
 import { SortedArray } from "./sortedarray.js";
 
@@ -55,38 +55,23 @@ export class NearbyIndex extends NearbyIndexBase {
     */
     nearby(offset) { 
         offset = endpoint.from_input(offset);
-        let nearby = {
-            center: this.covers(offset)
+        const center = this._covers(offset);
+        const prev_high = this._high_points.lt(offset) || [-Infinity, 0];
+        const next_low = this._low_points.gt(offset) || [Infinity, 0];
+        const center_low_list = [];
+        const center_high_list = [];
+        for (const item of center) {
+            const [low, high] = endpoint.from_interval(item.itv);
+            center_high_list.push(high);
+            center_low_list.push(low);    
         }
-
-
-        // TODO - gaps
-
-        // left if the rightmost endpoint left of offset
-        const low_left = this._low_points.lt(offset) || [-Infinity, 0];
-        const high_left = this._high_points.lt(offset) || [-Infinity, 0];
-        let low;
-        if (endpoint.gt(low_left, high_left)) {
-            nearby.left = endpoint.flip(low_left, "high");
-            low = low_left;
-        } else {
-            nearby.left = high_left;
-            low = endpoint.flip(high_left, "low")
-        }
-
-        // right is the leftmost endpoint right of offset
-        const low_right = this._low_points.gt(offset) || [Infinity, 0];
-        const high_right = this._high_points.gt(offset) || [Infinity, 0]
-        let high;
-        if (endpoint.gt(low_right, high_right)) {
-            high = high_right;
-            nearby.right = endpoint.flip(high_right, "low");
-        } else {
-            high = endpoint.flip(low_right, "high");
-            nearby.right = low_right;
-        }
-        nearby.itv = interval.from_endpoints(low, high);
-        return nearby;
+        return nearby_from(
+            prev_high, 
+            center_low_list, 
+            center,
+            center_high_list,
+            next_low
+        );
     }
 
     /*
@@ -127,13 +112,10 @@ export class NearbyIndex extends NearbyIndexBase {
 			changes are small, we can optimise, based on caches
 
 		*/
-
 		const low_clear = [];
 		const high_clear = [];
 		const low_create = [];
 		const high_create = [];
-
-
 
 		for (let sign of [-1, 0, 1]) {
 
@@ -175,7 +157,6 @@ export class NearbyIndex extends NearbyIndexBase {
 		remove item for endpoint
 		- if last item to be removed - add to cleared endpoints
 	*/
-
     _remove(endpoint, item, cleared_endpoints) {
     	const [value, sign] = endpoint;
     	const map = this._itemsmap.get(sign);
@@ -209,13 +190,12 @@ export class NearbyIndex extends NearbyIndexBase {
     }
 
     /*
-		covers : all items which cover offset
+		covers : return all items which cover offset
 
 		search from offset to the left - use low_points index
 		TODO - make more efficient by limiting search
     */
-    covers(offset) {
-        offset = endpoint.from_input(offset);
+    _covers(offset) {
         // check all items with low to the left of offset
     	const checked_ids = new Set();
         const items = [];
