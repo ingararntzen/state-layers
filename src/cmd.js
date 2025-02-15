@@ -13,7 +13,7 @@ export function cmd (target) {
                 name,
                 function(...args) { 
                     let items = method.call(this, ...args);
-                    return target.update(items);  
+                    return target.update({items, clear:true});  
                 }
             ]
         });

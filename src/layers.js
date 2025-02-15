@@ -6,7 +6,7 @@ import * as segment from "./segments.js";
 import { interval, endpoint } from "./intervals.js";
 import { range, toState } from "./util.js";
 import { StateProviderBase } from "./stateprovider_base.js";
-import { NearbyIndexSimple } from "./nearbyindex_simple.js";
+import { NearbyIndex } from "./nearbyindex.js";
 
 
 /************************************************
@@ -201,8 +201,13 @@ export class InputLayer extends Layer {
     srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
-                this.index = new NearbyIndexSimple(this.src)
+                this.index = new NearbyIndex(this.src);
             } 
+            if (eArg == "reset") {
+                this.index.refresh({items:this.src.get_items(), clear:true})
+            } else {
+                this.index.refresh(eArg);
+            }
             this.clearCaches();
             this.notify_callbacks();
             this.eventifyTrigger("change");

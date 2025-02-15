@@ -1,9 +1,9 @@
 /* global describe, test, expect */
-import { NewLocalStateProvider } from "../src/stateprovider.js";
+import { LocalStateProvider } from "../src/stateprovider.js";
 import { NearbyIndex } from "../src/nearbyindex.js";
 
 function setup(changes) {
-    const sp = new NewLocalStateProvider();
+    const sp = new LocalStateProvider();
     const index = new NearbyIndex(sp);
 
     sp.add_callback((_changes) => {

@@ -1,4 +1,4 @@
-import { LocalStateProvider } from "./stateprovider_simple.js";
+import { LocalStateProvider } from "./stateprovider.js";
 import { merge } from "./ops/merge.js"
 import { shift } from "./ops/shift.js";
 import { InputLayer, Layer } from "./layers.js";
@@ -6,6 +6,7 @@ import { Cursor } from "./cursors.js";
 import { boolean } from "./ops/boolean.js"
 import { cmd } from "./cmd.js";
 import { logical_merge, logical_expr} from "./ops/logical_merge.js";
+import { StateProviderBase } from "./stateprovider_base.js";
 
 /*********************************************************************
     LAYER FACTORY
@@ -38,4 +39,4 @@ function cursor(options={}) {
     return new Cursor({ctrl, src});
 }
 
-export { layer, cursor, merge, shift, cmd, cursor as variable, cursor as playback, boolean, logical_merge, logical_expr}
+export { layer, cursor, merge, shift, cmd, cursor as variable, cursor as playback, boolean, logical_merge, logical_expr, StateProviderBase}

@@ -24,10 +24,10 @@ function check_item(item) {
  * 
 */
 
-export class NewLocalStateProvider extends StateProviderBase {
+export class LocalStateProvider extends StateProviderBase {
 
     constructor(options={}) {
-        super(options);
+        super();
         this._map = new Map();
         this._initialise(options);
     }
@@ -57,14 +57,14 @@ export class NewLocalStateProvider extends StateProviderBase {
      * update processing, and returns Promise.
      */
     update (changes) {
-        if (changes != undefined) {
-            return Promise.resolve()
-            .then(() => {
+        return Promise.resolve()
+        .then(() => {
+            if (changes != undefined) {
                 changes = this._update(changes);
                 this.notify_callbacks(changes);
-                return changes;
-            });
-        }
+            }
+            return changes;
+        });
     }
 
     _update(changes) {
@@ -95,16 +95,10 @@ export class NewLocalStateProvider extends StateProviderBase {
         return {items, remove:remove_items, clear};
     }
 
-    has(id) {
-        return this._map.has(id);
-    };
-
-    get(id) {
-        return this._map.get(id);
-    };
-
-    items() {
+    get_items() {
         return [...this._map.values()];
     };
+
+    get overlapping() {return true;}
 }
 

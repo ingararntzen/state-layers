@@ -58,10 +58,6 @@ export class LocalStateProvider extends StateProviderBase {
     get_items () {
         return this._items.slice();
     }
-
-    get info () {
-        return {overlapping: false};
-    }
 }
 
 

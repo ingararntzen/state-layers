@@ -1,9 +1,21 @@
 /* global describe, test, expect */
 import * as sl from "../src/index.js";
-import { LocalStateProvider } from '../src/stateprovider_simple.js';
-import { NearbyIndexSimple } from '../src/nearbyindex_simple.js';
+import { LocalStateProvider } from '../src/stateprovider.js';
+import { NearbyIndex } from '../src/nearbyindex.js';
 import { BooleanIndex } from '../src/ops/boolean.js';
 
+
+function setup(changes) {
+    const sp = new LocalStateProvider();
+    const index = new NearbyIndex(sp);
+
+    sp.add_callback((_changes) => {
+        index.refresh(_changes);
+    });
+    sp._update(changes);
+    sp.notify_callbacks(changes);
+    return index;
+}
 
 // Add your test cases here
 describe('Test Logical Layer', () => {
@@ -58,8 +70,7 @@ describe('Test Logical Layer', () => {
             return {itv, data: "data"};
         });
 
-        const src = new LocalStateProvider({items});
-        const index = new NearbyIndexSimple(src);
+        const index = setup({items, clear:true})
         const bool_index = new BooleanIndex(index);
 
         // check values

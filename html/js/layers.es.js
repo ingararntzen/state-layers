@@ -44,7 +44,7 @@ function addToPrototype$1 (_prototype) {
     Base class for StateProviders
 
     - collection of items
-    - {key, itv, type, data}
+    - {id, itv, type, data}
 */
 
 class StateProviderBase {
@@ -62,92 +62,17 @@ class StateProviderBase {
      * 
      * options - support reset flag 
      */
-    update(items, options={}){
-        throw new Error("not implemented");
-    }
+    update(changes){}
 
     /**
      * return array with all items in collection 
      * - no requirement wrt order
      */
-
     get_items() {
         throw new Error("not implemented");
     }
-
-    /**
-     * signal if items can be overlapping or not
-     */
-
-    get info () {
-        return {overlapping: true};
-    }
 }
 addToPrototype$1(StateProviderBase.prototype);
-
-/***************************************************************
-    SIMPLE STATE PROVIDER
-***************************************************************/
-
-/**
- * StateProvider based on array with non-overlapping items.
- */
-
-class LocalStateProvider extends StateProviderBase {
-
-    constructor(options={}) {
-        super(options);
-        this._items = [];
-        this.initialise(options);
-    }
-
-    /**
-     * Local StateProviders support initialisation with
-     * by giving items or a value. 
-     */
-    initialise(options={}) {
-        // initialization with items or single value 
-        let {items, value} = options;
-        if (value != undefined) {
-            // initialize from value
-            items = [{
-                itv: [-Infinity, Infinity, true, true], 
-                type: "static",
-                data: value
-            }];
-        }
-        if (items != undefined) {
-            this._update(items);
-        }
-    }
-
-
-    /**
-     * Local StateProviders decouple update request from
-     * update processing, and returns Promise.
-     */
-    update (items) {
-        return Promise.resolve()
-        .then(() => {
-            this._update(items);
-            this.notify_callbacks();
-        });
-    }
-
-
-
-    _update(items) {
-        this._items = items;
-    }
-
-    get_items () {
-        return this._items.slice();
-    }
-
-    get info () {
-        return {overlapping: false};
-    }
-}
 
 /*
     
@@ -415,6 +340,211 @@ const interval = {
     from_endpoints: interval_from_endpoints,
     from_input: interval_from_input
 };
+
+/***************************************************************
+    CLOCKS
+***************************************************************/
+
+/**
+ * clocks counting in seconds
+ */
+
+const local = function () {
+    return performance.now()/1000.0;
+};
+
+const epoch = function () {
+    return new Date()/1000.0;
+};
+
+/**
+ * the clock gives epoch values, but is implemented
+ * using a high performance local clock for better
+ * time resolution and protection against system 
+ * time adjustments.
+ */
+
+const CLOCK = function () {
+    const t0_local = local();
+    const t0_epoch = epoch();
+    return {
+        now: function () {
+            return t0_epoch + (local() - t0_local)
+        }
+    }
+}();
+
+
+// ovverride modulo to behave better for negative numbers
+function mod(n, m) {
+    return ((n % m) + m) % m;
+}
+function divmod(x, base) {
+    let n = Math.floor(x / base);
+    let r = mod(x, base);
+    return [n, r];
+}
+
+
+/*
+    similar to range function in python
+*/
+
+function range (start, end, step = 1, options={}) {
+    const result = [];
+    const {include_end=false} = options;
+    if (step === 0) {
+        throw new Error('Step cannot be zero.');
+    }
+    if (start < end) {
+        for (let i = start; i < end; i += step) {
+          result.push(i);
+        }
+    } else if (start > end) {
+        for (let i = start; i > end; i -= step) {
+          result.push(i);
+        }
+    }
+    if (include_end) {
+        result.push(end);
+    }
+    return result;
+}
+
+
+/**
+ * Create a single state from a list of states, using a valueFunc
+ * state:{value, dynamic, offset}
+ * 
+ */
+
+function toState(sources, states, offset, options={}) {
+    let {valueFunc, stateFunc} = options; 
+    if (valueFunc != undefined) {
+        let value = valueFunc({sources, states, offset});
+        let dynamic = states.map((v) => v.dymamic).some(e=>e);
+        return {value, dynamic, offset};
+    } else if (stateFunc != undefined) {
+        return {...stateFunc({sources, states, offset}), offset};
+    }
+    // no valueFunc or stateFunc
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
+    }
+    // fallback - just use first state
+    let state = states[0];
+    return {...state, offset}; 
+}
+
+
+function random_string(length) {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    for(var i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
+function check_item(item) {
+    item.itv = interval.from_input(item.itv);
+    item.id = item.id || random_string(10);
+    return item;
+}
+
+/***************************************************************
+    LOCAL STATE PROVIDER
+***************************************************************/
+
+/**
+ * local state provider
+ * collection of items
+ * 
+ * changes = {
+ *   items=[],
+ *   remove=[],
+ *   clear=false 
+ * }
+ * 
+*/
+
+class LocalStateProvider extends StateProviderBase {
+
+    constructor(options={}) {
+        super();
+        this._map = new Map();
+        this._initialise(options);
+    }
+
+    /**
+     * Local StateProviders support initialisation with
+     * by giving items or a value. 
+     */
+    _initialise(options={}) {
+        // initialization with items or single value 
+        let {items, value} = options;
+        if (value != undefined) {
+            // initialize from value
+            items = [{
+                itv: [-Infinity, Infinity, true, true], 
+                type: "static",
+                data: value
+            }];
+        }
+        if (items != undefined) {
+            this._update({items});
+        }
+    }
+
+    /**
+     * Local StateProviders decouple update request from
+     * update processing, and returns Promise.
+     */
+    update (changes) {
+        return Promise.resolve()
+        .then(() => {
+            if (changes != undefined) {
+                changes = this._update(changes);
+                this.notify_callbacks(changes);
+            }
+            return changes;
+        });
+    }
+
+    _update(changes) {
+        let {
+            items=[],
+            remove=[],
+            clear=true
+        } = changes;
+        const remove_items = [];
+        if (clear) {
+            // clear all items
+            this._map = new Map();
+        } else {
+            // remove items by id
+            for (const id of remove) {
+                let item = this._map.get(id);
+                if (item != undefined) {
+                    remove_items.push(item);
+                }
+                this._map.delete(id);
+            }
+        }
+        // insert items
+        for (let item of items) {
+            item = check_item(item);
+            this._map.set(item.id, item);
+        }
+        return {items, remove:remove_items, clear};
+    }
+
+    get_items() {
+        return [...this._map.values()];
+    };
+
+    get overlapping() {return true;}
+}
 
 /*********************************************************************
     NEARBY INDEX
@@ -1371,232 +1501,489 @@ class InterpolationSegment extends BaseSegment {
     }
 }
 
-/***************************************************************
-    CLOCKS
-***************************************************************/
-
-/**
- * clocks counting in seconds
- */
-
-const local = function () {
-    return performance.now()/1000.0;
-};
-
-const epoch = function () {
-    return new Date()/1000.0;
-};
-
-/**
- * the clock gives epoch values, but is implemented
- * using a high performance local clock for better
- * time resolution and protection against system 
- * time adjustments.
- */
-
-const CLOCK = function () {
-    const t0_local = local();
-    const t0_epoch = epoch();
-    return {
-        now: function () {
-            return t0_epoch + (local() - t0_local)
-        }
-    }
-}();
-
-
-// ovverride modulo to behave better for negative numbers
-function mod(n, m) {
-    return ((n % m) + m) % m;
-}
-function divmod(x, base) {
-    let n = Math.floor(x / base);
-    let r = mod(x, base);
-    return [n, r];
+function as_endpoint(p) {
+	return (typeof p == "number") ? [p,0] : p; 
 }
 
+function lt (p1, p2) {
+	return endpoint.lt(as_endpoint(p1), as_endpoint(p2));
+}
+function eq (p1, p2) {
+	return endpoint.eq(as_endpoint(p1), as_endpoint(p2));
+}
+function cmp (p1, p2) {
+	return endpoint.cmp(as_endpoint(p1), as_endpoint(p2));
+}
+
+
+/*********************************************************************
+	SORTED ARRAY
+*********************************************************************/
 
 /*
-    similar to range function in python
+	Sorted array of values.
+	- Elements are sorted in ascending order.
+	- No duplicates are allowed.
+	- Binary search used for lookup
+
+	values can be regular number values (float) or points [float, sign]
+		>a : [a, -1] - largest value smaller than a
+		a  : [a, 0]  - a
+		a< : [a, +1] - smallest value larger than a
 */
 
-function range (start, end, step = 1, options={}) {
-    const result = [];
-    const {include_end=false} = options;
-    if (step === 0) {
-        throw new Error('Step cannot be zero.');
-    }
-    if (start < end) {
-        for (let i = start; i < end; i += step) {
-          result.push(i);
-        }
-    } else if (start > end) {
-        for (let i = start; i > end; i -= step) {
-          result.push(i);
-        }
-    }
-    if (include_end) {
-        result.push(end);
-    }
-    return result;
+class SortedArray {
+
+	constructor(){
+		this._array = [];
+	}
+
+	get size() {return this._array.length;}
+	get array() {return this._array;}
+	/*
+		find index of given value
+
+		return [found, index]
+
+		if found is true, then index is the index of the found object
+		if found is false, then index is the index where the object should
+		be inserted
+
+		- uses binary search		
+		- array does not include any duplicate values
+	*/
+	indexOf(target_value) {
+		let left_idx = 0;
+		let right_idx = this._array.length - 1;
+		while (left_idx <= right_idx) {
+			const mid_idx = Math.floor((left_idx + right_idx) / 2);
+			let mid_value = this._array[mid_idx];
+			if (eq(mid_value, target_value)) {
+				return [true, mid_idx]; // Target already exists in the array
+			} else if (lt(mid_value, target_value)) {
+				  left_idx = mid_idx + 1; // Move search range to the right
+			} else {
+				  right_idx = mid_idx - 1; // Move search range to the left
+			}
+		}
+	  	return [false, left_idx]; // Return the index where target should be inserted
+	}
+
+	/*
+		find index of smallest value which is greater than or equal to target value
+		returns -1 if no such value exists
+	*/
+	geIndexOf(target_value) {
+		let [found, idx] = this.indexOf(target_value);
+		return (idx < this._array.length) ? idx : -1  
+	}
+
+	/*
+		find index of largest value which is less than or equal to target value
+		returns -1 if no such value exists
+	*/
+	leIndexOf(target_value) {
+		let [found, idx] = this.indexOf(target_value);
+		idx = (found) ? idx : idx-1;
+		return (idx >= 0) ? idx : -1;
+	}
+
+	/*
+		find index of smallest value which is greater than target value
+		returns -1 if no such value exists
+	*/
+	gtIndexOf(target_value) {
+		let [found, idx] = this.indexOf(target_value);
+		idx = (found) ? idx + 1 : idx;
+		return (idx < this._array.length) ? idx : -1  
+	}
+
+	/*
+		find index of largest value which is less than target value
+		returns -1 if no such value exists
+	*/
+	ltIndexOf(target_value) {
+		let [found, idx] = this.indexOf(target_value);
+		idx = idx-1;
+		return (idx >= 0) ? idx : -1;	
+	}
+
+	/*
+		UPDATE
+
+		approach - make all neccessary changes and then sort
+
+		as a rule of thumb - compared to removing and inserting elements
+		one by one, this is more effective for larger batches, say > 100.
+		Even though this might not be the common case, penalties for
+		choosing the wrong approach is higher for larger batches.
+
+		remove is processed first, so if a value appears in both 
+		remove and insert, it will remain.
+		undefined values can not be inserted 
+
+	*/
+
+	update(remove_list=[], insert_list=[]) {
+
+		/*
+			remove
+
+			remove by flagging elements as undefined
+			- collect all indexes first
+			- flag as undefined only after all indexes have been found,
+			  as inserting undefined values breakes the assumption that
+			  the array is sorted.
+			- later sort will move them to the end, where they can be
+			  truncated off
+		*/
+		let remove_idx_list = [];
+		for (let value of remove_list) {
+			let [found, idx] = this.indexOf(value);
+			if (found) {
+				remove_idx_list.push(idx);
+			}		
+		}
+		for (let idx of remove_idx_list) {
+			this._array[idx] = undefined;
+		}
+		let any_removes = remove_idx_list.length > 0;
+
+		/*
+			insert
+
+			insert might introduce duplications, either because
+			the insert list includes duplicates, or because the
+			insert list duplicates preexisting values.
+
+			Instead of looking up and checking each insert value,
+			we instead insert everything at the end of the array,
+			and remove duplicates only after we have sorted.
+		*/
+		let any_inserts = insert_list.length > 0;
+		if (any_inserts) {
+			concat_in_place(this._array, insert_list);
+		}
+
+		/*
+			sort
+			this pushes any undefined values to the end 
+		*/
+		if (any_removes || any_inserts) {
+			this._array.sort(cmp);
+		}
+
+		/*
+			remove undefined 
+			all undefined values are pushed to the end
+		*/
+		if (any_removes) {
+			this._array.length -= remove_idx_list.length;
+		}
+
+		/*
+			remove duplicates from sorted array
+			- assuming there are going to be few duplicates,
+			  it is ok to remove them one by one
+
+		*/
+		if (any_inserts) {
+			remove_duplicates(this._array);
+		}
+	}
+
+	/*
+		get element by index
+	*/
+	get_by_index(idx) {
+		if (idx > -1 && idx < this._array.length) {
+			return this._array[idx];
+		}
+	}
+
+	/*
+		lookup values within interval
+	*/
+	lookup(itv) {
+		if (itv == undefined) {
+			itv = [-Infinity, Infinity, true, true];
+		}
+		let [p0, p1] = endpoint.from_interval(itv);
+		let p0_idx = this.geIndexOf(p0);
+		let p1_idx = this.leIndexOf(p1);
+		if (p0_idx == -1 || p1_idx == -1) {
+			return [];
+		} else {
+			return this._array.slice(p0_idx, p1_idx+1);
+		}
+	}
+
+	lt (offset) {
+		return this.get_by_index(this.ltIndexOf(offset));
+	}
+	le (offset) {
+		return this.get_by_index(this.leIndexOf(offset));
+	}
+	get (offset) {
+		let [found, idx] = this.indexOf(offset);
+		if (found) {
+			return this._array[idx];
+		} 
+	}
+	gt (offset) {
+		return this.get_by_index(this.gtIndexOf(offset));
+	}
+	ge (offset) {
+		return this.get_by_index(this.geIndexOf(offset));
+	}
 }
 
-
-/**
- * Create a single state from a list of states, using a valueFunc
- * state:{value, dynamic, offset}
- * 
- */
-
-function toState(sources, states, offset, options={}) {
-    let {valueFunc, stateFunc} = options; 
-    if (valueFunc != undefined) {
-        let value = valueFunc({sources, states, offset});
-        let dynamic = states.map((v) => v.dymamic).some(e=>e);
-        return {value, dynamic, offset};
-    } else if (stateFunc != undefined) {
-        return {...stateFunc({sources, states, offset}), offset};
-    }
-    // no valueFunc or stateFunc
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
-    }
-    // fallback - just use first state
-    let state = states[0];
-    return {...state, offset}; 
-}
-
-/**
- * 
- * Nearby Index Simple
- * 
- * - items are assumed to be non-overlapping on the timeline, 
- * - implying that nearby.center will be a list of at most one ITEM. 
- * - exception will be raised if overlapping ITEMS are found
- * - ITEMS is assumbed to be immutable array - change ITEMS by replacing array
- * 
- *  
- */
-
-
-// get interval low point
-function get_low_value(item) {
-    return item.itv[0];
-}
-
-
-class NearbyIndexSimple extends NearbyIndexBase {
-
-    constructor(src) {
-        super();
-        this._src = src;
-    }
-
-    get src () {return this._src;}
-
-
-    nearby(offset) {
-        offset = endpoint.from_input(offset);
-        let item = undefined;
-        let center_idx = undefined;
-        let items = this._src.get_items();
-
-        // binary search for index
-        let [found, idx] = find_index(offset[0], items, get_low_value);
-        if (found) {
-            // search offset matches item low exactly
-            // check that it is indeed covered by item interval
-            item = items[idx];
-            if (interval.covers_endpoint(item.itv, offset)) {
-                center_idx = idx;
-            }
-        }
-        if (center_idx == undefined) {
-            // check if previous item covers offset
-            item = items[idx-1];
-            if (item != undefined) {
-                if (interval.covers_endpoint(item.itv, offset)) {
-                    center_idx = idx-1;
-                }
-            } 
-        }
-
-        /* 
-            center is non-empty 
-        */
-        if (center_idx != undefined) {
-            item = items[center_idx];
-            const [low, high] = endpoint.from_interval(item.itv);
-            return {
-                center: [item],
-                itv: item.itv,
-                left: endpoint.flip(low, "high"),
-                right: endpoint.flip(high, "low")
-            }
-        }
-
-        /* 
-            center is empty 
-        */
-        // left is based on previous item
-        item = items[idx-1];
-        let left = [-Infinity, 0];
-        if (item != undefined) {
-            left = endpoint.from_interval(item.itv)[1];
-        }
-        // right is based on next item
-        item = items[idx];
-        let right = [Infinity, 0];
-        if (item != undefined) {
-            right = endpoint.from_interval(item.itv)[0];
-        }
-        // itv based on left and right        
-        let low = endpoint.flip(left, "low");
-        let high = endpoint.flip(right, "high");
-
-        return {
-            center: [], left, right,
-            itv: interval.from_endpoints(low, high)
-        };
-    }
-}
 
 /*********************************************************************
 	UTILS
 *********************************************************************/
 
-
 /*
-	binary search for finding the correct insertion index into
-	the sorted array (ascending) of items
-	
-	array contains objects, and value func retreaves a value
-	from each object.
-
-	return [found, index]
+	Concatinate two arrays by appending the second array to the first array. 
 */
 
-function find_index(target, arr, value_func) {
+function concat_in_place(first_arr, second_arr) {
+	const first_arr_length = first_arr.length;
+	const second_arr_length = second_arr.length;
+  	first_arr.length += second_arr_length;
+  	for (let i = 0; i < second_arr_length; i++) {
+    	first_arr[first_arr_length + i] = second_arr[i];
+  	}
+}
 
-    function default_value_func(el) {
-        return el;
-    }
-    
-    let left = 0;
-	let right = arr.length - 1;
-	value_func = value_func || default_value_func;
-	while (left <= right) {
-		const mid = Math.floor((left + right) / 2);
-		let mid_value = value_func(arr[mid]);
-		if (mid_value === target) {
-			return [true, mid]; // Target already exists in the array
-		} else if (mid_value < target) {
-			  left = mid + 1; // Move search range to the right
+/*
+	remove duplicates in a sorted array
+*/
+function remove_duplicates(sorted_arr) {
+	let i = 0;
+	while (true) {
+		if (i + 1 >= sorted_arr.length) {
+			break;
+		}
+		if (sorted_arr[i] == sorted_arr[i + 1]) {
+			sorted_arr.splice(i + 1, 1);
 		} else {
-			  right = mid - 1; // Move search range to the left
+			i += 1;
 		}
 	}
-  	return [false, left]; // Return the index where target should be inserted
+}
+
+const pfi = endpoint.from_interval;
+
+function make_set_cache () {
+	return new Map([
+		[-1, new Set()], 
+		[0, new Set()], 
+		[1, new Set()]
+	]);
+}
+
+
+
+class NearbyIndex extends NearbyIndexBase {
+
+    constructor(stateProvider) {
+        super();
+
+        if (!(stateProvider instanceof StateProviderBase)) {
+            throw new Error(`must be stateprovider ${stateProvider}`);
+        }
+        this._sp = stateProvider;
+
+        this._initialise();
+    }
+
+    _initialise() {
+        // sorted arrays of endpoints
+		this._low_points = new SortedArray();
+		this._high_points = new SortedArray();
+		/* 
+			items by endpoint
+			[value, sign] = endpoint
+			items.get(sign).get(value) == [item, ..]
+			each item will typically appear twice, at two different
+			endpoints.
+		*/
+		this._itemsmap = new Map([
+			[-1, new Map()], 
+			[0, new Map()], 
+			[1, new Map()]
+		]);
+    }
+
+    get src () {return this._sp;}
+
+    /*
+		nearby (offset)
+    */
+    nearby(offset) { 
+        offset = endpoint.from_input(offset);
+        const center = this._covers(offset);
+        const prev_high = this._high_points.lt(offset) || [-Infinity, 0];
+        const next_low = this._low_points.gt(offset) || [Infinity, 0];
+        const center_low_list = [];
+        const center_high_list = [];
+        for (const item of center) {
+            const [low, high] = endpoint.from_interval(item.itv);
+            center_high_list.push(high);
+            center_low_list.push(low);    
+        }
+        return nearby_from(
+            prev_high, 
+            center_low_list, 
+            center,
+            center_high_list,
+            next_low
+        );
+    }
+
+    /*
+		refresh index based on changes
+    */
+	refresh (changes) {
+		const low_clear_cache = make_set_cache();
+		const high_clear_cache = make_set_cache();
+		const low_create_cache = make_set_cache();
+		const high_create_cache = make_set_cache();
+
+        const {items=[], remove=[], clear=false} = changes;
+
+        if (clear) {
+            this._initialise();
+        } else {
+            for (const item of remove) {
+                let [low, high] = pfi(item.itv);
+                this._remove(low, item, low_clear_cache);
+                this._remove(high, item, high_clear_cache);
+            }    
+        }
+
+        for (const item of items) {
+            let [low, high] = pfi(item.itv);
+            this._insert(low, item, low_create_cache);
+            this._insert(high, item, high_create_cache);	
+        }
+
+		/*
+			flush changes to sorted arrays
+			
+			Ensure that low_points and high_points indexes 
+			match exactly with endpoints mapped to items in _itemsmap.
+			
+			This could be solved by rebuilding indexes from
+			itemsmap. However, in the event that the indexes are large and 
+			changes are small, we can optimise, based on caches
+
+		*/
+		const low_clear = [];
+		const high_clear = [];
+		const low_create = [];
+		const high_create = [];
+
+		for (let sign of [-1, 0, 1]) {
+
+			// clear
+			const clear_tasks = [
+				[low_clear, low_clear_cache], 
+				[high_clear, high_clear_cache]
+			];
+			for (const [array, cache] of clear_tasks) {
+				for (const value of cache.get(sign).values()) {
+					// verify that itemsmap is indeed empty
+					if (!this._itemsmap.get(sign).has(value)) {
+						array.push([value, sign]);
+					}
+				}	
+			}
+
+			// create			
+			const create_tasks = [
+				[low_create, low_create_cache], 
+				[high_create, high_create_cache]
+			];
+			for (const [array, cache] of create_tasks) {
+				for (const value of cache.get(sign).values()) {
+					// verify that itemsmap is indeed non-empty
+					if (this._itemsmap.get(sign).has(value)) {
+						array.push([value, sign]);
+					}
+				}
+			}		
+		}
+		
+		// update indexes
+        this._low_points.update(low_clear, low_create);
+		this._high_points.update(high_clear, high_create);
+	}
+
+	/*
+		remove item for endpoint
+		- if last item to be removed - add to cleared endpoints
+	*/
+    _remove(endpoint, item, cleared_endpoints) {
+    	const [value, sign] = endpoint;
+    	const map = this._itemsmap.get(sign);
+    	const items = map.get(value);    	
+		cleared_endpoints.get(sign).add(value);
+        if (items != undefined) {
+        	// remove item
+        	let idx = items.findIndex((_item) => {
+        		return _item.id == item.id;
+        	});
+        	if (idx > -1) {
+        		items.splice(idx, 1);
+        	}
+        }
+    };
+
+    /*
+		insert item for endpoint
+		- if first item to be inserted - add to created endpoints
+    */
+	_insert(endpoint, item, created_endpoints) {
+    	const [value, sign] = endpoint;
+    	const map = this._itemsmap.get(sign);
+      	const items = map.get(value);
+        created_endpoints.get(sign).add(value);
+        if (items == undefined) {
+            map.set(value, [item]);
+        } else {
+            items.push(item);
+        }
+    }
+
+    /*
+		covers : return all items which cover offset
+
+		search from offset to the left - use low_points index
+		TODO - make more efficient by limiting search
+    */
+    _covers(offset) {
+        // check all items with low to the left of offset
+    	const checked_ids = new Set();
+        const items = [];
+        for (const [value, sign] of this._low_points.array) {
+            if (endpoint.gt([value, sign], offset)) {
+                break;
+            }
+            for (const item of this._itemsmap.get(sign).get(value)) {
+                if (checked_ids.has(item.id)) {
+                    continue;
+                }
+                // check item
+                if (interval.covers_endpoint(item.itv, offset)) {
+                    items.push(item);
+                }
+                checked_ids.add(item.id);
+            }
+        } 
+        return items;
+    }
 }
 
 /************************************************
@@ -1791,8 +2178,13 @@ class InputLayer extends Layer {
     srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
-                this.index = new NearbyIndexSimple(this.src);
+                this.index = new NearbyIndex(this.src);
             } 
+            if (eArg == "reset") {
+                this.index.refresh({items:this.src.get_items(), clear:true});
+            } else {
+                this.index.refresh(eArg);
+            }
             this.clearCaches();
             this.notify_callbacks();
             this.eventifyTrigger("change");
@@ -2189,7 +2581,7 @@ function cmd (target) {
                 name,
                 function(...args) { 
                     let items = method.call(this, ...args);
-                    return target.update(items);  
+                    return target.update({items, clear:true});  
                 }
             ]
         });
@@ -3234,4 +3626,4 @@ function cursor(options={}) {
     return new Cursor({ctrl, src});
 }
 
-export { boolean, cmd, cursor, layer, logical_expr, logical_merge, merge, cursor as playback, shift, cursor as variable };
+export { StateProviderBase, boolean, cmd, cursor, layer, logical_expr, logical_merge, merge, cursor as playback, shift, cursor as variable };

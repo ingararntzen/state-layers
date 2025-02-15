@@ -83,7 +83,7 @@ export class NearbyIndex extends NearbyIndexBase {
 		const low_create_cache = make_set_cache();
 		const high_create_cache = make_set_cache();
 
-        const {items, remove, clear} = changes;
+        const {items=[], remove=[], clear=false} = changes;
 
         if (clear) {
             this._initialise();

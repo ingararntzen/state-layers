@@ -1,6 +1,5 @@
 import * as callback from "./api_callback.js";
 
-
 /************************************************
  * STATE PROVIDER BASE
  ************************************************/
@@ -9,7 +8,7 @@ import * as callback from "./api_callback.js";
     Base class for StateProviders
 
     - collection of items
-    - {key, itv, type, data}
+    - {id, itv, type, data}
 */
 
 export class StateProviderBase {
@@ -27,26 +26,14 @@ export class StateProviderBase {
      * 
      * options - support reset flag 
      */
-    update(items, options={}){
-        throw new Error("not implemented");
-    }
+    update(changes){}
 
     /**
      * return array with all items in collection 
      * - no requirement wrt order
      */
-
     get_items() {
         throw new Error("not implemented");
     }
-
-    /**
-     * signal if items can be overlapping or not
-     */
-
-    get info () {
-        return {overlapping: true};
-    }
 }
 callback.addToPrototype(StateProviderBase.prototype);
-
