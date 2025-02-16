@@ -112,7 +112,11 @@ describe('Test NearbyIndex', () => {
         nearby = index.nearby(0);
         expect(nearby.center[0]).toBe(items[1]);
         // last endpoint that hits second item
+        console.log("nearby", [1, 0]);
+
         nearby = index.nearby([1, 0]);
+        console.log("nearby", nearby)
+
         expect(nearby.center[0]).toBe(items[1]);
         // interval
         expect(nearby.itv).toStrictEqual(intervals[1]);

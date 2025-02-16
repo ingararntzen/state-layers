@@ -1,17 +1,13 @@
 import { endpoint } from "./intervals.js";
 
-function as_endpoint(p) {
-	return (typeof p == "number") ? [p,0] : p; 
-}
-
 function lt (p1, p2) {
-	return endpoint.lt(as_endpoint(p1), as_endpoint(p2));
+	return endpoint.lt(endpoint.from_input(p1), endpoint.from_input(p2));
 }
 function eq (p1, p2) {
-	return endpoint.eq(as_endpoint(p1), as_endpoint(p2));
+	return endpoint.eq(endpoint.from_input(p1), endpoint.from_input(p2));
 }
 function cmp (p1, p2) {
-	return endpoint.cmp(as_endpoint(p1), as_endpoint(p2));
+	return endpoint.cmp(endpoint.from_input(p1), endpoint.from_input(p2));
 }
 
 
