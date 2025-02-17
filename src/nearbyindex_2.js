@@ -111,7 +111,6 @@ class ItemsMap {
 }
 
 
-
 export class NearbyIndex extends NearbyIndexBase {
 
     constructor(stateProvider) {
@@ -121,8 +120,8 @@ export class NearbyIndex extends NearbyIndexBase {
             throw new Error(`must be stateprovider ${stateProvider}`);
         }
         this._sp = stateProvider;
-
-		this.refresh({items:this._sp.get_items(), clear:true})
+		this._initialise();
+		this.refresh();
 	}
 
     get src () {return this._sp;}
@@ -138,38 +137,47 @@ export class NearbyIndex extends NearbyIndexBase {
 	}
 
 
-	refresh(changes) {
+	refresh(diffs) {
 
-		const {items=[], remove=[], clear=false} = changes;
 		const remove_endpoints = new EndpointSet();
 		const insert_endpoints = new EndpointSet();
 
-		if (clear) {
-			// clear
+		let insert_items = [];
+		let remove_items = [];
+
+		if (diffs == undefined) {
+			insert_items = this.src.get_items();
+			// clear all state
 			this._initialise();
 		} else {
-			/*
-				unregister removed items across all endpoints 
-				where they were registered (LOW, ACTVIE, HIGH) 
-			*/
-			for (const item of remove) {
-				for (const ep in this._endpoints.lookup(item.itv)) {
-					const became_empty = this._itemsmap.unregister(ep, item);
-					if (became_empty) remove_endpoints.add(ep);
+			// collect insert items and remove items
+			for (const diff of diffs) {
+				if (diff.new != undefined) {
+					insert_items.push(diff.new);
+				}
+				if (diff.old != undefined) {
+					remove_items.push(diff.old);
 				}
 			}
-			/* 
-				TODO unregister also replaced items
-			*/
+		}
+
+		/*
+			unregister remove items across all endpoints 
+			where they were registered (LOW, ACTIVE, HIGH) 
+		*/
+		for (const item of remove_items) {
+			for (const ep in this._endpoints.lookup(item.itv)) {
+				const became_empty = this._itemsmap.unregister(ep, item);
+				if (became_empty) remove_endpoints.add(ep);
+			}	
 		}
 
 		/*
 			register new items across all endpoints 
-			where they should be registered (LOW, ACTVIE, HIGH) 
+			where they should be registered (LOW, HIGH) 
 		*/
 		let became_nonempty;
-		for (const item of items) {
-			// register LOW and HIGH
+		for (const item of insert_items) {
 			const [low, high] = endpoint.from_interval(item.itv);
 			became_nonempty = this._itemsmap.register(low, item, LOW);
 			if (became_nonempty) insert_endpoints.add(low);
@@ -182,7 +190,6 @@ export class NearbyIndex extends NearbyIndexBase {
 			possible that an endpoint is present in both lists
 			this is presumably not a problem with SortedArray.
 		*/
-
 		this._endpoints.update(
 			remove_endpoints.list(), 
 			insert_endpoints.list()
@@ -197,12 +204,10 @@ export class NearbyIndex extends NearbyIndexBase {
 			for (let item of this._itemsmap.get_items_by_role(ep, LOW)) {
 				activeSet.add(item);
 			};
-
 			// activate using activeSet
 			for (let item of activeSet) {
 				this._itemsmap.register(ep, item, ACTIVE);
 			}
-
 			// Remove items with p1 as high point
 			for (let item of this._itemsmap.get_items_by_role(ep, HIGH)) {
 				activeSet.delete(item);

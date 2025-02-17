@@ -204,7 +204,6 @@ export class InputLayer extends Layer {
                 this.index = new NearbyIndex(this.src);
             } 
             if (eArg != "reset") {
-                // eArg is {items, remove, clear}
                 this.index.refresh(eArg);
             }
             this.clearCaches();

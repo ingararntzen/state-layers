@@ -6,11 +6,13 @@ function setup(changes) {
     const sp = new LocalStateProvider();
     const index = new NearbyIndex(sp);
 
-    sp.add_callback((_changes) => {
-        index.refresh(_changes);
+
+    sp.add_callback((diffs) => {
+        index.refresh(diffs);
     });
-    sp._update(changes);
-    sp.notify_callbacks(changes);
+
+    let diffs = sp._update(changes);
+    sp.notify_callbacks(diffs);
     return index;
 }
 
@@ -37,7 +39,6 @@ describe('Test NearbyIndex', () => {
             // outside 3.5 right
             {type: "static", itv: [4, 6, true, false], value: 7.0},
         ];
-
         let index = setup({items, clear:true});
 
         let values = new Set(index._covers([3.5,0]).map(item => item.value));
@@ -112,11 +113,7 @@ describe('Test NearbyIndex', () => {
         nearby = index.nearby(0);
         expect(nearby.center[0]).toBe(items[1]);
         // last endpoint that hits second item
-        console.log("nearby", [1, 0]);
-
         nearby = index.nearby([1, 0]);
-        console.log("nearby", nearby)
-
         expect(nearby.center[0]).toBe(items[1]);
         // interval
         expect(nearby.itv).toStrictEqual(intervals[1]);

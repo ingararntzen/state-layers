@@ -503,21 +503,22 @@ class LocalStateProvider extends StateProviderBase {
     update (changes) {
         return Promise.resolve()
         .then(() => {
+            let diffs;
             if (changes != undefined) {
-                changes = this._update(changes);
-                this.notify_callbacks(changes);
+                diffs = this._update(changes);
+                this.notify_callbacks(diffs);
             }
-            return changes;
+            return diffs;
         });
     }
 
     _update(changes) {
+        const diffs = [];
         let {
             items=[],
             remove=[],
             clear=true
         } = changes;
-        const remove_items = [];
         if (clear) {
             // clear all items
             this._map = new Map();
@@ -526,24 +527,28 @@ class LocalStateProvider extends StateProviderBase {
             for (const id of remove) {
                 let item = this._map.get(id);
                 if (item != undefined) {
-                    remove_items.push(item);
+                    diffs.push({id:item.id, old:item});
+                    this._map.delete(id);
                 }
-                this._map.delete(id);
             }
         }
         // insert items
         for (let item of items) {
             item = check_item(item);
+            let old = this._map.get(item.id);
+            if (old != undefined) {
+                diffs.push({id:item.id, new:item, old});
+            } else {
+                diffs.push({id:item.id, new:item});
+            }
             this._map.set(item.id, item);
         }
-        return {items, remove:remove_items, clear};
+        return diffs;
     }
 
     get_items() {
         return [...this._map.values()];
     };
-
-    get overlapping() {return true;}
 }
 
 /*********************************************************************
@@ -2176,7 +2181,6 @@ class InputLayer extends Layer {
                 this.index = new NearbyIndex(this.src);
             } 
             if (eArg != "reset") {
-                // eArg is {items, remove, clear}
                 this.index.refresh(eArg);
             }
             this.clearCaches();
