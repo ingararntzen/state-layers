@@ -1,6 +1,6 @@
 /* global describe, test, expect */
 import { LocalStateProvider } from "../src/stateprovider.js";
-import { NearbyIndex } from "../src/nearbyindex_2.js";
+import { NearbyIndex } from "../src/nearbyindex.js";
 
 function setup(changes) {
     const sp = new LocalStateProvider();

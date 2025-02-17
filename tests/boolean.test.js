@@ -12,8 +12,8 @@ function setup(changes) {
     sp.add_callback((_changes) => {
         index.refresh(_changes);
     });
-    sp._update(changes);
-    sp.notify_callbacks(changes);
+    let diffs = sp._update(changes);
+    sp.notify_callbacks(diffs);
     return index;
 }
 
