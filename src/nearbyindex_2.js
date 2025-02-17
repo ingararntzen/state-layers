@@ -55,7 +55,7 @@ class ItemsMap {
 		]);
 	}
 
-	get_items_with_role ([value, sign], role) {
+	get_items_by_role ([value, sign], role) {
 		const entry = this._map.get(sign).get(value);
 		return (entry != undefined) ? entry[role] : [];
 	}
@@ -108,8 +108,6 @@ class ItemsMap {
 		}
 		return false;
 	}
-
-	
 }
 
 
@@ -169,7 +167,6 @@ export class NearbyIndex extends NearbyIndexBase {
 			register new items across all endpoints 
 			where they should be registered (LOW, ACTVIE, HIGH) 
 		*/
-
 		let became_nonempty;
 		for (const item of items) {
 			// register LOW and HIGH
@@ -197,7 +194,7 @@ export class NearbyIndex extends NearbyIndexBase {
 		const activeSet = new Set();
 		for (const ep of this._endpoints.array) {	
 			// Add items with ep as low point
-			for (let item of this._itemsmap.get_items_with_role(ep, LOW)) {
+			for (let item of this._itemsmap.get_items_by_role(ep, LOW)) {
 				activeSet.add(item);
 			};
 
@@ -207,76 +204,35 @@ export class NearbyIndex extends NearbyIndexBase {
 			}
 
 			// Remove items with p1 as high point
-			for (let item of this._itemsmap.get_items_with_role(ep, HIGH)) {
+			for (let item of this._itemsmap.get_items_by_role(ep, HIGH)) {
 				activeSet.delete(item);
 			};	
 		}
 	}
 
 	_covers (offset) {
-		offset = endpoint.from_input(offset);
-		let idx;
-		let array = this._endpoints.array;
-		// left ep
 		const ep1 = this._endpoints.le(offset) || [-Infinity, 0];
-		// right ep
 		const ep2 = this._endpoints.ge(offset) || [Infinity, 0];
-		return this._get_center(ep1, ep2);
-	}
-
-	_get_center(ep1, ep2) {
 		if (endpoint.eq(ep1, ep2)) {
-			return this._itemsmap.get_items_with_role(ep1, ACTIVE);	
+			return this._itemsmap.get_items_by_role(ep1, ACTIVE);	
 		} else {
 			// get items for both endpoints
-			const items1 = this._itemsmap.get_items_with_role(ep1, ACTIVE);
-			const items2 = this._itemsmap.get_items_with_role(ep2, ACTIVE);
+			const items1 = this._itemsmap.get_items_by_role(ep1, ACTIVE);
+			const items2 = this._itemsmap.get_items_by_role(ep2, ACTIVE);
 			// return all items that are active in both endpoints
 			const idSet = new Set(items1.map(item => item.id));
 			return items2.filter(item => idSet.has(item.id));
 		}
 	}
 
-
     /*
 		nearby (offset)
     */
 	nearby(offset) { 
 		offset = endpoint.from_input(offset);
-		let prev = this._endpoints.le(offset) || [-Infinity, 0];
-		let next = this._endpoints.ge(offset) || [Infinity, 0];
 
 		// center
-		let center = this._get_center(prev, next);
-
-		const center_empty = center.length == 0;
-		const exact_hit = endpoint.eq(prev, next);
-
-		if (exact_hit) {
-			if (center_empty) {
-				throw new Error("should not happen")
-			}
-			// move prev and next 
-			prev = this._endpoints.lt(offset) || [-Infinity, 0];
-			right = this._endpoints.gt(offset) || [Infinity, 0];
-			// figure if it is empty on left or right side
-			const empty_left = this._get_center(prev, offset).length == 0;
-			const empty_right = this._get_center(offset, right).length == 0;
-			if (empty_left) {
-				prev = offset;
-			}
-			if (empty_right) {
-				next = offset;
-			}
-		}
-
-		// at this point prev and next points to the correct endpoints
-		// but may have to be flipped
-		// prev must always be a high point
-		// next must always be a low point
-
-
-		// center lists
+		let center = this._covers(offset)
 		const center_high_list = [];
 		const center_low_list = [];
 		for (const item of center) {
@@ -285,24 +241,33 @@ export class NearbyIndex extends NearbyIndexBase {
 			center_low_list.push(low);    
 		}
 
-		// prev_high - next_low
-		/*
-			left is not guaranted to be a high endpoint, since
-			it could also be a low endpoint belonging from center.
-			However, it is only relevant if it is larger than any
-			of the center low - so it is enough to make sure it
-			is a high point
-		*/
-		let prev_high = left;
-		if (left[1] == 1) {
-			prev_high = endpoint.flip(left, "high");			
+		// prev high
+		let prev_high = offset;
+		let items;
+		while (true) {
+			prev_high = this._endpoints.lt(prev_high) || [-Infinity, 0];
+			if (prev_high[0] == -Infinity) {
+				break
+			}
+			items = this._itemsmap.get_items_by_role(prev_high, HIGH);
+			if (items.length > 0) {
+				break
+			}
 		}
-		// next_low
-		let next_low = right;
-		if (right[1] == -1) {
-			next_low = endpoint.flip(right, "low") 
+
+		// next low
+		let next_low = offset;
+		while (true) {
+			next_low = this._endpoints.gt(next_low) || [Infinity, 0];
+			if (next_low[0] == Infinity) {
+				break
+			}
+			items = this._itemsmap.get_items_by_role(next_low, LOW);
+			if (items.length > 0) {
+				break
+			}
 		}
-			
+
 		return nearby_from(
 			prev_high, 
 			center_low_list, 
@@ -310,6 +275,5 @@ export class NearbyIndex extends NearbyIndexBase {
 			center_high_list,
 			next_low
 		);
-
 	}
 }
