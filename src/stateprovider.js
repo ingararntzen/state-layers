@@ -95,7 +95,7 @@ export class LocalStateProvider extends StateProviderBase {
             if (old != undefined) {
                 diffs.push({id:item.id, new:item, old});
             } else {
-                diffs.push({id:item.id, new:item});
+                diffs.push({id:item.id, new:item, old:undefined});
             }
             this._map.set(item.id, item);
         }
