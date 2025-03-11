@@ -1,10 +1,10 @@
 
-import { StateProviderBase } from "./stateprovider_base";
+import { is_stateprovider } from "./stateprovider.js";
 const METHODS = {assign, move, transition, interpolate};
 
 
 export function cmd (target) {
-    if (!(target instanceof StateProviderBase)) {
+    if (!(is_stateprovider(target))) {
         throw new Error(`target.src must be stateprovider ${target}`);
     }
     let entries = Object.entries(METHODS)
@@ -13,7 +13,7 @@ export function cmd (target) {
                 name,
                 function(...args) { 
                     let items = method.call(this, ...args);
-                    return target.update({items, clear:true});  
+                    return target.update({insert:items, reset:true});  
                 }
             ]
         });

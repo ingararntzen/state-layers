@@ -12,20 +12,19 @@
                 elems.innerHTML = to_value(state);
             }
         }
-
-        import { MediaControl } from './js/layers.es.js';
-        const mc = new MediaControl({position:0});
+        import * as sl from './libs/layers.es.js';
+        const mc = sl.variable({value:0});
 
         mc.bind(render_html("#offset", ({value}) => `${value}`), 200);
 
         document.querySelector("#resetBtn").onclick = () => {
-            mc.update({position:0});
+            mc.move({position:0});
         }
         document.querySelector("#playBtn").onclick = () => {
-            mc.update({velocity:1});
+            mc.move({velocity:1});
         }
         document.querySelector("#pauseBtn").onclick = () => {
-            mc.update({velocity:0});
+            mc.move({velocity:0});
         }
 
 

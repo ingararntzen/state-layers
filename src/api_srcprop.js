@@ -1,3 +1,4 @@
+import { implements_callback } from "./api_callback";
 
 /************************************************
  * SOURCE PROPERTY (SRCPROP)
@@ -62,7 +63,9 @@ export function addToPrototype (_prototype) {
         // unsubscribe from entities
         if (state.handles.length > 0) {
             for (const [idx, e] of Object.entries(entities)) {
-                e.remove_callback(state.handles[idx]);
+                if (implements_callback(e)) {
+                    e.remove_callback(state.handles[idx]);
+                }
             }    
         }
         state.handles = [];
@@ -77,7 +80,9 @@ export function addToPrototype (_prototype) {
                 this[`${NAME}_onchange`](propName, eArg);
             }.bind(this);
             for (const e of entities) {
-                state.handles.push(e.add_callback(handler));
+                if (implements_callback(e)) {
+                    state.handles.push(e.add_callback(handler));
+                }
             }
             this[`${NAME}_onchange`](propName, "reset"); 
         }

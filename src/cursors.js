@@ -106,8 +106,8 @@ export class Cursor extends Layer {
 
     srcprop_check(propName, obj) {
         if (propName == "ctrl") {
-            if (is_clockprovider(obj) || obj instanceof Cursor) {
-                throw new Error(`"ctrl" must be ClockProvider or Cursor ${obj}`)
+            if (!(is_clockprovider(obj) || obj instanceof Cursor)) {
+                throw new Error(`"ctrl" must be clockProvider or Cursor ${obj}`)
             }
         } else if (propName == "src") {
             if (!(obj instanceof Layer)) {
@@ -126,6 +126,7 @@ export class Cursor extends Layer {
      **********************************************************/
 
     __handle_change(origin, eArg) {
+        console.log("cursor change", origin, eArg);
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {

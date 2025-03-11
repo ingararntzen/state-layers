@@ -11,11 +11,9 @@ function check_item(item) {
 
 
 export function is_stateprovider(obj) {
-    const methods = ["add_callback", "remove_callback", "get_items"];
-    for (prop of methods) {
-        if (!(prop in obj)) return false;
-        if (typeof obj[prop] != 'function') return false;
-    }
+    if (!callback.implements_callback(obj)) return false;
+    if (!("get_items" in obj)) return false;
+    if (typeof obj.get_items != 'function') return false;
     return true;
 }
 
@@ -60,7 +58,7 @@ export class LocalStateProvider {
             }];
         }
         if (items != undefined) {
-            this._update({items});
+            this._update({insert:items, reset:true});
         }
     }
 
@@ -74,6 +72,7 @@ export class LocalStateProvider {
             let diffs;
             if (changes != undefined) {
                 diffs = this._update(changes);
+                console.log("diffs", diffs);
                 this.notify_callbacks(diffs);
             }
             return diffs;
@@ -81,13 +80,18 @@ export class LocalStateProvider {
     }
 
     _update(changes) {
-        const diffs = [];
+        const diff_map = new Map();
         let {
-            items=[],
+            insert=[],
             remove=[],
             reset=false
         } = changes;
+
+
         if (reset) {
+            for (const [id, item] of this._map.entries()) {
+                diff_map.set(id, {id, new:undefined, old:item});
+            }
             // clear all items
             this._map = new Map();
         } else {
@@ -95,23 +99,22 @@ export class LocalStateProvider {
             for (const id of remove) {
                 let item = this._map.get(id);
                 if (item != undefined) {
-                    diffs.push({id:item.id, old:item});
+                    diff_map.set(item.id, {
+                        id:item.id, new:undefined, old:item
+                    });
                     this._map.delete(id);
                 }
             }
         }
         // insert items
-        for (let item of items) {
+        for (let item of insert) {
             item = check_item(item);
-            let old = this._map.get(item.id);
-            if (old != undefined) {
-                diffs.push({id:item.id, new:item, old});
-            } else {
-                diffs.push({id:item.id, new:item, old:undefined});
-            }
+            const diff = diff_map.get(item.id)
+            const old = (diff != undefined) ? diff.old : this._map.get(item.id);
+            diff_map.set(item.id, {id:item.id, new:item, old});
             this._map.set(item.id, item);
         }
-        return diffs;
+        return [...diff_map.values()];
     }
 
     get_items() {

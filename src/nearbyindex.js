@@ -1,8 +1,7 @@
 import { endpoint } from "./intervals.js";
 import { NearbyIndexBase, nearby_from } from "./nearbyindex_base.js";
-import { StateProviderBase } from "./stateprovider_base.js";
 import { SortedArray } from "./sortedarray.js";
-
+import { is_stateprovider } from "./stateprovider.js";
 
 // Set of unique [value, sign] endpoints
 class EndpointSet {
@@ -116,7 +115,7 @@ export class NearbyIndex extends NearbyIndexBase {
     constructor(stateProvider) {
         super();
 
-        if (!(stateProvider instanceof StateProviderBase)) {
+        if (!(is_stateprovider(stateProvider))) {
             throw new Error(`must be stateprovider ${stateProvider}`);
         }
         this._sp = stateProvider;
@@ -138,6 +137,7 @@ export class NearbyIndex extends NearbyIndexBase {
 
 
 	refresh(diffs) {
+		console.log("nearbyinde refresh", diffs);
 
 		const remove_endpoints = new EndpointSet();
 		const insert_endpoints = new EndpointSet();
@@ -166,7 +166,10 @@ export class NearbyIndex extends NearbyIndexBase {
 			where they were registered (LOW, ACTIVE, HIGH) 
 		*/
 		for (const item of remove_items) {
+			console.log("remove item", item);
 			for (const ep in this._endpoints.lookup(item.itv)) {
+				// TODO: check if this is correct
+				console.log("ep", ep);
 				const became_empty = this._itemsmap.unregister(ep, item);
 				if (became_empty) remove_endpoints.add(ep);
 			}	
