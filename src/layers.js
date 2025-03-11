@@ -5,9 +5,8 @@ import * as segment from "./segments.js";
 
 import { interval, endpoint } from "./intervals.js";
 import { range, toState } from "./util.js";
-import { StateProviderBase } from "./stateprovider_base.js";
 import { NearbyIndex } from "./nearbyindex.js";
-
+import { LocalStateProvider, is_stateprovider } from "./stateprovider.js";
 
 /************************************************
  * LAYER
@@ -191,7 +190,7 @@ export class InputLayer extends Layer {
 
     srcprop_check(propName, src) {
         if (propName == "src") {
-            if (!(src instanceof StateProviderBase)) {
+            if (!(is_stateprovider(src))) {
                 throw new Error(`"src" must be state provider ${src}`);
             }
             return src;    
