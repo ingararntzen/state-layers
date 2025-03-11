@@ -1,12 +1,24 @@
-import { StateProviderBase } from "./stateprovider_base.js";
 import { interval } from "./intervals.js";
 import { random_string } from "./util.js";
+import * as callback from "./api_callback.js";
+
 
 function check_item(item) {
     item.itv = interval.from_input(item.itv);
     item.id = item.id || random_string(10);
     return item;
 }
+
+
+export function is_stateprovider(obj) {
+    const methods = ["add_callback", "remove_callback", "get_items"];
+    for (prop of methods) {
+        if (!(prop in obj)) return false;
+        if (typeof obj[prop] != 'function') return false;
+    }
+    return true;
+}
+
 
 /***************************************************************
     LOCAL STATE PROVIDER
@@ -17,23 +29,23 @@ function check_item(item) {
  * collection of items
  * 
  * changes = {
- *   items=[],
  *   remove=[],
- *   clear=false 
+ *   insert=[],
+ *   reset=false 
  * }
  * 
 */
 
-export class LocalStateProvider extends StateProviderBase {
+export class LocalStateProvider {
 
     constructor(options={}) {
-        super();
+        callback.addToInstance(this);
         this._map = new Map();
         this._initialise(options);
     }
 
     /**
-     * Local StateProviders support initialisation with
+     * Local stateprovider support initialisation with
      * by giving items or a value. 
      */
     _initialise(options={}) {
@@ -53,7 +65,7 @@ export class LocalStateProvider extends StateProviderBase {
     }
 
     /**
-     * Local StateProviders decouple update request from
+     * Local stateproviders decouple update request from
      * update processing, and returns Promise.
      */
     update (changes) {
@@ -73,9 +85,9 @@ export class LocalStateProvider extends StateProviderBase {
         let {
             items=[],
             remove=[],
-            clear=true
+            reset=false
         } = changes;
-        if (clear) {
+        if (reset) {
             // clear all items
             this._map = new Map();
         } else {
@@ -106,4 +118,4 @@ export class LocalStateProvider extends StateProviderBase {
         return [...this._map.values()];
     };
 }
-
+callback.addToPrototype(LocalStateProvider.prototype);

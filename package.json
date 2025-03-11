@@ -27,9 +27,9 @@
   "author": "Ingar M. Arntzen",
   "license": "BSD-2",
   "bugs": {
-    "url": "https://github.com/ingararntzen/statelayers/issues"
+    "url": "https://github.com/ingararntzen/state-layers/issues"
   },
-  "homepage": "https://github.com/ingararntzen/statelayers#readme",
+  "homepage": "https://github.com/ingararntzen/state-layers#readme",
   "devDependencies": {
     "@babel/preset-env": "^7.26.0",
     "@eslint/js": "^9.17.0",

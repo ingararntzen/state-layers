@@ -17,7 +17,7 @@ function add_callback (handler) {
 };
 
 function remove_callback (handle) {
-    let index = this[`${PREFIX}_handlers`].indexof(handle);
+    let index = this[`${PREFIX}_handlers`].indexOf(handle);
     if (index > -1) {
         this[`${PREFIX}_handlers`].splice(index, 1);
     }

@@ -1,5 +1,5 @@
 import * as srcprop from "./api_srcprop.js";
-import { ClockProviderBase, localClockProvider } from "./clockprovider.js";
+import { LOCAL_CLOCK_PROVIDER, is_clockprovider } from "./clockprovider.js";
 import { cmd } from "./cmd.js";
 import { Layer } from "./layers.js";
 import { interval } from "./intervals.js";
@@ -96,7 +96,7 @@ export class Cursor extends Layer {
 
         // initialise ctrl, src
         let {src, ctrl} = options;
-        this.ctrl = ctrl || localClockProvider;
+        this.ctrl = ctrl || LOCAL_CLOCK_PROVIDER;
         this.src = src;
     }
 
@@ -106,10 +106,7 @@ export class Cursor extends Layer {
 
     srcprop_check(propName, obj) {
         if (propName == "ctrl") {
-            const ok = [ClockProviderBase, Cursor]
-                .map((cl) => obj instanceof cl)
-                .some(e=>e == true);
-            if (!ok) {
+            if (is_clockprovider(obj) || obj instanceof Cursor) {
                 throw new Error(`"ctrl" must be ClockProvider or Cursor ${obj}`)
             }
         } else if (propName == "src") {
@@ -181,17 +178,17 @@ export class Cursor extends Layer {
      * 
      * Approach [1] 
      * In cases where the ctrl is deterministic, a timeout
-     * can be calculated. This is trivial if ctrl is a ClockCursor, and
+     * can be calculated. This is trivial if ctrl is a ClockProvider, and
      * it is fairly easy if the ctrl is Cursor representing motion
      * or linear transition. However, calculations can become more
      * complex if motion supports acceleration, or if transitions
      * are set up with non-linear easing.
      *   
      * Note, however, that these calculations assume that the cursor.ctrl is 
-     * a ClockCursor, or that cursor.ctrl.ctrl is a ClockCursor. 
+     * a ClockProvider, or that cursor.ctrl.ctrl is a ClockProider. 
      * In principle, though, there could be a recursive chain of cursors,
      * (cursor.ctrl.ctrl....ctrl) of some length, where only the last is a 
-     * ClockCursor. In order to do deterministic calculations in the general
+     * ClockProvider. In order to do deterministic calculations in the general
      * case, all cursors in the chain would have to be limited to 
      * deterministic linear transformations.
      * 
@@ -202,7 +199,7 @@ export class Cursor extends Layer {
      * future values. This approch would work for all types, 
      * but there is no knowing how far into the future one 
      * would have to seek. However, again - as in [1] the ability to sample future values
-     * is predicated on cursor.ctrl being a ClockCursor. Also, there 
+     * is predicated on cursor.ctrl being a ClockProvider. Also, there 
      * is no way of knowing how long into the future sampling would be necessary.
      * 
      * Approach [3] 
@@ -224,9 +221,9 @@ export class Cursor extends Layer {
      * 
      * CONDITIONS when approach [1] can be used
      * 
-     * (i) if ctrl is a ClockCursor && nearby.itv.high < Infinity
+     * (i) if ctrl is a ClockProvider && nearby.itv.high < Infinity
      * or
-     * (ii) ctrl.ctrl is a ClockCursor
+     * (ii) ctrl.ctrl is a ClockProvider
      *      (a) ctrl.nearby.center has exactly 1 item
      *      &&
      *      (b) ctrl.nearby.center[0].type == ("motion") || ("transition" && easing=="linear")
@@ -258,7 +255,7 @@ export class Cursor extends Layer {
         const [low, high] = src_nearby.itv.slice(0,2);
 
         // approach [1]
-        if (this.ctrl instanceof ClockProviderBase) {
+        if (is_clockprovider(this.ctrl)) {
             if (isFinite(high)) {
                 this.__set_timeout(high, current_pos, 1.0, current_ts);
                 return;
@@ -266,7 +263,7 @@ export class Cursor extends Layer {
             // no future event to detect
             return;
         } 
-        if (this.ctrl.ctrl instanceof ClockProviderBase) {
+        if (is_clockprovider(this.ctrl.ctrl)) {
             /** 
              * this.ctrl 
              * 
@@ -372,7 +369,7 @@ export class Cursor extends Layer {
      **********************************************************/
 
     _get_ctrl_state () {
-        if (this.ctrl instanceof ClockProviderBase) {
+        if (is_clockprovider(this.ctrl)) {
             let ts = this.ctrl.now();
             return {value:ts, dynamic:true, offset:ts};
         } else {

@@ -1,39 +1,36 @@
-import * as callback from "./api_callback.js";
-import { CLOCK } from "./util.js";
-
-/************************************************
- * CLOCK PROVIDER BASE
- ************************************************/
+// webpage clock - performance now - seconds
+const local = {
+    now: function() {
+        return performance.now()/1000.0;
+    }
+}
+// system clock - epoch - seconds
+const epoch = {
+    now: function() {
+        return new Date()/1000.0;
+    }
+}
 
 /**
- * Base class for ClockProviders
- * 
- * Clock Providers implement the callback
- * interface to be compatible with other state
- * providers, even though they are not required to
- * provide any callbacks after clock adjustments
+ * CLOCK gives epoch values, but is implemented
+ * using performance now for better
+ * time resolution and protection against system 
+ * time adjustments.
  */
 
-export class ClockProviderBase {
-    constructor() {
-        callback.addToInstance(this);
-    }
-    now () {
-        throw new Error("not implemented");
-    }
+export const LOCAL_CLOCK_PROVIDER = function () {
+    const t0_local = local.now();
+    const t0_epoch = epoch.now();
+    return {
+        now: function () {
+            const t1_local = local.now();
+            return t0_epoch + (t1_local - t0_local);
+        }
+    };
+}();
+
+export function is_clockprovider(obj) {
+    return (
+        ("now" in obj) && typeof (obj.now == "function")
+    )
 }
-callback.addToPrototype(ClockProviderBase.prototype);
-
-
-
-/************************************************
- * LOCAL CLOCK PROVIDER
- ************************************************/
-
-class LocalClockProvider extends ClockProviderBase {
-    now () {
-        return CLOCK.now();
-    }
-}
-
-export const localClockProvider = new LocalClockProvider();
