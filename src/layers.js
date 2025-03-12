@@ -40,7 +40,6 @@ export class Layer {
 
         // query options
         this._queryOptions = {valueFunc, stateFunc};
-
     }
 
     // index
@@ -198,7 +197,6 @@ export class InputLayer extends Layer {
     }
 
     srcprop_onchange(propName, eArg) {
-        console.log("layer change", propName, eArg);
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
                 this.index = new NearbyIndex(this.src);

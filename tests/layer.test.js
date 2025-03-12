@@ -10,7 +10,7 @@ describe('NearbyIndexList', () => {
             {itv: [2, 4, true, false], data: 0.5},
             {itv: [6, 8, true, false], data: 1.0},
         ];
-        const layer = sl.layer({items});
+        const layer = sl.layer({insert:items});
         let result = layer.sample();
 
         expect(result.length).toBe(8-2+1);

@@ -18,7 +18,7 @@ describe('NearbyIndex Regions', () => {
             return {itv};
         })
 
-        const src = new LocalStateProvider({items});
+        const src = new LocalStateProvider({insert:items});
         const index = new NearbyIndex(src);
 
         let result = [...index.regions({includeEmpty:false})];
@@ -45,7 +45,7 @@ describe('NearbyIndex Regions', () => {
             return {itv};
         })
 
-        const src = new LocalStateProvider({items});
+        const src = new LocalStateProvider({insert:items});
         const index = new NearbyIndex(src);
 
         let regions = [...index.regions({includeEmpty:true})];
@@ -79,7 +79,7 @@ describe('NearbyIndex Regions', () => {
             return {itv};
         })
 
-        const src = new LocalStateProvider({items});
+        const src = new LocalStateProvider({insert:items});
         const index = new NearbyIndex(src);
         const regions = [...index.regions({start:1.5, stop:5})];
 
@@ -106,7 +106,7 @@ describe('NearbyIndex Regions', () => {
             return {itv, data: "data"};
         });
 
-        const src = new LocalStateProvider({items});
+        const src = new LocalStateProvider({insert:items});
         const index = new NearbyIndex(src);
         let nearby, next, prev;
 
@@ -145,7 +145,7 @@ describe('NearbyIndex Regions', () => {
             return {itv, data: "data"};
         });
 
-        const src = new LocalStateProvider({items});
+        const src = new LocalStateProvider({insert:items});
         const index = new NearbyIndex(src);
         let nearby, next;
 

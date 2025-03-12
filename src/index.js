@@ -12,18 +12,12 @@ import { logical_merge, logical_expr} from "./ops/logical_merge.js";
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, items=[], value, ...opts} = options;
+    let {src, ...opts} = options;
     if (src instanceof Layer) {
         return src;
     } 
     if (src == undefined) {
-        if (value != undefined) {
-            items = [{
-                itv: [-Infinity, Infinity],
-                data: value
-            }];
-        } 
-        src = new LocalStateProvider({items});
+        src = new LocalStateProvider(opts);
     }
     return new InputLayer({src, ...opts}); 
 }
@@ -38,4 +32,9 @@ function cursor(options={}) {
     return new Cursor({ctrl, src});
 }
 
-export { layer, cursor, merge, shift, cmd, cursor as variable, cursor as playback, boolean, logical_merge, logical_expr}
+export { 
+    layer, cursor, merge, shift, cmd, 
+    cursor as variable, 
+    cursor as playback, 
+    boolean, logical_merge, logical_expr
+}

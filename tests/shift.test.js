@@ -8,7 +8,7 @@ describe('SkewLayerTest', () => {
 
         const OFFSET = 2
 
-        const l1 = sl.layer({items:[
+        const l1 = sl.layer({insert:[
             {itv: [0, 1, true, false], data: 0},
             {itv: [1, 2, true, false], data: 1},
             {itv: [2, 3, true, false], data: 2},
@@ -17,7 +17,6 @@ describe('SkewLayerTest', () => {
             {itv: [5, 6, true, false], data: 5},
             {itv: [6, 7, true, false], data: 6},
             {itv: [7, 8, true, false], data: 7},
-
         ]});
 
         const l2 = sl.shift(l1, OFFSET);

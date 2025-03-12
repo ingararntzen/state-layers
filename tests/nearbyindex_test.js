@@ -2,18 +2,13 @@
 import { LocalStateProvider } from "../src/stateprovider.js";
 import { NearbyIndex } from "../src/nearbyindex.js";
 
-function setup(changes) {
-    const sp = new LocalStateProvider();
+function setup(options) {
+    const sp = new LocalStateProvider(options);
     const index = new NearbyIndex(sp);
-
-
     sp.add_callback((diffs) => {
         index.refresh(diffs);
     });
-
-    let diffs = sp._update(changes);
-    sp.notify_callbacks(diffs);
-    return index;
+    return [sp, index];
 }
 
 // Add your test cases here
@@ -39,7 +34,7 @@ describe('Test NearbyIndex', () => {
             // outside 3.5 right
             {type: "static", itv: [4, 6, true, false], value: 7.0},
         ];
-        let index = setup({items, clear:true});
+        let [sp, index] = setup({insert:items});
 
         let values = new Set(index._covers([3.5,0]).map(item => item.value));
         expect(values.has(3));
@@ -64,7 +59,7 @@ describe('Test NearbyIndex', () => {
             return {itv};
         });
 
-        const index = setup({items, clear:true});
+        const [sp, index] = setup({insert:items});
 
         // Test -Infinity
         let nearby = index.nearby(-Infinity);
@@ -91,7 +86,7 @@ describe('Test NearbyIndex', () => {
             return {itv};
         })
 
-        const index = setup({items, clear:true});
+        const [sp, index] = setup({insert:items});
 
         // FIRST ITEM
 
@@ -147,22 +142,50 @@ describe('Test NearbyIndex', () => {
 
     test('should update the index with one item and check nearby.center', () => {
 
-        const index = setup({items:[], clear:true});
+        const [sp, index] = setup();
 
         // Check nearby.center before update
         let nearby = index.nearby(1.5);
         expect(nearby.center).toStrictEqual([]);
 
-
         // Update the index with a new item
         const new_item = {
             itv: [-Infinity, Infinity, true, true], 
-            args: {value:1}
+            data: {value:1}
         }
-        index.src.update({items:[new_item], clear:true}).then(() => {
+        sp.update({insert:[new_item], reset:true}).then(() => {
             // Check nearby.center after update
             nearby = index.nearby(1.5);
+            expect(nearby.center.length == 0)
             expect(nearby.center[0]).toStrictEqual(new_item);
+        });
+    });
+
+    test('index should be correct after index refresh removes removes an item', () => {
+
+        // initialise with one item
+        const item_1 = {
+            id: "a",
+            itv: [-Infinity, Infinity, true, true], 
+            data: {value:1}
+        }
+        const [sp, index] = setup({insert:[item_1]});
+
+        // verify initialization
+        let nearby = index.nearby(1.5);
+        expect(nearby.center.length == 1);
+        expect(nearby.center[0]).toStrictEqual(item_1);
+
+        // update to another item
+        const item_2 = {
+            id: "b",
+            itv: [-Infinity, Infinity, true, true], 
+            data: {value:2}
+        }
+        sp.update({insert:[item_2], reset:true}).then(() => {
+            // Check nearby.center after update
+            nearby = index.nearby(1.5);
+            expect(nearby.center.length == 1);
         });
     });
 });

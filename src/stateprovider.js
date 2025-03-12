@@ -48,17 +48,17 @@ export class LocalStateProvider {
      */
     _initialise(options={}) {
         // initialization with items or single value 
-        let {items, value} = options;
+        let {insert, value} = options;
         if (value != undefined) {
             // initialize from value
-            items = [{
+            insert = [{
                 itv: [-Infinity, Infinity, true, true], 
                 type: "static",
                 data: value
             }];
         }
-        if (items != undefined) {
-            this._update({insert:items, reset:true});
+        if (insert != undefined) {
+            this._update({insert, reset:true});
         }
     }
 
@@ -72,7 +72,6 @@ export class LocalStateProvider {
             let diffs;
             if (changes != undefined) {
                 diffs = this._update(changes);
-                console.log("diffs", diffs);
                 this.notify_callbacks(diffs);
             }
             return diffs;

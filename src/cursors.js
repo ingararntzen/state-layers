@@ -126,7 +126,6 @@ export class Cursor extends Layer {
      **********************************************************/
 
     __handle_change(origin, eArg) {
-        console.log("cursor change", origin, eArg);
         clearTimeout(this._tid);
         clearInterval(this._pid);
         if (this.src && this.ctrl) {

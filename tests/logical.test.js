@@ -7,12 +7,12 @@ describe('Test Logical Merge', () => {
 
     test('Check values of Logical Merge Layer', () => {
 
-        const l1 = sl.layer({items:[
+        const l1 = sl.layer({insert:[
             {itv: [0, 1, true, false], data: 0},
             {itv: [1, 5, true, false], data: 1},
         ]});
 
-        const l2 = sl.layer({items:[
+        const l2 = sl.layer({insert:[
             {itv: [3, 4, true, false], data: 3},
             {itv: [4, 10, true, false], data: 4},    
         ]});

@@ -137,7 +137,6 @@ export class NearbyIndex extends NearbyIndexBase {
 
 
 	refresh(diffs) {
-		console.log("nearbyinde refresh", diffs);
 
 		const remove_endpoints = new EndpointSet();
 		const insert_endpoints = new EndpointSet();
@@ -165,11 +164,10 @@ export class NearbyIndex extends NearbyIndexBase {
 			unregister remove items across all endpoints 
 			where they were registered (LOW, ACTIVE, HIGH) 
 		*/
-		for (const item of remove_items) {
-			console.log("remove item", item);
-			for (const ep in this._endpoints.lookup(item.itv)) {
+		for (const item of remove_items) {			
+			const eps = this._endpoints.lookup(item.itv);
+			for (const ep of this._endpoints.lookup(item.itv)) {
 				// TODO: check if this is correct
-				console.log("ep", ep);
 				const became_empty = this._itemsmap.unregister(ep, item);
 				if (became_empty) remove_endpoints.add(ep);
 			}	

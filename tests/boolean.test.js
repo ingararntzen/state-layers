@@ -5,24 +5,22 @@ import { NearbyIndex } from '../src/nearbyindex.js';
 import { BooleanIndex } from '../src/ops/boolean.js';
 
 
-function setup(changes) {
-    const sp = new LocalStateProvider();
+function setup(options) {
+    const sp = new LocalStateProvider(options);
     const index = new NearbyIndex(sp);
-
-    sp.add_callback((_changes) => {
-        index.refresh(_changes);
+    sp.add_callback((diffs) => {
+        index.refresh(diffs);
     });
-    let diffs = sp._update(changes);
-    sp.notify_callbacks(diffs);
-    return index;
+    return [sp, index];
 }
+
 
 // Add your test cases here
 describe('Test Logical Layer', () => {
 
     test('Check values of Logical Layer', () => {
 
-        const l1 = sl.layer({items:[
+        const l1 = sl.layer({insert:[
             {itv: [0, 1, true, false], data: 0},
             {itv: [1, 2, true, false], data: 1},
             {itv: [2, 3, true, false], data: 2},
@@ -70,7 +68,7 @@ describe('Test Logical Layer', () => {
             return {itv, data: "data"};
         });
 
-        const index = setup({items, clear:true})
+        const [sp, index] = setup({insert:items})
         const bool_index = new BooleanIndex(index);
 
         // check values

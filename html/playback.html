@@ -29,7 +29,7 @@
             {itv: [6, 7], data: "violet"},
         ];
 
-        const colors = sl.layer({items})
+        const colors = sl.layer({insert:items})
         const offset = sl.variable({value:0});
         const color = sl.playback({src:colors, ctrl:offset});
 

@@ -8,21 +8,21 @@
 
         import * as sl from './libs/layers.es.js';
 
-        const l1 = sl.layer({items:[
+        const l1 = sl.layer({insert:[
             {itv: [0, 1], data: 1},
             {itv: [2, 3], data: 2},
             {itv: [4, 5], data: 3},
             {itv: [6, 7], data: 4},
         ]});
 
-        const l2 = sl.layer({items:[
+        const l2 = sl.layer({insert:[
             {itv: [0.5, 1.5], data: 0.5},
             {itv: [2.5, 3.5], data: 1.5},
             {itv: [4.5, 5.5], data: 2.5},
         ]});
 
         const options = {
-            valueFunc({states}) {
+            valueFunc: function ({states}) {
                 return states.reduce((acc, cur) => acc + cur.value, 0);
             }
         }
