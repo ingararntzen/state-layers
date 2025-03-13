@@ -1,4 +1,4 @@
-import { endpoint, interval } from "../intervals.js";
+import { endpoint } from "../intervals.js";
 import { NearbyIndexBase, nearby_from } from "../nearbyindex_base.js";
 import { Layer } from "../layers.js"
 import * as srcprop from "../api_srcprop.js";
@@ -150,11 +150,11 @@ export class MergeIndex extends NearbyIndexBase {
         
         // find closest endpoint to the right (not in center)
         next_list.sort(cmp_ascending);
-        const next_low = next_list[0] || [Infinity, 0];
+        const next_low = next_list[0] || endpoint.POS_INF;
 
         // find closest endpoint to the left (not in center)
         prev_list.sort(cmp_descending);
-        const prev_high = prev_list[0] || [-Infinity, 0];
+        const prev_high = prev_list[0] || endpoint.NEG_INF;
 
         return nearby_from(
                 prev_high, 

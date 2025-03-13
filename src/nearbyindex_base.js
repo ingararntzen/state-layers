@@ -28,11 +28,11 @@ import { endpoint, interval } from "./intervals.js";
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}
- *          always a high-endpoint or [-Infinity, 0]
+ *          always a high-endpoint or endpoint.NEG_INF
  *      right:
  *          first interval endpoint to the right
  *          which will produce different {center}
- *          always a low-endpoint or [Infinity, 0]    
+ *          always a low-endpoint or endtpoint.POS_INF
  * 
  * 
  * The nearby state is well-defined for every endpoint
@@ -97,16 +97,16 @@ export class NearbyIndexBase {
         return low point of leftmost entry
     */
     first() {
-        let {center, right} = this.nearby(-Infinity);
-        return (center.length > 0) ? endpoint.from_input(-Infinity) : right;
+        let {center, right} = this.nearby(endpoint.NEG_INF);
+        return (center.length > 0) ? endpoint.NEG_INF : right;
     }
 
     /*
         return high point of rightmost entry
     */
     last() {
-        let {left, center} = this.nearby(Infinity);
-        return (center.length > 0) ? endpoint.from_input(Infinity) : left
+        let {left, center} = this.nearby(endpoint.POS_INF);
+        return (center.length > 0) ? endpoint.POS_INF : left
     }
 
 

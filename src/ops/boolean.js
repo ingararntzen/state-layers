@@ -86,10 +86,10 @@ export class BooleanIndex extends NearbyIndexBase {
         }
 
         // expand to infinity
-        left = left || [-Infinity, 0];
-        right = right || [Infinity, 0];
-        const low = endpoint.flip(left, "low");
-        const high = endpoint.flip(right, "high")
+        left = left || endpoint.NEG_INF;
+        right = right || endpoint.POS_INF;
+        const low = endpoint.flip(left);
+        const high = endpoint.flip(right)
         return {
             itv: interval.from_endpoints(low, high),
             center : [queryObject(evaluation)],

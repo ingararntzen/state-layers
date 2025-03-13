@@ -30,7 +30,7 @@ export const LOCAL_CLOCK_PROVIDER = function () {
 }();
 
 export function is_clockprovider(obj) {
-    return (
-        ("now" in obj) && typeof (obj.now == "function")
-    )
+    if (!("now" in obj)) return false;
+    if (typeof obj.now != "function") return false;
+    return true;
 }

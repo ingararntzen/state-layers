@@ -6,8 +6,6 @@ import { interval } from "./intervals.js";
 import { bind, release } from "./monitor.js";
 import { NearbyIndexBase } from "./nearbyindex_base.js";
 
-
-
 /**
  * Cursor emulates Layer interface.
  * Part of this is to prove an index for the timeline. 
@@ -58,6 +56,10 @@ class CursorCache {
     query() {
         const offset = this._cursor._get_ctrl_state().value; 
         return this._cache.query(offset);
+    }
+
+    get segment() {
+        return this._cache.segment;
     }
 
     clear() {
@@ -252,7 +254,13 @@ export class Cursor extends Layer {
 
         // get nearby from src - use value from ctrl
         const src_nearby = this.src.index.nearby(current_pos);
-        const [low, high] = src_nearby.itv.slice(0,2);
+        let [low, high] = src_nearby.itv.slice(0,2);        
+        if (low == null) {
+            low = -Infinity
+        }
+        if (high == null) {
+            high = Infinity;
+        }
 
         // approach [1]
         if (is_clockprovider(this.ctrl)) {
@@ -262,27 +270,28 @@ export class Cursor extends Layer {
             }
             // no future event to detect
             return;
-        } 
+        }
         if (is_clockprovider(this.ctrl.ctrl)) {
             /** 
-             * this.ctrl 
+             * this.ctrl is a cursor
              * 
              * has many possible behaviors
              * this.ctrl has an index use this to figure out which
              * behaviour is current.
              * 
             */
-            // use the same offset that was used in the ctrl.query
-            const ctrl_nearby = this.ctrl.index.nearby(current_ts);
-
             if (!isFinite(low) && !isFinite(high)) {
                 // no future event to detect
                 return;
             }
-            if (ctrl_nearby.center.length == 1) {
-                const ctrl_item = ctrl_nearby.center[0];
-                if (ctrl_item.type == "motion") {
-                    const {velocity, acceleration=0.0} = ctrl_item.data;
+            // use the same offset that was used in the ctrl.query
+            // assuming that this.ctrl.src is InputLayer with segments
+            const ctrl_src_nearby = this.ctrl.src.index.nearby(current_ts);
+
+            if (ctrl_src_nearby.center.length == 1) {
+                const seg = ctrl_src_nearby.center[0];
+                if (seg.type == "motion") {
+                    const {velocity, acceleration=0.0} = seg.data;
                     if (acceleration == 0.0) {
                         // figure out which boundary we hit first
                         let target_pos = (velocity > 0) ? high : low;
@@ -294,8 +303,8 @@ export class Cursor extends Layer {
                         return;
                     }
                     // acceleration - possible event to detect
-                } else if (ctrl_item.type == "transition") {
-                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.data;
+                } else if (seg.type == "transition") {
+                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = seg.data;
                     if (easing == "linear") {
                         // linear transtion
                         let velocity = (p1-p0)/(t1-t0);
@@ -358,7 +367,7 @@ export class Cursor extends Layer {
     }
 
     __handle_poll(itv) {
-        let offset = this.query().value;
+        let offset = this.ctrl.query().value;
         if (!interval.covers_point(itv, offset)) {
             this.__handle_change("timeout");
         }

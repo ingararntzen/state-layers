@@ -84,7 +84,6 @@ describe('SkewLayerTest', () => {
         let values;
     
         values = b.lookup([4, 7, true, true]);
-        console.log(values);
         expect(values[0][0]).toBe(4)
         expect(values.slice(-1)[0][0]).toBe(7);
     

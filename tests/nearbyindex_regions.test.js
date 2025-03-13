@@ -8,10 +8,10 @@ describe('NearbyIndex Regions', () => {
     test('test region iterator', () => {
 
         const intervals = [
-            [-Infinity, 0, true, false],
+            [null, 0, true, false],
             [0, 1, true, true],
             // gap
-            [2, Infinity, false, true],
+            [2, null, false, true],
         ]
 
         const items = intervals.map(itv => {
@@ -35,10 +35,10 @@ describe('NearbyIndex Regions', () => {
     test('test region iterator', () => {
 
         const intervals = [
-            [-Infinity, 0, true, false],
+            [null, 0, true, false],
             [0, 1, true, false],
             // gap
-            [2, Infinity, true, true],
+            [2, null, true, true],
         ]
 
         const items = intervals.map(itv => {
@@ -63,16 +63,14 @@ describe('NearbyIndex Regions', () => {
 
     });
 
-
-
     test('test region iterator with ranges', () => {
 
         const intervals = [
-            [-Infinity, 0, true, false],
+            [null, 0, true, false],
             [0, 1, true, false],
             // gap
             [2, 4, true, false],
-            [4, Infinity, true, true],
+            [4, null, true, true],
         ]
 
         const items = intervals.map(itv => {
@@ -86,11 +84,8 @@ describe('NearbyIndex Regions', () => {
         expect(regions.length).toBe(3);
         expect(regions[0].itv).toStrictEqual([1, 2, true, false]);
         expect(regions[1].itv).toStrictEqual([2, 4, true, false]);
-        expect(regions[2].itv).toStrictEqual([4, Infinity, true, true]);
+        expect(regions[2].itv).toStrictEqual([4, null, true, true]);
     });
-
-
-
 
     test('test next prev', () => {
 
@@ -130,15 +125,13 @@ describe('NearbyIndex Regions', () => {
 
     });
 
-
-
     test('test next prev 2', () => {
 
         const intervals = [
-            [-Infinity, 0, true, false],
+            [null, 0, true, false],
             [0, 1, true, true],
             // gap
-            [2, Infinity, false, true],
+            [2, null, false, true],
         ]
 
         const items = intervals.map(itv => {

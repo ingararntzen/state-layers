@@ -29,9 +29,9 @@ describe('Test Logical Merge', () => {
         const regions = [...l3.regions()]
 
         expect(regions.length).toBe(3);
-        expect(regions[0].itv).toStrictEqual([-Infinity, 3, true, false]);
+        expect(regions[0].itv).toStrictEqual([null, 3, true, false]);
         expect(regions[1].itv).toStrictEqual([3, 5, true, false]);
-        expect(regions[2].itv).toStrictEqual([5, Infinity, true, true]);
+        expect(regions[2].itv).toStrictEqual([5, null, true, true]);
         
         expect(l3.query(-1).value).toBe(false);
         expect(l3.query(4).value).toBe(true);

@@ -37,9 +37,9 @@ describe('Test Logical Layer', () => {
         // regions
         const regions = [...l2.regions()]
         expect(regions.length).toBe(3);
-        expect(regions[0].itv).toStrictEqual([-Infinity, 0, true, false]);
+        expect(regions[0].itv).toStrictEqual([null, 0, true, false]);
         expect(regions[1].itv).toStrictEqual([0, 8, true, false]);
-        expect(regions[2].itv).toStrictEqual([8, Infinity, true, true]);
+        expect(regions[2].itv).toStrictEqual([8, null, true, true]);
         
 
         // values
@@ -61,7 +61,7 @@ describe('Test Logical Layer', () => {
             // gap - #4
             [5, 6, true, false], // # 5
             [6, 7, true, false], // # 5
-            [7, Infinity, true, true], // # 5
+            [7, null, true, true], // # 5
         ]
 
         const items = intervals.map(itv => {
@@ -83,12 +83,12 @@ describe('Test Logical Layer', () => {
         expect(regions.length).toBe(6);
                 
         // check each region
-        expect(regions[0].itv).toStrictEqual([-Infinity, 0, true, false]);
+        expect(regions[0].itv).toStrictEqual([null, 0, true, false]);
         expect(regions[1].itv).toStrictEqual([0, 1, true, false]);
         expect(regions[2].itv).toStrictEqual([1, 2, true, false]);
         expect(regions[3].itv).toStrictEqual([2, 4, true, false]);
         expect(regions[4].itv).toStrictEqual([4, 5, true, false]);
-        expect(regions[5].itv).toStrictEqual([5, Infinity, true, true]);
+        expect(regions[5].itv).toStrictEqual([5, null, true, true]);
 
     });
     

@@ -1,6 +1,10 @@
 /* global describe, test, expect */
 import { LocalStateProvider } from "../src/stateprovider.js";
 import { NearbyIndex } from "../src/nearbyindex.js";
+import { endpoint } from "../src/intervals.js";
+
+const EP_POS_INF = endpoint.from_input(Infinity);
+const EP_NEG_INF = endpoint.from_input(-Infinity);
 
 function setup(options) {
     const sp = new LocalStateProvider(options);
@@ -14,7 +18,7 @@ function setup(options) {
 // Add your test cases here
 describe('Test NearbyIndex', () => {
 
-    test.only('test nearbyindex covers', () => {
+    test('test nearbyindex covers', () => {
     
         const items = [
             // outside 3.5 left
@@ -36,23 +40,23 @@ describe('Test NearbyIndex', () => {
         ];
         let [sp, index] = setup({insert:items});
 
-        let values = new Set(index._covers([3.5,0]).map(item => item.value));
+        let values = new Set(index._covers(3.5).map(item => item.value));
         expect(values.has(3));
         expect(values.has(4));
         expect(values.has(5));
         expect(values.size == 3)
 
-        values = new Set(index._covers([0,0]).map(item => item.value));
+        values = new Set(index._covers(0).map(item => item.value));
         expect(values.size == 0)
     });
 
     test('should handle -Infinity and Infinity correctly', () => {
 
         const intervals = [
-            [-Infinity, 0, true, false],
+            [null, 0, true, false],
             [0, 1, true, true],
             // gap
-            [2, Infinity, false, true],
+            [2, null, false, true],
         ]
 
         const items = intervals.map(itv => {
@@ -76,10 +80,10 @@ describe('Test NearbyIndex', () => {
     test('test nearbyindex nearby', () => {
     
         const intervals = [
-            [-Infinity, 0, true, false],
+            [null, 0, true, false],
             [0, 1, true, true],
             // gap
-            [2, Infinity, false, true],
+            [2, null, false, true],
         ]
 
         const items = intervals.map(itv => {
@@ -99,7 +103,7 @@ describe('Test NearbyIndex', () => {
         // interval
         expect(nearby.itv).toStrictEqual(intervals[0]);
         // left/right
-        expect(nearby.left).toStrictEqual(endpoint.from_input(-Infinity));
+        expect(nearby.left).toStrictEqual(EP_NEG_INF);
         expect(nearby.right).toStrictEqual([0, "["]);
 
         // SECOND ITEM
@@ -128,7 +132,7 @@ describe('Test NearbyIndex', () => {
         expect(nearby.itv).toStrictEqual(intervals[2]);
         // left/right
         expect(nearby.left).toStrictEqual([2, "]"]);
-        expect(nearby.right).toStrictEqual(endpoint.from_input(Infinity));
+        expect(nearby.right).toStrictEqual(EP_POS_INF);
 
         // GAP
         // endpoint within gap
@@ -150,7 +154,7 @@ describe('Test NearbyIndex', () => {
 
         // Update the index with a new item
         const new_item = {
-            itv: [-Infinity, Infinity, true, true], 
+            itv: [null, null, true, true], 
             data: {value:1}
         }
         sp.update({insert:[new_item], reset:true}).then(() => {
@@ -166,7 +170,7 @@ describe('Test NearbyIndex', () => {
         // initialise with one item
         const item_1 = {
             id: "a",
-            itv: [-Infinity, Infinity, true, true], 
+            itv: [null, null, true, true], 
             data: {value:1}
         }
         const [sp, index] = setup({insert:[item_1]});
@@ -179,7 +183,7 @@ describe('Test NearbyIndex', () => {
         // update to another item
         const item_2 = {
             id: "b",
-            itv: [-Infinity, Infinity, true, true], 
+            itv: [null, null, true, true], 
             data: {value:2}
         }
         sp.update({insert:[item_2], reset:true}).then(() => {

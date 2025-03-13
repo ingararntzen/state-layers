@@ -236,9 +236,10 @@ export class NearbyIndex extends NearbyIndexBase {
 		}
 	}
 
-	_covers (ep) {
-		const ep1 = this._endpoints.le(ep) || endpoint.from_input(-Infinity);
-		const ep2 = this._endpoints.ge(ep) || endpoint.from_input(Infinity);
+	_covers (offset) {
+		const ep = endpoint.from_input(offset);
+		const ep1 = this._endpoints.le(ep) || endpoint.NEG_INF;
+		const ep2 = this._endpoints.ge(ep) || endpoint.POS_INF;
 		if (endpoint.eq(ep1, ep2)) {
 			return this._itemsmap.get_items_by_role(ep1, ACTIVE);	
 		} else {
@@ -254,7 +255,7 @@ export class NearbyIndex extends NearbyIndexBase {
     /*
 		nearby (offset)
     */
-	nearby(offset) { 
+	nearby(offset) {
 		const ep = endpoint.from_input(offset);
 
 		// center
@@ -271,8 +272,8 @@ export class NearbyIndex extends NearbyIndexBase {
 		let prev_high = ep;
 		let items;
 		while (true) {
-			prev_high = this._endpoints.lt(prev_high) || [-Infinity, 0];
-			if (prev_high[0] == -Infinity) {
+			prev_high = this._endpoints.lt(prev_high) || endpoint.NEG_INF;
+			if (prev_high[0] == null) {
 				break
 			}
 			items = this._itemsmap.get_items_by_role(prev_high, HIGH);
@@ -284,8 +285,8 @@ export class NearbyIndex extends NearbyIndexBase {
 		// next low
 		let next_low = ep;
 		while (true) {
-			next_low = this._endpoints.gt(next_low) || [Infinity, 0];
-			if (next_low[0] == Infinity) {
+			next_low = this._endpoints.gt(next_low) || endpoint.POS_INF
+			if (next_low[0] == null) {
 				break
 			}
 			items = this._itemsmap.get_items_by_role(next_low, LOW);

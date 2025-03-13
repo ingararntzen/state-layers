@@ -236,6 +236,7 @@ export class InputLayerCache {
     }
 
     get src() {return this._layer};
+    get segment() {return this._segment};
 
     query(offset) {
         const cache_miss = (

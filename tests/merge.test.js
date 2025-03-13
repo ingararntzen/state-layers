@@ -34,12 +34,10 @@ describe('MergeTest', () => {
             []
         ]
         const expected = {
-            itv: [-Infinity, Infinity, true, true],
+            itv: [null, null, true, true],
             center_length: 0,
-            left: [-Infinity, 0],
-            prev: [-Infinity, 0],
-            right: [Infinity, 0],
-            next: [Infinity, 0]
+            left: [null, "["],
+            right: [null, "]"],
         };
         runtest(layers, expected);
     });
@@ -52,10 +50,8 @@ describe('MergeTest', () => {
         const expected = {
             itv: [1, 8, true, false],
             center_length: 0,
-            left: [1,-1],
-            prev: [1,-1],
-            right: [8,0],
-            next: [8,0]
+            left: [1, ")"],
+            right: [8, "["],
         };
         runtest(layers, expected);
     });
@@ -68,10 +64,8 @@ describe('MergeTest', () => {
         const expected = {
             itv: [1, 8, true, false],
             center_length: 1,
-            left: [1, -1],
-            prev: [-Infinity, 0],
-            right: [8,0],
-            next: [Infinity, 0]
+            left: [1, ")"],
+            right: [8,"["],
         };
         runtest(layers, expected);
     });
@@ -85,10 +79,8 @@ describe('MergeTest', () => {
         const expected = {
             itv: [1, 8, true, false],
             center_length: 1,
-            left: [1, -1],
-            prev: [0, -1],
-            right: [8,0],
-            next: [10,0]
+            left: [1, ")"],
+            right: [8, "["],
         };
         runtest(layers, expected);
     });
@@ -101,16 +93,13 @@ describe('MergeTest', () => {
         const expected = {
             itv: [1, 7, true, false],
             center_length: 2,
-            left: [1, -1],
-            prev: [1, -1],
-            right: [7,0],
-            next: [7,0]
+            left: [1, ")"],
+            right: [7, "["],
         };
         runtest(layers, expected);
     });
 
     test('MultipleEqualCenter-NonEmptyOnSides-Overlap-1', () => {
-        // prev/next closer to offset
         const layers = [
             [[1, 8, true, false]],
             [[1, 8, true, false]],
@@ -120,10 +109,8 @@ describe('MergeTest', () => {
         const expected = {
             itv: [3, 5, true, false],
             center_length: 2,
-            left: [3, -1],
-            prev: [3, -1],
-            right: [5,0],
-            next: [5,0]
+            left: [3, ")"],
+            right: [5, "["],
         };
         runtest(layers, expected);
     });
@@ -139,10 +126,8 @@ describe('MergeTest', () => {
         const expected = {
             itv: [3, 5, true, false],
             center_length: 2,
-            left: [3, -1],
-            prev: [3, -1],
-            right: [5,0],
-            next: [5,0]
+            left: [3, ")"],
+            right: [5, "["],
         };
         runtest(layers, expected);
     });

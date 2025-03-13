@@ -62,9 +62,6 @@ describe('EndpointTest', () => {
         const itv_2 = [0, null, false, true];
         const itv_3 = [null, null, true, true];
 
-        const p = [-Infinity, 0];
-        const itv = [-Infinity, 0, true, false];
-
         expect(interval.covers_endpoint(itv_1, -Infinity) == true);
         expect(interval.covers_endpoint(itv_1, 0) == false);
         expect(interval.covers_endpoint(itv_1, Infinity) == true);

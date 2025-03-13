@@ -87,15 +87,20 @@ function endpoint_from_input(ep) {
     if (!is_EP_TYPE(t)) {
         throw new Error("Unsupported endpoint type", t);
     }
-    if (v == -Infinity || v == Infinity || v == undefined) {
-        v = null;
+    if (v == -Infinity) {
+        return [null, EP_TYPE.LOW_CLOSED];
     }
-    if (v == null || isNumber(v)) {
+    if (v == Infinity) {
+        return [null, EP_TYPE.HIGH_CLOSED];
+    }
+    if (v == undefined || v == null || isNumber(v)) {
         return [v, t];
     }
-    throw new Error("enpoint must be null or number", v);
+    throw new Error("endpoint must be null or number", v);
 }
 
+const endpoint_POS_INF = endpoint_from_input(Infinity);
+const endpoint_NEG_INF = endpoint_from_input(-Infinity);
 
 /**
  * Internal representation 
@@ -203,7 +208,9 @@ function endpoints_from_interval(itv) {
     const [low, high, lowClosed, highClosed] = itv;
     const lowType = (lowClosed) ?  EP_TYPE.LOW_CLOSED : EP_TYPE.LOW_OPEN;
     const highType = (highClosed) ?  EP_TYPE.HIGH_CLOSED : EP_TYPE.HIGH_OPEN;
-    return [[low, lowType], [high, highType]];
+    const lowEp = endpoint_from_input([low, lowType]);
+    const highEp = endpoint_from_input([high, highType]);
+    return [lowEp, highEp];
 }
 
 
@@ -328,7 +335,9 @@ export const endpoint = {
     flip: endpoint_flip,
     from_interval: endpoints_from_interval,
     from_input: endpoint_from_input,
-    types: {...EP_TYPE}
+    types: {...EP_TYPE},
+    POS_INF : endpoint_POS_INF,
+    NEG_INF : endpoint_NEG_INF
 }
 export const interval = {
     covers_endpoint: interval_covers_endpoint,
