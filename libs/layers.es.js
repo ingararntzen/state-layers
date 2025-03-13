@@ -2,18 +2,131 @@
     
     INTERVAL ENDPOINTS
 
-    * interval endpoints are defined by [value, sign], for example
+    * interval endpoints are defined by triplet [value, type]
+    *
+    *   there are 4 types of interval endpoints 
+    *   - v) - high endpoint at v, not inclusive
+    *   - v] - high endpoint at v, inclusive
+    *   - [v - low endpoint at v, not inclusive
+    *   - (v - low endpoint at v, inclusive
     * 
-    * 4) -> [4,-1] - endpoint is on the left of 4
-    * [4, 4, 4] -> [4, 0] - endpoint is at 4 
-    * (4 -> [4, 1] - endpoint is on the right of 4)
+    *   A singular interval [2,2,true,true] will have endpoints [2 and 2]
     * 
-    * This representation ensures that the interval endpoints are ordered and allows
-    * intervals to be exclusive or inclusive, yet cover the entire real line 
+    *   Additionally, to simplify comparison between endpoints and numbers
+    *   wi introduce a special endpoint type - VALUE
     * 
-    * [a,b], (a,b), [a,b), [a, b) are all valid intervals
-
+    *   Thus we define 5 types of endpoints
+    * 
+    *   HIGH_OPEN : v)
+    *   HIGH_CLOSED: v]
+    *   VALUE: v
+    *   LOW_CLOSED: [v
+    *   LOW_OPEN: (v)
+    * 
+    *   For the purpose of endpoint comparison we maintain
+    *   a logical ordering for endpoints with the same value.
+    *   
+    *   v) < [v == v == v] < (v
+    *  
+    *   We assign ordering values
+    *   
+    *   HIGH_OPEN: -1
+    *   HIGH_CLOSED, VALUE, LOW_CLOSED: 0
+    *   LOW_OPEN: 1
+    * 
+    *   value can be null or number. If value is null, this means unbounded endpoint
+    *   i.e. no other endpoint can be larger or smaller.
+    *   an unbounded low endpoint means -Infinity
+    *   an unbounded high endpoint means Infinity
+    *
 */
+
+function isNumber(n) {
+    return typeof n == "number";
+}
+
+const EP_TYPE = Object.freeze({
+    HIGH_OPEN: ")",
+    HIGH_CLOSED: "]",
+    VALUE: "",
+    LOW_CLOSED: "[",
+    LOW_OPEN: "("
+});
+
+function is_EP_TYPE(value) {
+    return Object.values(EP_TYPE).includes(value);
+}
+
+const EP_ORDER = new Map([
+    [EP_TYPE.HIGH_OPEN, -1],
+    [EP_TYPE.HIGH_CLOSED, 0],
+    [EP_TYPE.VALUE, 0],
+    [EP_TYPE.LOW_CLOSED, 0],
+    [EP_TYPE.LOW_OPEN, 1]
+]);
+
+function endpoint_is_low(ep) {
+    return ep[1] == EP_TYPE.LOW_CLOSED || ep[1] == EP_TYPE.LOW_OPEN;
+}
+
+function endpoint_is_high(ep) {
+    return ep[1] == EP_TYPE.HIGH_CLOSED || ep[1] == EP_TYPE.HIGH_OPEN;
+}
+
+/*
+    return endpoint from input
+*/
+function endpoint_from_input(ep) {
+    if (!Array.isArray(ep)) {
+        ep = [ep, EP_TYPE.VALUE];
+    }
+    if (ep.length != 2) {
+        throw new Error("Endpoint must be a length-2 array", ep);
+    }
+    let [v,t] = ep;
+    if (!is_EP_TYPE(t)) {
+        throw new Error("Unsupported endpoint type", t);
+    }
+    if (v == -Infinity) {
+        return [null, EP_TYPE.LOW_CLOSED];
+    }
+    if (v == Infinity) {
+        return [null, EP_TYPE.HIGH_CLOSED];
+    }
+    if (v == undefined || v == null || isNumber(v)) {
+        return [v, t];
+    }
+    throw new Error("endpoint must be null or number", v);
+}
+
+const endpoint_POS_INF = endpoint_from_input(Infinity);
+const endpoint_NEG_INF = endpoint_from_input(-Infinity);
+
+/**
+ * Internal representation 
+ * replacing null valuse with -Infinity or Infinity
+ * in order to simplify numerical comparison
+ */
+function endpoint_internal(ep) {
+    if (ep[0] != null) {
+        return [ep[0], ep[1]];
+    }
+    if (endpoint_is_low(ep)) {
+        return [-Infinity, EP_TYPE.LOW_CLOSED];
+    } else {
+        return [Infinity, EP_TYPE.HIGH_CLOSED];
+    }
+}
+
+/**
+ * Comparison function for numbers
+ * avoid subtraction to support Infinity values
+ */
+function number_cmp(a, b) {
+    if (a < b) return -1; // correct order
+    if (a > b) return 1; // wrong order
+    return 0; // equality
+}
 
 /*
     Endpoint comparison
@@ -21,30 +134,17 @@
         - negative : correct order
         - 0 : equal
         - positive : wrong order
-
-
-    NOTE 
-    - cmp(4],[4 ) == 0 - since these are the same with respect to sorting
-    - but if you want to see if two intervals are overlapping in the endpoints
-    cmp(high_a, low_b) > 0 this will not be good
-    
 */ 
-
-
-function cmpNumbers(a, b) {
-    if (a === b) return 0;
-    if (a === Infinity) return 1;
-    if (b === Infinity) return -1;
-    if (a === -Infinity) return -1;
-    if (b === -Infinity) return 1;
-    return a - b;
-  }
-
-function endpoint_cmp (p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    let diff = cmpNumbers(v1, v2);
-    return (diff != 0) ? diff : s1 - s2;
+function endpoint_cmp(ep1, ep2) {    
+    const [v1, t1] = endpoint_internal(ep1);
+    const [v2, t2] = endpoint_internal(ep2);
+    const diff = number_cmp(v1, v2);
+    if (diff == 0) {
+        const o1 = EP_ORDER.get(t1);
+        const o2 = EP_ORDER.get(t2);
+        return number_cmp(o1, o2);
+    }
+    return diff;
 }
 
 function endpoint_lt (p1, p2) {
@@ -70,64 +170,46 @@ function endpoint_max(p1, p2) {
 }
 
 /**
- * flip endpoint to the other side
+ * flip endpoint:
+ * - ie. get adjacent endponit on the timeline
  * 
- * useful for making back-to-back intervals 
+ * v) <-> [v
+ * v] <-> (v
  * 
- * high) <-> [low
- * high] <-> (low
+ * flipping has no effect on endpoints with unbounded value
  */
 
-function endpoint_flip(p, target) {
-    let [v,s] = p;
-    if (!isFinite(v)) {
-        return p;
+function endpoint_flip(ep, target) {
+    if (target) {
+        throw new Error("target is deprecated");
     }
-    if (target == "low") {
-    	// assume point is high: sign must be -1 or 0
-    	if (s > 0) {
-			throw new Error("endpoint is already low");    		
-    	}
-        p = [v, s+1];
-    } else if (target == "high") {
-		// assume point is low: sign is 0 or 1
-    	if (s < 0) {
-			throw new Error("endpoint is already high");    		
-    	}
-        p = [v, s-1];
+    let [v,t] = ep;
+    if (v == null) {
+        return ep;
+    }
+    if (t == EP_TYPE.HIGH_OPEN) {
+        return [v, EP_TYPE.LOW_CLOSED];
+    } else if (t == EP_TYPE.HIGH_CLOSED) {
+        return [v, EP_TYPE.LOW_OPEN];
+    } else if (t == EP_TYPE.LOW_OPEN) {
+        return [v, EP_TYPE.HIGH_CLOSED];
+    } else if (t == EP_TYPE.LOW_CLOSED) {
+        return [v, EP_TYPE.HIGH_OPEN];
     } else {
-    	throw new Error("illegal type", target);
+    	throw new Error("illegal endpoint type", t);
     }
-    return p;
 }
-
 
 /*
     returns low and high endpoints from interval
 */
 function endpoints_from_interval(itv) {
-    let [low, high, lowClosed, highClosed] = itv;
-    let low_p = (lowClosed) ? [low, 0] : [low, 1]; 
-    let high_p = (highClosed) ? [high, 0] : [high, -1];
-    return [low_p, high_p];
-}
-
-/*
-    returns endpoints from interval
-*/
-
-function endpoint_from_input(offset) {
-    if (typeof offset === 'number') {
-        return [offset, 0];
-    }
-    if (!Array.isArray(offset) || offset.length != 2) {
-        throw new Error("Endpoint must be a length-2 array");
-    }
-    let [value, sign] = offset;
-    if (typeof value !== "number") {
-        throw new Error("Endpoint value must be number");
-    }
-    return [value, Math.sign(sign)];
+    const [low, high, lowClosed, highClosed] = itv;
+    const lowType = (lowClosed) ?  EP_TYPE.LOW_CLOSED : EP_TYPE.LOW_OPEN;
+    const highType = (highClosed) ?  EP_TYPE.HIGH_CLOSED : EP_TYPE.HIGH_OPEN;
+    const lowEp = endpoint_from_input([low, lowType]);
+    const highEp = endpoint_from_input([high, highType]);
+    return [lowEp, highEp];
 }
 
 
@@ -138,55 +220,49 @@ function endpoint_from_input(offset) {
 
 */ 
 
-/*
-    return true if point p is covered by interval itv
-    point p can be number p or a point [p,s]
 
-    implemented by comparing points
-    exception if interval is not defined
+/*
+    return true if point or endpoint is covered by interval
+    point p can be number value or an endpoint
 */
-function interval_covers_endpoint(itv, p) {
-    let [low_p, high_p] = endpoints_from_interval(itv);
+function interval_covers_endpoint(itv, ep) {
+    const [low_ep, high_ep] = endpoints_from_interval(itv);
+    ep = endpoint_from_input(ep);
     // covers: low <= p <= high
-    return endpoint_le(low_p, p) && endpoint_le(p, high_p);
+    return endpoint_le(low_ep, ep) && endpoint_le(ep, high_ep);
 }
 // convenience
 function interval_covers_point(itv, p) {
-    return interval_covers_endpoint(itv, [p, 0]);
+    return interval_covers_endpoint(itv, p);
 }
 
-
-
 /*
-    Return true if interval has length 0
+    Return true if interval endpoints are equal
 */
 function interval_is_singular(interval) {
-    return interval[0] == interval[1]
+    const [low_ep, high_ep] = endpoints_from_interval(itv);
+    return endpoint_eq(low_ep, high_ep);
 }
 
 /*
     Create interval from endpoints
 */
-function interval_from_endpoints(p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    // p1 must be a low point
-    if (s1 == -1) {
-        throw new Error("illegal low point", p1);
+function interval_from_endpoints(ep1, ep2) {
+    let [v1, t1] = ep1;
+    let [v2, t2] = ep2;
+    if (!endpoint_is_low(ep1)) {
+        throw new Error("illegal low endpoint", ep1);
     }
-    if (s2 == 1) {
-        throw new Error("illegeal high point", p2);   
+    if (!endpoint_is_high(ep2)) {
+        throw new Error("illegal high endpoint", ep2);
     }
-    return [v1, v2, (s1==0), (s2==0)]
+    return [v1, v2, t1 == EP_TYPE.LOW_CLOSED, t2 == EP_TYPE.HIGH_CLOSED];
 }
 
-function isNumber(n) {
-    return typeof n == "number";
-}
 
 function interval_from_input(input){
     let itv = input;
-    if (itv == undefined) {
+    if (itv == undefined || itv == null) {
         throw new Error("input is undefined");
     }
     if (!Array.isArray(itv)) {
@@ -200,36 +276,40 @@ function interval_from_input(input){
     if (itv.length == 1) {
         itv = [itv[0], itv[0], true, true];
     } else if (itv.length == 2) {
-        itv = itv.concat([true, false]);
+        itv = [itv[0], itv[1], true, false];
     } else if (itv.length == 3) {
-        itv = itv.push(false);
+        itv = [itv[0], itv[1], itv[2], false];
     } else if (itv.length > 4) {
-        itv = itv.slice(0,4);
+        itv = [itv[0], itv[1], itv[2], itv[4]];
     }
     let [low, high, lowInclude, highInclude] = itv;
-    // undefined
-    if (low == undefined || low == null) {
-        low = -Infinity;
+    // boundary conditions are number or null
+    if (low == undefined || low == -Infinity) {
+        low = null;
     }
-    if (high == undefined || high == null) {
-        high = Infinity;
+    if (high == undefined || high == Infinity) {
+        high = null;
     }
-    // check that low and high are numbers
-    if (!isNumber(low)) throw new Error("low not a number", low);
-    if (!isNumber(high)) throw new Error("high not a number", high);
+    // check low
+    if (low == null) {
+        lowInclude = true;
+    } else {
+        if (!isNumber(low)) throw new Error("low not a number", low);
+    }
+    // check high
+    if (high == null) {
+        highInclude = true;
+    } else {
+        if (!isNumber(high)) throw new Error("high not a number", high);
+    }    
     // check that low <= high
-    if (low > high) throw new Error("low > high", low, high);
-    // singleton
-    if (low == high) {
-        lowInclude = true;
-        highInclude = true;
-    }
-    // check infinity values
-    if (low == -Infinity) {
-        lowInclude = true;
-    }
-    if (high == Infinity) {
-        highInclude = true;
+    if (low != null && high != null) {
+        if (low > high) throw new Error("low > high", low, high);
+        // singleton
+        if (low == high) {
+            lowInclude = true;
+            highInclude = true;
+        }
     }
     // check that lowInclude, highInclude are booleans
     if (typeof lowInclude !== "boolean") {
@@ -240,9 +320,6 @@ function interval_from_input(input){
     }
     return [low, high, lowInclude, highInclude];
 }
-
-
-
 
 const endpoint = {
     le: endpoint_le,
@@ -255,7 +332,10 @@ const endpoint = {
     max: endpoint_max,
     flip: endpoint_flip,
     from_interval: endpoints_from_interval,
-    from_input: endpoint_from_input
+    from_input: endpoint_from_input,
+    types: {...EP_TYPE},
+    POS_INF : endpoint_POS_INF,
+    NEG_INF : endpoint_NEG_INF
 };
 const interval = {
     covers_endpoint: interval_covers_endpoint,
@@ -528,11 +608,11 @@ addToPrototype$1(LocalStateProvider.prototype);
  *      left:
  *          first interval endpoint to the left 
  *          which will produce different {center}
- *          always a high-endpoint or [-Infinity, 0]
+ *          always a high-endpoint or endpoint.NEG_INF
  *      right:
  *          first interval endpoint to the right
  *          which will produce different {center}
- *          always a low-endpoint or [Infinity, 0]    
+ *          always a low-endpoint or endtpoint.POS_INF
  * 
  * 
  * The nearby state is well-defined for every endpoint
@@ -551,13 +631,14 @@ addToPrototype$1(LocalStateProvider.prototype);
  * 
  * INTERVAL ENDPOINTS
  * 
- * interval endpoints are defined by [value, sign], for example
+ * interval endpoints are defined by [value, type], for example
  * 
- * 4) -> [4,-1] - endpoint is on the left of 4
- * [4, 4, 4] -> [4, 0] - endpoint is at 4 
- * (4 -> [4, 1] - endpoint is on the right of 4)
+ * 4) -> [4,")"] - high endpoint left of 4
+ * [4 -> [4, "["] - low endpoint includes 4
+ * 4  -> [4, ""] - value 4
+ * 4] -> [4, "]"] - high endpoint includes 4
+ * (4 -> [4, "("] - low endpoint is right of 4
  * 
- *  
  */
 
 
@@ -567,7 +648,7 @@ addToPrototype$1(LocalStateProvider.prototype);
  */
 function left_endpoint (nearby) {
     const low = endpoint.from_interval(nearby.itv)[0];
-    return endpoint.flip(low, "high");
+    return endpoint.flip(low);
 }
 
 /**
@@ -577,7 +658,7 @@ function left_endpoint (nearby) {
 
 function right_endpoint (nearby) {
     const high = endpoint.from_interval(nearby.itv)[1];
-    return endpoint.flip(high, "low");
+    return endpoint.flip(high);
 }
 
 
@@ -596,16 +677,16 @@ class NearbyIndexBase {
         return low point of leftmost entry
     */
     first() {
-        let {center, right} = this.nearby([-Infinity, 0]);
-        return (center.length > 0) ? [-Infinity, 0] : right;
+        let {center, right} = this.nearby(endpoint.NEG_INF);
+        return (center.length > 0) ? endpoint.NEG_INF : right;
     }
 
     /*
         return high point of rightmost entry
     */
     last() {
-        let {left, center} = this.nearby([Infinity, 0]);
-        return (center.length > 0) ? [Infinity, 0] : left
+        let {left, center} = this.nearby(endpoint.POS_INF);
+        return (center.length > 0) ? endpoint.POS_INF : left
     }
 
 
@@ -616,7 +697,7 @@ class NearbyIndexBase {
      */
     right_region(nearby) {
         const right = right_endpoint(nearby);
-        if (right[0] == Infinity) {
+        if (right[0] == null) {
             return undefined;
         }
         return this.nearby(right);
@@ -629,7 +710,7 @@ class NearbyIndexBase {
      */
     left_region(nearby) {
         const left = left_endpoint(nearby);
-        if (left[0] == -Infinity) {
+        if (left[0] == null) {
             return undefined;
         }
         return this.nearby(left);    
@@ -698,8 +779,8 @@ class RegionIterator {
             throw new Error ("stop must be larger than start", start, stop)
         }
         this._index = index;
-        this._start = [start, 0];
-        this._stop = [stop, 0];
+        this._start = endpoint.from_input(start);
+        this._stop = endpoint.from_input(stop);
 
         if (includeEmpty) {
             this._condition = () => true;
@@ -789,7 +870,7 @@ function nearby_from (
         if (endpoint.le(next_low, min_center_high)) {
             result.right = next_low;
         } else {
-            result.right = endpoint.flip(min_center_high, "low");
+            result.right = endpoint.flip(min_center_high);
         }
         result.next = (multiple_center_high) ? result.right : next_low;
 
@@ -797,15 +878,15 @@ function nearby_from (
         if (endpoint.ge(prev_high, max_center_low)) {
             result.left = prev_high;
         } else {
-            result.left = endpoint.flip(max_center_low, "high");
+            result.left = endpoint.flip(max_center_low);
         }
         result.prev = (multiple_center_low) ? result.left : prev_high;
 
     }
 
     // interval from left/right
-    let low = endpoint.flip(result.left, "low");
-    let high = endpoint.flip(result.right, "high");
+    let low = endpoint.flip(result.left);
+    let high = endpoint.flip(result.right);
     result.itv = interval.from_endpoints(low, high);
 
     return result;
@@ -1459,31 +1540,17 @@ class InterpolationSegment extends BaseSegment {
     }
 }
 
-function lt (p1, p2) {
-	return endpoint.lt(endpoint.from_input(p1), endpoint.from_input(p2));
-}
-function eq (p1, p2) {
-	return endpoint.eq(endpoint.from_input(p1), endpoint.from_input(p2));
-}
-function cmp (p1, p2) {
-	return endpoint.cmp(endpoint.from_input(p1), endpoint.from_input(p2));
-}
-
-
 /*********************************************************************
 	SORTED ARRAY
 *********************************************************************/
 
 /*
-	Sorted array of values.
+	Sorted array of endpoints [value, type].
 	- Elements are sorted in ascending order.
 	- No duplicates are allowed.
 	- Binary search used for lookup
 
-	values can be regular number values (float) or points [float, sign]
-		>a : [a, -1] - largest value smaller than a
-		a  : [a, 0]  - a
-		a< : [a, +1] - smallest value larger than a
+	values can be regular number values (float) or endpoints [float, type]
 */
 
 class SortedArray {
@@ -1494,6 +1561,7 @@ class SortedArray {
 
 	get size() {return this._array.length;}
 	get array() {return this._array;}
+
 	/*
 		find index of given value
 
@@ -1507,14 +1575,15 @@ class SortedArray {
 		- array does not include any duplicate values
 	*/
 	indexOf(target_value) {
+		const target_ep = endpoint.from_input(target_value);
 		let left_idx = 0;
 		let right_idx = this._array.length - 1;
 		while (left_idx <= right_idx) {
 			const mid_idx = Math.floor((left_idx + right_idx) / 2);
 			let mid_value = this._array[mid_idx];
-			if (eq(mid_value, target_value)) {
+			if (endpoint.eq(mid_value, target_ep)) {
 				return [true, mid_idx]; // Target already exists in the array
-			} else if (lt(mid_value, target_value)) {
+			} else if (endpoint.lt(mid_value, target_ep)) {
 				  left_idx = mid_idx + 1; // Move search range to the right
 			} else {
 				  right_idx = mid_idx - 1; // Move search range to the left
@@ -1624,7 +1693,7 @@ class SortedArray {
 			this pushes any undefined values to the end 
 		*/
 		if (any_removes || any_inserts) {
-			this._array.sort(cmp);
+			this._array.sort(endpoint.cmp);
 		}
 
 		/*
@@ -1660,15 +1729,15 @@ class SortedArray {
 	*/
 	lookup(itv) {
 		if (itv == undefined) {
-			itv = [-Infinity, Infinity, true, true];
+			itv = [null, null, true, true];
 		}
-		let [p0, p1] = endpoint.from_interval(itv);
-		let p0_idx = this.geIndexOf(p0);
-		let p1_idx = this.leIndexOf(p1);
-		if (p0_idx == -1 || p1_idx == -1) {
+		let [ep_0, ep_1] = endpoint.from_interval(itv);
+		let idx_0 = this.geIndexOf(ep_0);
+		let idx_1 = this.leIndexOf(ep_1);
+		if (idx_0 == -1 || idx_1 == -1) {
 			return [];
 		} else {
-			return this._array.slice(p0_idx, p1_idx+1);
+			return this._array.slice(idx_0, idx_1+1);
 		}
 	}
 
@@ -1719,7 +1788,7 @@ function remove_duplicates(sorted_arr) {
 		if (i + 1 >= sorted_arr.length) {
 			break;
 		}
-		if (sorted_arr[i] == sorted_arr[i + 1]) {
+		if (endpoint.eq(sorted_arr[i], sorted_arr[i + 1])) {
 			sorted_arr.splice(i + 1, 1);
 		} else {
 			i += 1;
@@ -1727,29 +1796,37 @@ function remove_duplicates(sorted_arr) {
 	}
 }
 
-// Set of unique [value, sign] endpoints
+const {LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN} = endpoint.types;
+const EP_TYPES = [LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN];
+
+
+// Set of unique [v, t] endpoints
 class EndpointSet {
 	constructor() {
 		this._map = new Map([
-			[-1, new Set()], 
-			[0, new Set()], 
-			[1, new Set()]
+			[LOW_CLOSED, new Set()],
+			[LOW_OPEN, new Set()], 
+			[HIGH_CLOSED, new Set()], 
+			[HIGH_OPEN, new Set()]
 		]);
 	}
-	add([value, sign]) {
-		return this._map.get(sign).add(value);
+	add(ep) {
+		const [value, type] = ep;
+		return this._map.get(type).add(value);
 	}
-	has ([value, sign]) {
-		return this._map.get(sign).has(value);
+	has (ep) {
+		const [value, type] = ep;
+		return this._map.get(type).has(value);
 	}
-	get([value, sign]) {
-		return this._map.get(sign).get(value);
+	get(ep) {
+		const [value, type] = ep;
+		return this._map.get(type).get(value);
 	}
 
 	list() {
-		const lists = [-1, 0, 1].map((sign) => {
-			return [...this._map.get(sign).values()]
-				.map((val) => [val, sign]);
+		const lists = EP_TYPES.map((type) => {
+			return [...this._map.get(type).values()]
+				.map((value) => [value, type]);
 		});
 		return [].concat(...lists);
 	}
@@ -1758,8 +1835,15 @@ class EndpointSet {
 /**
  * ITEMS MAP
  * 
- * mapping endpoint -> [[item, status],...]
- * status: endpoint is either LOW,HIGH or COVERED for a given item.
+ * map endpoint -> {
+ * 	low: [items], 
+ *  active: [items], 
+ *  high:[items]
+ * }
+ * 
+ * in order to use endpoint [v,t] as a map key we create a two level
+ * map - using t as the first variable. 
+ * 
  */
 
 
@@ -1767,19 +1851,22 @@ const LOW = "low";
 const ACTIVE = "active";
 const HIGH = "high";
 
+
 class ItemsMap {
 
 	constructor () {
 		// map endpoint -> {low: [items], active: [items], high:[items]}
 		this._map = new Map([
-			[-1, new Map()], 
-			[0, new Map()], 
-			[1, new Map()]
+			[LOW_CLOSED, new Map()],
+			[LOW_OPEN, new Map()], 
+			[HIGH_CLOSED, new Map()], 
+			[HIGH_OPEN, new Map()]
 		]);
 	}
 
-	get_items_by_role ([value, sign], role) {
-		const entry = this._map.get(sign).get(value);
+	get_items_by_role (ep, role) {
+		const [value, type] = ep;
+		const entry = this._map.get(type).get(value);
 		return (entry != undefined) ? entry[role] : [];
 	}
 
@@ -1787,12 +1874,13 @@ class ItemsMap {
 		register item with endpoint (idempotent)
 		return true if this was the first LOW or HIGH 
 	 */
-	register([value, sign], item, role) {
-		const sign_map = this._map.get(sign);
-		if (!sign_map.has(value)) {
-			sign_map.set(value, {low: [], active:[], high:[]});
+	register(ep, item, role) {
+		const [value, type] = ep;
+		const type_map = this._map.get(type);
+		if (!type_map.has(value)) {
+			type_map.set(value, {low: [], active:[], high:[]});
 		}
-		const entry = sign_map.get(value);
+		const entry = type_map.get(value);
 		const was_empty = entry[LOW].length + entry[HIGH].length == 0;
 		let idx = entry[role].findIndex((_item) => {
 			return _item.id == item.id;
@@ -1808,9 +1896,10 @@ class ItemsMap {
 		unregister item with endpoint (independent of role)
 		return true if this removed last LOW or HIGH
 	 */
-	unregister([value, sign], item) {
-		const sign_map = this._map.get(sign);
-		const entry = sign_map.get(value);
+	unregister(ep, item) {
+		const [value, type] = ep;
+		const type_map = this._map.get(type);
+		const entry = type_map.get(value);
 		if (entry != undefined) {
 			const was_empty = entry[LOW].length + entry[HIGH].length == 0;
 			// remove all mentiones of item
@@ -1825,7 +1914,7 @@ class ItemsMap {
 			const is_empty = entry[LOW].length + entry[HIGH].length == 0;
 			if (!was_empty && is_empty) {
 				// clean up entry
-				sign_map.delete(value);
+				type_map.delete(value);
 				return true;
 			}
 		}
@@ -1939,8 +2028,9 @@ class NearbyIndex extends NearbyIndexBase {
 	}
 
 	_covers (offset) {
-		const ep1 = this._endpoints.le(offset) || [-Infinity, 0];
-		const ep2 = this._endpoints.ge(offset) || [Infinity, 0];
+		const ep = endpoint.from_input(offset);
+		const ep1 = this._endpoints.le(ep) || endpoint.NEG_INF;
+		const ep2 = this._endpoints.ge(ep) || endpoint.POS_INF;
 		if (endpoint.eq(ep1, ep2)) {
 			return this._itemsmap.get_items_by_role(ep1, ACTIVE);	
 		} else {
@@ -1956,11 +2046,11 @@ class NearbyIndex extends NearbyIndexBase {
     /*
 		nearby (offset)
     */
-	nearby(offset) { 
-		offset = endpoint.from_input(offset);
+	nearby(offset) {
+		const ep = endpoint.from_input(offset);
 
 		// center
-		let center = this._covers(offset);
+		let center = this._covers(ep);
 		const center_high_list = [];
 		const center_low_list = [];
 		for (const item of center) {
@@ -1970,11 +2060,11 @@ class NearbyIndex extends NearbyIndexBase {
 		}
 
 		// prev high
-		let prev_high = offset;
+		let prev_high = ep;
 		let items;
 		while (true) {
-			prev_high = this._endpoints.lt(prev_high) || [-Infinity, 0];
-			if (prev_high[0] == -Infinity) {
+			prev_high = this._endpoints.lt(prev_high) || endpoint.NEG_INF;
+			if (prev_high[0] == null) {
 				break
 			}
 			items = this._itemsmap.get_items_by_role(prev_high, HIGH);
@@ -1984,10 +2074,10 @@ class NearbyIndex extends NearbyIndexBase {
 		}
 
 		// next low
-		let next_low = offset;
+		let next_low = ep;
 		while (true) {
-			next_low = this._endpoints.gt(next_low) || [Infinity, 0];
-			if (next_low[0] == Infinity) {
+			next_low = this._endpoints.gt(next_low) || endpoint.POS_INF;
+			if (next_low[0] == null) {
 				break
 			}
 			items = this._itemsmap.get_items_by_role(next_low, LOW);
@@ -2234,6 +2324,7 @@ class InputLayerCache {
     }
 
     get src() {return this._layer};
+    get segment() {return this._segment};
 
     query(offset) {
         const cache_miss = (
@@ -2425,11 +2516,11 @@ class MergeIndex extends NearbyIndexBase {
         
         // find closest endpoint to the right (not in center)
         next_list.sort(cmp_ascending);
-        const next_low = next_list[0] || [Infinity, 0];
+        const next_low = next_list[0] || endpoint.POS_INF;
 
         // find closest endpoint to the left (not in center)
         prev_list.sort(cmp_descending);
-        const prev_high = prev_list[0] || [-Infinity, 0];
+        const prev_high = prev_list[0] || endpoint.NEG_INF;
 
         return nearby_from(
                 prev_high, 
@@ -2580,9 +2671,9 @@ const LOCAL_CLOCK_PROVIDER = function () {
 }();
 
 function is_clockprovider(obj) {
-    return (
-        ("now" in obj) && typeof (obj.now == "function")
-    )
+    if (!("now" in obj)) return false;
+    if (typeof obj.now != "function") return false;
+    return true;
 }
 
 const METHODS = {assign, move, transition, interpolate};
@@ -3043,6 +3134,10 @@ class CursorCache {
         return this._cache.query(offset);
     }
 
+    get segment() {
+        return this._cache.segment;
+    }
+
     clear() {
         this._cache.clear();
     }
@@ -3235,7 +3330,13 @@ class Cursor extends Layer {
 
         // get nearby from src - use value from ctrl
         const src_nearby = this.src.index.nearby(current_pos);
-        const [low, high] = src_nearby.itv.slice(0,2);
+        let [low, high] = src_nearby.itv.slice(0,2);        
+        if (low == null) {
+            low = -Infinity;
+        }
+        if (high == null) {
+            high = Infinity;
+        }
 
         // approach [1]
         if (is_clockprovider(this.ctrl)) {
@@ -3245,27 +3346,28 @@ class Cursor extends Layer {
             }
             // no future event to detect
             return;
-        } 
+        }
         if (is_clockprovider(this.ctrl.ctrl)) {
             /** 
-             * this.ctrl 
+             * this.ctrl is a cursor
              * 
              * has many possible behaviors
              * this.ctrl has an index use this to figure out which
              * behaviour is current.
              * 
             */
-            // use the same offset that was used in the ctrl.query
-            const ctrl_nearby = this.ctrl.index.nearby(current_ts);
-
             if (!isFinite(low) && !isFinite(high)) {
                 // no future event to detect
                 return;
             }
-            if (ctrl_nearby.center.length == 1) {
-                const ctrl_item = ctrl_nearby.center[0];
-                if (ctrl_item.type == "motion") {
-                    const {velocity, acceleration=0.0} = ctrl_item.data;
+            // use the same offset that was used in the ctrl.query
+            // assuming that this.ctrl.src is InputLayer with segments
+            const ctrl_src_nearby = this.ctrl.src.index.nearby(current_ts);
+
+            if (ctrl_src_nearby.center.length == 1) {
+                const seg = ctrl_src_nearby.center[0];
+                if (seg.type == "motion") {
+                    const {velocity, acceleration=0.0} = seg.data;
                     if (acceleration == 0.0) {
                         // figure out which boundary we hit first
                         let target_pos = (velocity > 0) ? high : low;
@@ -3277,8 +3379,8 @@ class Cursor extends Layer {
                         return;
                     }
                     // acceleration - possible event to detect
-                } else if (ctrl_item.type == "transition") {
-                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = ctrl_item.data;
+                } else if (seg.type == "transition") {
+                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = seg.data;
                     if (easing == "linear") {
                         // linear transtion
                         let velocity = (p1-p0)/(t1-t0);
@@ -3341,7 +3443,7 @@ class Cursor extends Layer {
     }
 
     __handle_poll(itv) {
-        let offset = this.query().value;
+        let offset = this.ctrl.query().value;
         if (!interval.covers_point(itv, offset)) {
             this.__handle_change("timeout");
         }
@@ -3508,10 +3610,10 @@ class BooleanIndex extends NearbyIndexBase {
         }
 
         // expand to infinity
-        left = left || [-Infinity, 0];
-        right = right || [Infinity, 0];
-        const low = endpoint.flip(left, "low");
-        const high = endpoint.flip(right, "high");
+        left = left || endpoint.NEG_INF;
+        right = right || endpoint.POS_INF;
+        const low = endpoint.flip(left);
+        const high = endpoint.flip(right);
         return {
             itv: interval.from_endpoints(low, high),
             center : [queryObject(evaluation)],
