@@ -2,18 +2,126 @@
     
     INTERVAL ENDPOINTS
 
-    * interval endpoints are defined by [value, sign], for example
+    * interval endpoints are defined by triplet [value, type]
+    *
+    *   there are 4 types of interval endpoints 
+    *   - v) - high endpoint at v, not inclusive
+    *   - v] - high endpoint at v, inclusive
+    *   - [v - low endpoint at v, not inclusive
+    *   - (v - low endpoint at v, inclusive
     * 
-    * 4) -> [4,-1] - endpoint is on the left of 4
-    * [4, 4, 4] -> [4, 0] - endpoint is at 4 
-    * (4 -> [4, 1] - endpoint is on the right of 4)
+    *   A singular interval [2,2,true,true] will have endpoints [2 and 2]
     * 
-    * This representation ensures that the interval endpoints are ordered and allows
-    * intervals to be exclusive or inclusive, yet cover the entire real line 
+    *   Additionally, to simplify comparison between endpoints and numbers
+    *   wi introduce a special endpoint type - VALUE
     * 
-    * [a,b], (a,b), [a,b), [a, b) are all valid intervals
-
+    *   Thus we define 5 types of endpoints
+    * 
+    *   HIGH_OPEN : v)
+    *   HIGH_CLOSED: v]
+    *   VALUE: v
+    *   LOW_CLOSED: [v
+    *   LOW_OPEN: (v)
+    * 
+    *   For the purpose of endpoint comparison we maintain
+    *   a logical ordering for endpoints with the same value.
+    *   
+    *   v) < [v == v == v] < (v
+    *  
+    *   We assign ordering values
+    *   
+    *   HIGH_OPEN: -1
+    *   HIGH_CLOSED, VALUE, LOW_CLOSED: 0
+    *   LOW_OPEN: 1
+    * 
+    *   value can be null or number. If value is null, this means unbounded endpoint
+    *   i.e. no other endpoint can be larger or smaller.
+    *   an unbounded low endpoint means -Infinity
+    *   an unbounded high endpoint means Infinity
+    *
 */
+
+function isNumber(n) {
+    return typeof n == "number";
+}
+
+const EP_TYPE = Object.freeze({
+    HIGH_OPEN: ")",
+    HIGH_CLOSED: "]",
+    VALUE: "",
+    LOW_CLOSED: "[",
+    LOW_OPEN: "("
+});
+
+function is_EP_TYPE(value) {
+    return Object.values(EP_TYPE).includes(value);
+}
+
+const EP_ORDER = new Map([
+    [EP_TYPE.HIGH_OPEN, -1],
+    [EP_TYPE.HIGH_CLOSED, 0],
+    [EP_TYPE.VALUE, 0],
+    [EP_TYPE.LOW_CLOSED, 0],
+    [EP_TYPE.LOW_OPEN, 1]
+]);
+
+function endpoint_is_low(ep) {
+    return ep[1] == EP_TYPE.LOW_CLOSED || ep[1] == EP_TYPE.LOW_OPEN;
+}
+
+function endpoint_is_high(ep) {
+    return ep[1] == EP_TYPE.HIGH_CLOSED || ep[1] == EP_TYPE.HIGH_OPEN;
+}
+
+/*
+    return endpoint from input
+*/
+function endpoint_from_input(ep) {
+    if (!Array.isArray(ep)) {
+        ep = [ep, EP_TYPE.VALUE];
+    }
+    if (ep.length != 2) {
+        throw new Error("Endpoint must be a length-2 array", ep);
+    }
+    let [v,t] = ep;
+    if (!is_EP_TYPE(t)) {
+        throw new Error("Unsupported endpoint type", t);
+    }
+    if (v == -Infinity || v == Infinity || v == undefined) {
+        v = null;
+    }
+    if (v == null || isNumber(v)) {
+        return [v, t];
+    }
+    throw new Error("enpoint must be null or number", v);
+}
+
+
+/**
+ * Internal representation 
+ * replacing null valuse with -Infinity or Infinity
+ * in order to simplify numerical comparison
+ */
+function endpoint_internal(ep) {
+    if (ep[0] != null) {
+        return [ep[0], ep[1]];
+    }
+    if (endpoint_is_low(ep)) {
+        return [-Infinity, EP_TYPE.LOW_CLOSED];
+    } else {
+        return [Infinity, EP_TYPE.HIGH_CLOSED];
+    }
+}
+
+/**
+ * Comparison function for numbers
+ * avoid subtraction to support Infinity values
+ */
+function number_cmp(a, b) {
+    if (a < b) return -1; // correct order
+    if (a > b) return 1; // wrong order
+    return 0; // equality
+}
 
 /*
     Endpoint comparison
@@ -21,30 +129,17 @@
         - negative : correct order
         - 0 : equal
         - positive : wrong order
-
-
-    NOTE 
-    - cmp(4],[4 ) == 0 - since these are the same with respect to sorting
-    - but if you want to see if two intervals are overlapping in the endpoints
-    cmp(high_a, low_b) > 0 this will not be good
-    
 */ 
-
-
-function cmpNumbers(a, b) {
-    if (a === b) return 0;
-    if (a === Infinity) return 1;
-    if (b === Infinity) return -1;
-    if (a === -Infinity) return -1;
-    if (b === -Infinity) return 1;
-    return a - b;
-  }
-
-function endpoint_cmp (p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    let diff = cmpNumbers(v1, v2);
-    return (diff != 0) ? diff : s1 - s2;
+function endpoint_cmp(ep1, ep2) {    
+    const [v1, t1] = endpoint_internal(ep1);
+    const [v2, t2] = endpoint_internal(ep2);
+    const diff = number_cmp(v1, v2);
+    if (diff == 0) {
+        const o1 = EP_ORDER.get(t1);
+        const o2 = EP_ORDER.get(t2);
+        return number_cmp(o1, o2);
+    }
+    return diff;
 }
 
 function endpoint_lt (p1, p2) {
@@ -70,64 +165,45 @@ function endpoint_max(p1, p2) {
 }
 
 /**
- * flip endpoint to the other side
+ * flip endpoint:
+ * - ie. get adjacent endponit on the timeline
  * 
- * useful for making back-to-back intervals 
+ * v) <-> [v
+ * v] <-> (v
  * 
- * high) <-> [low
- * high] <-> (low
+ * flipping has no effect on endpoints with unbounded value
  */
 
-function endpoint_flip(p, target) {
-    let [v,s] = p;
-    if (!isFinite(v)) {
-        return p;
+function endpoint_flip(ep, target) {
+    if (target) {
+        throw new Error("target is deprecated");
     }
-    if (target == "low") {
-    	// assume point is high: sign must be -1 or 0
-    	if (s > 0) {
-			throw new Error("endpoint is already low");    		
-    	}
-        p = [v, s+1];
-    } else if (target == "high") {
-		// assume point is low: sign is 0 or 1
-    	if (s < 0) {
-			throw new Error("endpoint is already high");    		
-    	}
-        p = [v, s-1];
+    let [v,t] = ep;
+    if (v == null) {
+        return ep;
+    }
+    if (t == EP_TYPE.HIGH_OPEN) {
+        return [v, EP_TYPE.LOW_CLOSED];
+    } else if (t == EP_TYPE.HIGH_CLOSED) {
+        return [v, EP_TYPE.LOW_OPEN];
+    } else if (t == EP_TYPE.LOW_OPEN) {
+        return [v, EP_TYPE.HIGH_CLOSED];
+    } else if (t == EP_TYPE.LOW_CLOSED) {
+        return [v, EP_TYPE.HIGH_OPEN];
     } else {
-    	throw new Error("illegal type", target);
+    	throw new Error("illegal endpoint type", t);
     }
     return p;
 }
-
 
 /*
     returns low and high endpoints from interval
 */
 function endpoints_from_interval(itv) {
-    let [low, high, lowClosed, highClosed] = itv;
-    let low_p = (lowClosed) ? [low, 0] : [low, 1]; 
-    let high_p = (highClosed) ? [high, 0] : [high, -1];
-    return [low_p, high_p];
-}
-
-/*
-    returns endpoints from interval
-*/
-
-function endpoint_from_input(offset) {
-    if (typeof offset === 'number') {
-        return [offset, 0];
-    }
-    if (!Array.isArray(offset) || offset.length != 2) {
-        throw new Error("Endpoint must be a length-2 array");
-    }
-    let [value, sign] = offset;
-    if (typeof value !== "number") {
-        throw new Error("Endpoint value must be number");
-    }
-    return [value, Math.sign(sign)];
+    const [low, high, lowClosed, highClosed] = itv;
+    const lowType = (lowClosed) ?  EP_TYPE.LOW_CLOSED : EP_TYPE.LOW_OPEN;
+    const highType = (highClosed) ?  EP_TYPE.HIGH_CLOSED : EP_TYPE.HIGH_OPEN;
+    return [[low, lowType], [high, highType]];
 }
 
 
@@ -138,55 +214,49 @@ function endpoint_from_input(offset) {
 
 */ 
 
-/*
-    return true if point p is covered by interval itv
-    point p can be number p or a point [p,s]
 
-    implemented by comparing points
-    exception if interval is not defined
+/*
+    return true if point or endpoint is covered by interval
+    point p can be number value or an endpoint
 */
-function interval_covers_endpoint(itv, p) {
-    let [low_p, high_p] = endpoints_from_interval(itv);
+function interval_covers_endpoint(itv, ep) {
+    const [low_ep, high_ep] = endpoints_from_interval(itv);
+    ep = endpoint_from_input(ep);
     // covers: low <= p <= high
-    return endpoint_le(low_p, p) && endpoint_le(p, high_p);
+    return endpoint_le(low_ep, ep) && endpoint_le(ep, high_ep);
 }
 // convenience
 function interval_covers_point(itv, p) {
-    return interval_covers_endpoint(itv, [p, 0]);
+    return interval_covers_endpoint(itv, p);
 }
 
-
-
 /*
-    Return true if interval has length 0
+    Return true if interval endpoints are equal
 */
 function interval_is_singular(interval) {
-    return interval[0] == interval[1]
+    const [low_ep, high_ep] = endpoints_from_interval(itv);
+    return endpoint_eq(low_ep, high_ep);
 }
 
 /*
     Create interval from endpoints
 */
-function interval_from_endpoints(p1, p2) {
-    let [v1, s1] = p1;
-    let [v2, s2] = p2;
-    // p1 must be a low point
-    if (s1 == -1) {
-        throw new Error("illegal low point", p1);
+function interval_from_endpoints(ep1, ep2) {
+    let [v1, t1] = ep1;
+    let [v2, t2] = ep2;
+    if (!endpoint_is_low(ep1)) {
+        throw new Error("illegal low endpoint", ep1);
     }
-    if (s2 == 1) {
-        throw new Error("illegeal high point", p2);   
+    if (!endpoint_is_high(ep2)) {
+        throw new Error("illegal high endpoint", ep2);
     }
-    return [v1, v2, (s1==0), (s2==0)]
+    return [v1, v2, t1 == EP_TYPE.LOW_CLOSED, t2 == EP_TYPE.HIGH_CLOSED];
 }
 
-function isNumber(n) {
-    return typeof n == "number";
-}
 
-export function interval_from_input(input){
+function interval_from_input(input){
     let itv = input;
-    if (itv == undefined) {
+    if (itv == undefined || itv == null) {
         throw new Error("input is undefined");
     }
     if (!Array.isArray(itv)) {
@@ -199,38 +269,42 @@ export function interval_from_input(input){
     };
     // make sure interval is length 4
     if (itv.length == 1) {
-        itv = [itv[0], itv[0], true, true]
+        itv = [itv[0], itv[0], true, true];
     } else if (itv.length == 2) {
-        itv = itv.concat([true, false]);
+        itv = [itv[0], itv[1], true, false];
     } else if (itv.length == 3) {
-        itv = itv.push(false);
+        itv = [itv[0], itv[1], itv[2], false];
     } else if (itv.length > 4) {
-        itv = itv.slice(0,4);
+        itv = [itv[0], itv[1], itv[2], itv[4]];
     }
     let [low, high, lowInclude, highInclude] = itv;
-    // undefined
-    if (low == undefined || low == null) {
-        low = -Infinity;
+    // boundary conditions are number or null
+    if (low == undefined || low == -Infinity) {
+        low = null;
     }
-    if (high == undefined || high == null) {
-        high = Infinity;
+    if (high == undefined || high == Infinity) {
+        high = null;
     }
-    // check that low and high are numbers
-    if (!isNumber(low)) throw new Error("low not a number", low);
-    if (!isNumber(high)) throw new Error("high not a number", high);
+    // check low
+    if (low == null) {
+        lowInclude = true;
+    } else {
+        if (!isNumber(low)) throw new Error("low not a number", low);
+    }
+    // check high
+    if (high == null) {
+        highInclude = true;
+    } else {
+        if (!isNumber(high)) throw new Error("high not a number", high);
+    }    
     // check that low <= high
-    if (low > high) throw new Error("low > high", low, high);
-    // singleton
-    if (low == high) {
-        lowInclude = true;
-        highInclude = true;
-    }
-    // check infinity values
-    if (low == -Infinity) {
-        lowInclude = true;
-    }
-    if (high == Infinity) {
-        highInclude = true;
+    if (low != null && high != null) {
+        if (low > high) throw new Error("low > high", low, high);
+        // singleton
+        if (low == high) {
+            lowInclude = true;
+            highInclude = true;
+        }
     }
     // check that lowInclude, highInclude are booleans
     if (typeof lowInclude !== "boolean") {
@@ -241,9 +315,6 @@ export function interval_from_input(input){
     }
     return [low, high, lowInclude, highInclude];
 }
-
-
-
 
 export const endpoint = {
     le: endpoint_le,
@@ -256,7 +327,8 @@ export const endpoint = {
     max: endpoint_max,
     flip: endpoint_flip,
     from_interval: endpoints_from_interval,
-    from_input: endpoint_from_input
+    from_input: endpoint_from_input,
+    types: {...EP_TYPE}
 }
 export const interval = {
     covers_endpoint: interval_covers_endpoint,

@@ -3,29 +3,37 @@ import { NearbyIndexBase, nearby_from } from "./nearbyindex_base.js";
 import { SortedArray } from "./sortedarray.js";
 import { is_stateprovider } from "./stateprovider.js";
 
-// Set of unique [value, sign] endpoints
+const {LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN} = endpoint.types;
+const EP_TYPES = [LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN];
+
+
+// Set of unique [v, t] endpoints
 class EndpointSet {
 	constructor() {
 		this._map = new Map([
-			[-1, new Set()], 
-			[0, new Set()], 
-			[1, new Set()]
+			[LOW_CLOSED, new Set()],
+			[LOW_OPEN, new Set()], 
+			[HIGH_CLOSED, new Set()], 
+			[HIGH_OPEN, new Set()]
 		]);
 	}
-	add([value, sign]) {
-		return this._map.get(sign).add(value);
+	add(ep) {
+		const [value, type] = ep;
+		return this._map.get(type).add(value);
 	}
-	has ([value, sign]) {
-		return this._map.get(sign).has(value);
+	has (ep) {
+		const [value, type] = ep;
+		return this._map.get(type).has(value);
 	}
-	get([value, sign]) {
-		return this._map.get(sign).get(value);
+	get(ep) {
+		const [value, type] = ep;
+		return this._map.get(type).get(value);
 	}
 
 	list() {
-		const lists = [-1, 0, 1].map((sign) => {
-			return [...this._map.get(sign).values()]
-				.map((val) => [val, sign]);
+		const lists = EP_TYPES.map((type) => {
+			return [...this._map.get(type).values()]
+				.map((value) => [value, type]);
 		});
 		return [].concat(...lists);
 	}
@@ -34,8 +42,15 @@ class EndpointSet {
 /**
  * ITEMS MAP
  * 
- * mapping endpoint -> [[item, status],...]
- * status: endpoint is either LOW,HIGH or COVERED for a given item.
+ * map endpoint -> {
+ * 	low: [items], 
+ *  active: [items], 
+ *  high:[items]
+ * }
+ * 
+ * in order to use endpoint [v,t] as a map key we create a two level
+ * map - using t as the first variable. 
+ * 
  */
 
 
@@ -43,19 +58,22 @@ const LOW = "low";
 const ACTIVE = "active";
 const HIGH = "high";
 
+
 class ItemsMap {
 
 	constructor () {
 		// map endpoint -> {low: [items], active: [items], high:[items]}
 		this._map = new Map([
-			[-1, new Map()], 
-			[0, new Map()], 
-			[1, new Map()]
+			[LOW_CLOSED, new Map()],
+			[LOW_OPEN, new Map()], 
+			[HIGH_CLOSED, new Map()], 
+			[HIGH_OPEN, new Map()]
 		]);
 	}
 
-	get_items_by_role ([value, sign], role) {
-		const entry = this._map.get(sign).get(value);
+	get_items_by_role (ep, role) {
+		const [value, type] = ep;
+		const entry = this._map.get(type).get(value);
 		return (entry != undefined) ? entry[role] : [];
 	}
 
@@ -63,12 +81,13 @@ class ItemsMap {
 		register item with endpoint (idempotent)
 		return true if this was the first LOW or HIGH 
 	 */
-	register([value, sign], item, role) {
-		const sign_map = this._map.get(sign);
-		if (!sign_map.has(value)) {
-			sign_map.set(value, {low: [], active:[], high:[]});
+	register(ep, item, role) {
+		const [value, type] = ep;
+		const type_map = this._map.get(type);
+		if (!type_map.has(value)) {
+			type_map.set(value, {low: [], active:[], high:[]});
 		}
-		const entry = sign_map.get(value);
+		const entry = type_map.get(value);
 		const was_empty = entry[LOW].length + entry[HIGH].length == 0;
 		let idx = entry[role].findIndex((_item) => {
 			return _item.id == item.id;
@@ -84,9 +103,10 @@ class ItemsMap {
 		unregister item with endpoint (independent of role)
 		return true if this removed last LOW or HIGH
 	 */
-	unregister([value, sign], item) {
-		const sign_map = this._map.get(sign);
-		const entry = sign_map.get(value);
+	unregister(ep, item) {
+		const [value, type] = ep;
+		const type_map = this._map.get(type);
+		const entry = type_map.get(value);
 		if (entry != undefined) {
 			const was_empty = entry[LOW].length + entry[HIGH].length == 0;
 			// remove all mentiones of item
@@ -101,7 +121,7 @@ class ItemsMap {
 			const is_empty = entry[LOW].length + entry[HIGH].length == 0;
 			if (!was_empty && is_empty) {
 				// clean up entry
-				sign_map.delete(value);
+				type_map.delete(value);
 				return true;
 			}
 		}
@@ -216,9 +236,9 @@ export class NearbyIndex extends NearbyIndexBase {
 		}
 	}
 
-	_covers (offset) {
-		const ep1 = this._endpoints.le(offset) || [-Infinity, 0];
-		const ep2 = this._endpoints.ge(offset) || [Infinity, 0];
+	_covers (ep) {
+		const ep1 = this._endpoints.le(ep) || endpoint.from_input(-Infinity);
+		const ep2 = this._endpoints.ge(ep) || endpoint.from_input(Infinity);
 		if (endpoint.eq(ep1, ep2)) {
 			return this._itemsmap.get_items_by_role(ep1, ACTIVE);	
 		} else {
@@ -235,10 +255,10 @@ export class NearbyIndex extends NearbyIndexBase {
 		nearby (offset)
     */
 	nearby(offset) { 
-		offset = endpoint.from_input(offset);
+		const ep = endpoint.from_input(offset);
 
 		// center
-		let center = this._covers(offset)
+		let center = this._covers(ep)
 		const center_high_list = [];
 		const center_low_list = [];
 		for (const item of center) {
@@ -248,7 +268,7 @@ export class NearbyIndex extends NearbyIndexBase {
 		}
 
 		// prev high
-		let prev_high = offset;
+		let prev_high = ep;
 		let items;
 		while (true) {
 			prev_high = this._endpoints.lt(prev_high) || [-Infinity, 0];
@@ -262,7 +282,7 @@ export class NearbyIndex extends NearbyIndexBase {
 		}
 
 		// next low
-		let next_low = offset;
+		let next_low = ep;
 		while (true) {
 			next_low = this._endpoints.gt(next_low) || [Infinity, 0];
 			if (next_low[0] == Infinity) {

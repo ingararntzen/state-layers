@@ -14,7 +14,7 @@ function setup(options) {
 // Add your test cases here
 describe('Test NearbyIndex', () => {
 
-    test('test nearbyindex covers', () => {
+    test.only('test nearbyindex covers', () => {
     
         const items = [
             // outside 3.5 left
@@ -94,13 +94,13 @@ describe('Test NearbyIndex', () => {
         let nearby = index.nearby(-1);
         expect(nearby.center[0]).toBe(items[0]);
         // last endpoint that hits first item
-        nearby = index.nearby([0, -1]);
+        nearby = index.nearby([0, ")"]);
         expect(nearby.center[0]).toBe(items[0]);
         // interval
         expect(nearby.itv).toStrictEqual(intervals[0]);
         // left/right
-        expect(nearby.left).toStrictEqual([-Infinity, 0]);
-        expect(nearby.right).toStrictEqual([0, 0]);
+        expect(nearby.left).toStrictEqual(endpoint.from_input(-Infinity));
+        expect(nearby.right).toStrictEqual([0, "["]);
 
         // SECOND ITEM
 
@@ -108,18 +108,18 @@ describe('Test NearbyIndex', () => {
         nearby = index.nearby(0);
         expect(nearby.center[0]).toBe(items[1]);
         // last endpoint that hits second item
-        nearby = index.nearby([1, 0]);
+        nearby = index.nearby(1);
         expect(nearby.center[0]).toBe(items[1]);
         // interval
         expect(nearby.itv).toStrictEqual(intervals[1]);
         // left/right
-        expect(nearby.left).toStrictEqual([0, -1]);
-        expect(nearby.right).toStrictEqual([1, 1]);
+        expect(nearby.left).toStrictEqual([0, ")"]);
+        expect(nearby.right).toStrictEqual([1, "("]);
 
         // THIRD ITEM
 
         // first endpoint that hits third item
-        nearby = index.nearby([2,1]);
+        nearby = index.nearby([2, "("]);
         expect(nearby.center[0]).toBe(items[2]);
         // endpoint that hits within third item
         nearby = index.nearby(3);
@@ -127,8 +127,8 @@ describe('Test NearbyIndex', () => {
         // interval
         expect(nearby.itv).toStrictEqual(intervals[2]);
         // left/right
-        expect(nearby.left).toStrictEqual([2, 0]);
-        expect(nearby.right).toStrictEqual([Infinity, 0]);
+        expect(nearby.left).toStrictEqual([2, "]"]);
+        expect(nearby.right).toStrictEqual(endpoint.from_input(Infinity));
 
         // GAP
         // endpoint within gap
@@ -136,8 +136,8 @@ describe('Test NearbyIndex', () => {
         expect(nearby.center).toStrictEqual([]);
         expect(nearby.itv).toStrictEqual([1, 2, false, true]);
         // left/right
-        expect(nearby.left).toStrictEqual([1, 0]);
-        expect(nearby.right).toStrictEqual([2, 1]);
+        expect(nearby.left).toStrictEqual([1, "]"]);
+        expect(nearby.right).toStrictEqual([2, "("]);
     });
 
     test('should update the index with one item and check nearby.center', () => {

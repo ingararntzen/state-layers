@@ -8,7 +8,7 @@ describe('SkewLayerTest', () => {
 
         const b = new SortedArray();
         const a = [0.1, 1, 1.1, 6.9, 7.1];
-        b.update([], a);
+        b.update([], a.map(e => [e, ""]));
 
         expect(b.geIndexOf(6.8)).toBe(3)
 
@@ -17,16 +17,16 @@ describe('SkewLayerTest', () => {
         expect(b.geIndexOf(10.0)).toBe(-1);
         expect(b.geIndexOf(-10.0)).toBe(0);
 
-        expect(b.geIndexOf([6.9, -1])).toBe(3);
-        expect(b.geIndexOf([6.9, 0])).toBe(3);
-        expect(b.geIndexOf([6.9, 1])).toBe(4);
+        expect(b.geIndexOf([6.9, ")"])).toBe(3);
+        expect(b.geIndexOf([6.9, ""])).toBe(3);
+        expect(b.geIndexOf([6.9, "("])).toBe(4);
     });
 
     test('test GTINDEXOF', () => {
 
         const b = new SortedArray();
         const a = [0.1, 1, 1.1, 6.9, 7.1];
-        b.update([], a);
+        b.update([], a.map(e => [e, ""]));
 
         expect(b.gtIndexOf(6.8)).toBe(3)
 
@@ -35,16 +35,16 @@ describe('SkewLayerTest', () => {
         expect(b.gtIndexOf(10.0)).toBe(-1);
         expect(b.gtIndexOf(-10.0)).toBe(0);
 
-        expect(b.gtIndexOf([6.9, -1])).toBe(3);
-        expect(b.gtIndexOf([6.9, 0])).toBe(4);
-        expect(b.gtIndexOf([6.9, 1])).toBe(4);
+        expect(b.gtIndexOf([6.9, ")"])).toBe(3);
+        expect(b.gtIndexOf([6.9, ""])).toBe(4);
+        expect(b.gtIndexOf([6.9, "("])).toBe(4);
     });
 
     test('test LEINDEXOF', () => {
 
         const b = new SortedArray();
         const a = [0.1, 1, 1.1, 6.9, 7.1];
-        b.update([], a);
+        b.update([], a.map(e => [e, ""]));
 
         expect(b.leIndexOf(6.8)).toBe(2)
         expect(b.leIndexOf(6.9)).toBe(3);
@@ -52,16 +52,16 @@ describe('SkewLayerTest', () => {
         expect(b.leIndexOf(10.0)).toBe(4);
         expect(b.leIndexOf(-10.0)).toBe(-1);
 
-        expect(b.leIndexOf([6.9, -1])).toBe(2);
-        expect(b.leIndexOf([6.9, 0])).toBe(3);
-        expect(b.leIndexOf([6.9, 1])).toBe(3);
+        expect(b.leIndexOf([6.9, ")"])).toBe(2);
+        expect(b.leIndexOf([6.9, ""])).toBe(3);
+        expect(b.leIndexOf([6.9, "("])).toBe(3);
     });
 
     test('test LTINDEXOF', () => {
 
         const b = new SortedArray();
         const a = [0.1, 1, 1.1, 6.9, 7.1];
-        b.update([], a);
+        b.update([], a.map(e => [e, ""]));
 
         expect(b.ltIndexOf(6.8)).toBe(2)
         expect(b.ltIndexOf(6.9)).toBe(2);
@@ -69,35 +69,36 @@ describe('SkewLayerTest', () => {
         expect(b.ltIndexOf(10.0)).toBe(4);
         expect(b.ltIndexOf(-10.0)).toBe(-1);
 
-        expect(b.ltIndexOf([6.9, -1])).toBe(2);
-        expect(b.ltIndexOf([6.9, 0])).toBe(2);
-        expect(b.ltIndexOf([6.9, 1])).toBe(3);
+        expect(b.ltIndexOf([6.9, ")"])).toBe(2);
+        expect(b.ltIndexOf([6.9, ""])).toBe(2);
+        expect(b.ltIndexOf([6.9, "("])).toBe(3);
     });
 
     test('test LOOKUP', () => {
 
         let b = new SortedArray();
         let batch = [1, 1, 1, 1, 1, 2, 3, 4, 4, 4, 5, 6, 6, 7, 7, 7, 7, 7];
-        b.update([], batch);
+        b.update([], batch.map(e => [e, ""]));
         expect(b.size).toBe(7);
     
         let values;
     
         values = b.lookup([4, 7, true, true]);
-        expect(values[0]).toBe(4)
-        expect(values.slice(-1)[0]).toBe(7);
+        console.log(values);
+        expect(values[0][0]).toBe(4)
+        expect(values.slice(-1)[0][0]).toBe(7);
     
         values = b.lookup([4, 7, true, false]);
-        expect(values[0]).toBe(4)
-        expect(values.slice(-1)[0]).toBe(6);
+        expect(values[0][0]).toBe(4)
+        expect(values.slice(-1)[0][0]).toBe(6);
     
         values = b.lookup([4, 7, false, true]);
-        expect(values[0]).toBe(5)
-        expect(values.slice(-1)[0]).toBe(7);
+        expect(values[0][0]).toBe(5)
+        expect(values.slice(-1)[0][0]).toBe(7);
     
         values = b.lookup([4, 7, false, false]);
-        expect(values[0]).toBe(5)
-        expect(values.slice(-1)[0]).toBe(6);
+        expect(values[0][0]).toBe(5)
+        expect(values.slice(-1)[0][0]).toBe(6);
     
         values = b.lookup([10, 20, true, false]);
         expect(values.length).toBe(0)
@@ -107,7 +108,7 @@ describe('SkewLayerTest', () => {
     
         values = b.lookup([4, 4, true, true]);
         expect(values.length).toBe(1)
-        expect(values[0]).toBe(4)
+        expect(values[0][0]).toBe(4)
     
         values = b.lookup([4.5, 4.5, true, true]);
         expect(values.length).toBe(0)
@@ -116,7 +117,7 @@ describe('SkewLayerTest', () => {
 
     test('test ENDPOINTS', () => {
         let b = new SortedArray();
-        let batch = [1, [2,-1], 4];
+        let batch = [[1,""], [2,")"], [4,""]];
         b.update([], batch);
 
         let values;
@@ -127,14 +128,14 @@ describe('SkewLayerTest', () => {
         values = b.lookup([1, 2, false, false]);
         expect(values.length).toBe(1)
         expect(values[0][0]).toBe(2)
-        expect(values[0][1]).toBe(-1)
+        expect(values[0][1]).toBe(")")
     });
 
 
     test('test REMOVE', () => {
         let b = new SortedArray();
         let batch = [1, 1, 1, 1, 1, 2, 3, 4, 4, 4, 5, 6, 6, 7, 7, 7, 7, 7];
-        b.update([], batch);
+        b.update([], batch.map(e => [e, ""]));
 
         let [found, idx] = b.indexOf(4);
         expect(found);
@@ -150,7 +151,4 @@ describe('SkewLayerTest', () => {
         expect(b.size == 0);
 
     });
-
-
-
 });

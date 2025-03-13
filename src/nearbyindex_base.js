@@ -51,13 +51,14 @@ import { endpoint, interval } from "./intervals.js";
  * 
  * INTERVAL ENDPOINTS
  * 
- * interval endpoints are defined by [value, sign], for example
+ * interval endpoints are defined by [value, type], for example
  * 
- * 4) -> [4,-1] - endpoint is on the left of 4
- * [4, 4, 4] -> [4, 0] - endpoint is at 4 
- * (4 -> [4, 1] - endpoint is on the right of 4)
+ * 4) -> [4,")"] - high endpoint left of 4
+ * [4 -> [4, "["] - low endpoint includes 4
+ * 4  -> [4, ""] - value 4
+ * 4] -> [4, "]"] - high endpoint includes 4
+ * (4 -> [4, "("] - low endpoint is right of 4
  * 
- *  
  */
 
 
@@ -67,7 +68,7 @@ import { endpoint, interval } from "./intervals.js";
  */
 export function left_endpoint (nearby) {
     const low = endpoint.from_interval(nearby.itv)[0];
-    return endpoint.flip(low, "high");
+    return endpoint.flip(low);
 }
 
 /**
@@ -77,7 +78,7 @@ export function left_endpoint (nearby) {
 
 export function right_endpoint (nearby) {
     const high = endpoint.from_interval(nearby.itv)[1];
-    return endpoint.flip(high, "low");
+    return endpoint.flip(high);
 }
 
 
@@ -96,16 +97,16 @@ export class NearbyIndexBase {
         return low point of leftmost entry
     */
     first() {
-        let {center, right} = this.nearby([-Infinity, 0]);
-        return (center.length > 0) ? [-Infinity, 0] : right;
+        let {center, right} = this.nearby(-Infinity);
+        return (center.length > 0) ? endpoint.from_input(-Infinity) : right;
     }
 
     /*
         return high point of rightmost entry
     */
     last() {
-        let {left, center} = this.nearby([Infinity, 0]);
-        return (center.length > 0) ? [Infinity, 0] : left
+        let {left, center} = this.nearby(Infinity);
+        return (center.length > 0) ? endpoint.from_input(Infinity) : left
     }
 
 
@@ -116,7 +117,7 @@ export class NearbyIndexBase {
      */
     right_region(nearby) {
         const right = right_endpoint(nearby);
-        if (right[0] == Infinity) {
+        if (right[0] == null) {
             return undefined;
         }
         return this.nearby(right);
@@ -129,7 +130,7 @@ export class NearbyIndexBase {
      */
     left_region(nearby) {
         const left = left_endpoint(nearby);
-        if (left[0] == -Infinity) {
+        if (left[0] == null) {
             return undefined;
         }
         return this.nearby(left);    
@@ -198,8 +199,8 @@ class RegionIterator {
             throw new Error ("stop must be larger than start", start, stop)
         }
         this._index = index;
-        this._start = [start, 0];
-        this._stop = [stop, 0];
+        this._start = endpoint.from_input(start);
+        this._stop = endpoint.from_input(stop);
 
         if (includeEmpty) {
             this._condition = () => true;
@@ -289,7 +290,7 @@ export function nearby_from (
         if (endpoint.le(next_low, min_center_high)) {
             result.right = next_low;
         } else {
-            result.right = endpoint.flip(min_center_high, "low")
+            result.right = endpoint.flip(min_center_high)
         }
         result.next = (multiple_center_high) ? result.right : next_low;
 
@@ -297,15 +298,15 @@ export function nearby_from (
         if (endpoint.ge(prev_high, max_center_low)) {
             result.left = prev_high;
         } else {
-            result.left = endpoint.flip(max_center_low, "high");
+            result.left = endpoint.flip(max_center_low);
         }
         result.prev = (multiple_center_low) ? result.left : prev_high;
 
     }
 
     // interval from left/right
-    let low = endpoint.flip(result.left, "low");
-    let high = endpoint.flip(result.right, "high");
+    let low = endpoint.flip(result.left);
+    let high = endpoint.flip(result.right);
     result.itv = interval.from_endpoints(low, high);
 
     return result;

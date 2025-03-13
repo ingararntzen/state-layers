@@ -1,30 +1,17 @@
 import { endpoint } from "./intervals.js";
 
-function lt (p1, p2) {
-	return endpoint.lt(endpoint.from_input(p1), endpoint.from_input(p2));
-}
-function eq (p1, p2) {
-	return endpoint.eq(endpoint.from_input(p1), endpoint.from_input(p2));
-}
-function cmp (p1, p2) {
-	return endpoint.cmp(endpoint.from_input(p1), endpoint.from_input(p2));
-}
-
 
 /*********************************************************************
 	SORTED ARRAY
 *********************************************************************/
 
 /*
-	Sorted array of values.
+	Sorted array of endpoints [value, type].
 	- Elements are sorted in ascending order.
 	- No duplicates are allowed.
 	- Binary search used for lookup
 
-	values can be regular number values (float) or points [float, sign]
-		>a : [a, -1] - largest value smaller than a
-		a  : [a, 0]  - a
-		a< : [a, +1] - smallest value larger than a
+	values can be regular number values (float) or endpoints [float, type]
 */
 
 export class SortedArray {
@@ -35,6 +22,7 @@ export class SortedArray {
 
 	get size() {return this._array.length;}
 	get array() {return this._array;}
+
 	/*
 		find index of given value
 
@@ -48,14 +36,15 @@ export class SortedArray {
 		- array does not include any duplicate values
 	*/
 	indexOf(target_value) {
+		const target_ep = endpoint.from_input(target_value);
 		let left_idx = 0;
 		let right_idx = this._array.length - 1;
 		while (left_idx <= right_idx) {
 			const mid_idx = Math.floor((left_idx + right_idx) / 2);
 			let mid_value = this._array[mid_idx];
-			if (eq(mid_value, target_value)) {
+			if (endpoint.eq(mid_value, target_ep)) {
 				return [true, mid_idx]; // Target already exists in the array
-			} else if (lt(mid_value, target_value)) {
+			} else if (endpoint.lt(mid_value, target_ep)) {
 				  left_idx = mid_idx + 1; // Move search range to the right
 			} else {
 				  right_idx = mid_idx - 1; // Move search range to the left
@@ -165,7 +154,7 @@ export class SortedArray {
 			this pushes any undefined values to the end 
 		*/
 		if (any_removes || any_inserts) {
-			this._array.sort(cmp);
+			this._array.sort(endpoint.cmp);
 		}
 
 		/*
@@ -201,15 +190,15 @@ export class SortedArray {
 	*/
 	lookup(itv) {
 		if (itv == undefined) {
-			itv = [-Infinity, Infinity, true, true];
+			itv = [null, null, true, true];
 		}
-		let [p0, p1] = endpoint.from_interval(itv);
-		let p0_idx = this.geIndexOf(p0);
-		let p1_idx = this.leIndexOf(p1);
-		if (p0_idx == -1 || p1_idx == -1) {
+		let [ep_0, ep_1] = endpoint.from_interval(itv);
+		let idx_0 = this.geIndexOf(ep_0);
+		let idx_1 = this.leIndexOf(ep_1);
+		if (idx_0 == -1 || idx_1 == -1) {
 			return [];
 		} else {
-			return this._array.slice(p0_idx, p1_idx+1);
+			return this._array.slice(idx_0, idx_1+1);
 		}
 	}
 
@@ -260,7 +249,7 @@ function remove_duplicates(sorted_arr) {
 		if (i + 1 >= sorted_arr.length) {
 			break;
 		}
-		if (sorted_arr[i] == sorted_arr[i + 1]) {
+		if (endpoint.eq(sorted_arr[i], sorted_arr[i + 1])) {
 			sorted_arr.splice(i + 1, 1);
 		} else {
 			i += 1;
