@@ -2,7 +2,7 @@ import * as srcprop from "./api_srcprop.js";
 import { LOCAL_CLOCK_PROVIDER, is_clockprovider } from "./clockprovider.js";
 import { cmd } from "./cmd.js";
 import { Layer } from "./layers.js";
-import { interval } from "./intervals.js";
+import { interval, endpoint } from "./intervals.js";
 import { bind, release } from "./monitor.js";
 import { NearbyIndexBase } from "./nearbyindex_base.js";
 
@@ -29,12 +29,12 @@ class CursorIndex extends NearbyIndexBase {
     nearby(offset) {
         // cursor index is defined for entire timeline
         return {
-            itv: [-Infinity, Infinity, true, true],
+            itv: [null, null, true, true],
             center: [this._cache],
-            left: [-Infinity, 0],
-            prev: [-Infinity, 0],
-            right: [Infinity, 0],
-            next: [Infinity, 0],
+            left: endpoint.NEG_INF,
+            prev: endpoint.NEG_INF,
+            right: endpoint.POS_INF,
+            next: endpoint.POS_INF,
         }
     }
 }
@@ -447,6 +447,5 @@ export class Cursor extends Layer {
     }
 
 }
-srcprop.addToPrototype(Cursor.prototype);
 srcprop.addToPrototype(Cursor.prototype);
 

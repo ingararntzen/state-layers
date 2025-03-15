@@ -6,7 +6,7 @@ import * as segment from "./segments.js";
 import { interval, endpoint } from "./intervals.js";
 import { range, toState } from "./util.js";
 import { NearbyIndex } from "./nearbyindex.js";
-import { LocalStateProvider, is_stateprovider } from "./stateprovider.js";
+import { is_stateprovider } from "./stateprovider.js";
 
 /************************************************
  * LAYER
@@ -25,8 +25,6 @@ export class Layer {
         const {valueFunc, stateFunc} = options;
         // callbacks
         callback.addToInstance(this);
-        // layer query api
-        //layerquery.addToInstance(this, CacheClass, {valueFunc, stateFunc});
         // define change event
         eventify.addToInstance(this);
         this.eventifyDefine("change", {init:true});
