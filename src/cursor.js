@@ -320,15 +320,15 @@ export class Cursor {
      */
     _get_ctrl_state () {
         if (is_clockprovider(this.ctrl)) {
-            let ts = this.ctrl.now();
+            const ts = this.ctrl.value;
             return {value:ts, dynamic:true, offset:ts};
         } else {
-            let state = this.ctrl.query();
+            const offset = this.ctrl.value;
             // protect against non-float values
-            if (typeof state.value !== 'number') {
-                throw new Error(`warning: ctrl value must be number ${state.value}`);
+            if (typeof offset !== 'number') {
+                throw new Error(`warning: ctrl value must be number ${offset}`);
             }
-            return state;
+            return offset;
         }
     }
 

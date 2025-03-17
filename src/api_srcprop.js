@@ -1,4 +1,4 @@
-import { implements_callback } from "./api_callback";
+import { implements_callback } from "./util.js";
 
 /************************************************
  * SOURCE PROPERTY (SRCPROP)

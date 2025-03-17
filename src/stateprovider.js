@@ -1,5 +1,5 @@
 import { interval } from "./intervals.js";
-import { random_string } from "./util.js";
+import { random_string, implements_callback } from "./util.js";
 import * as callback from "./api_callback.js";
 
 
@@ -11,7 +11,7 @@ function check_item(item) {
 
 
 export function is_stateprovider(obj) {
-    if (!callback.implements_callback(obj)) return false;
+    if (!implements_callback(obj)) return false;
     if (!("get_items" in obj)) return false;
     if (typeof obj.get_items != 'function') return false;
     return true;
