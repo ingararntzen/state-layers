@@ -3,8 +3,8 @@ import { LocalStateProvider } from "../src/stateprovider.js";
 import { NearbyIndex } from "../src/nearbyindex.js";
 import { endpoint } from "../src/intervals.js";
 
-const EP_POS_INF = endpoint.from_input(Infinity);
-const EP_NEG_INF = endpoint.from_input(-Infinity);
+const EP_POS_INF = endpoint.POS_INF;
+const EP_NEG_INF = endpoint.NEG_INF;
 
 function setup(options) {
     const sp = new LocalStateProvider(options);

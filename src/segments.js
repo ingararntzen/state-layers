@@ -265,3 +265,21 @@ export class InterpolationSegment extends BaseSegment {
 }
 
 
+/*********************************************************************
+    LOAD SEGMENT
+*********************************************************************/
+
+export function load_segment(itv, item) {
+    let {type="static", data} = item;
+    if (type == "static") {
+        return new StaticSegment(itv, data);
+    } else if (type == "transition") {
+        return new TransitionSegment(itv, data);
+    } else if (type == "interpolation") {
+        return new InterpolationSegment(itv, data);
+    } else if (type == "motion") {
+        return new MotionSegment(itv, data);
+    } else {
+        console.log("unrecognized segment type", type);
+    }
+}

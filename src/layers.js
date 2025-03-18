@@ -7,6 +7,7 @@ import { interval, endpoint } from "./intervals.js";
 import { range, toState } from "./util.js";
 import { NearbyIndex } from "./nearbyindex.js";
 import { is_stateprovider } from "./stateprovider.js";
+import { load_segment } from "./segments.js";
 
 /************************************************
  * LAYER
@@ -15,7 +16,9 @@ import { is_stateprovider } from "./stateprovider.js";
 /**
  * Layer is abstract base class for Layers
  * 
- * Layer interface is defined by (index, CacheClass, valueFunc)
+ * Layer interface is defined by (index, CacheClass, {valueFunc,stateFunc})
+ * 
+ * Index is supplied by subclass - needed by caches
  */
 
 export class Layer {
@@ -67,6 +70,7 @@ export class Layer {
         for (const cache of this._cache_objects){
             cache.clear();
         }
+        
     }
 
     query(offset) {
@@ -261,24 +265,6 @@ export class InputLayerCache {
     }
 }
 
-/*********************************************************************
-    LOAD SEGMENT
-*********************************************************************/
-
-function load_segment(itv, item) {
-    let {type="static", data} = item;
-    if (type == "static") {
-        return new segment.StaticSegment(itv, data);
-    } else if (type == "transition") {
-        return new segment.TransitionSegment(itv, data);
-    } else if (type == "interpolation") {
-        return new segment.InterpolationSegment(itv, data);
-    } else if (type == "motion") {
-        return new segment.MotionSegment(itv, data);
-    } else {
-        console.log("unrecognized segment type", type);
-    }
-}
 
 
 
