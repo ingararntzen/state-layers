@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
-import { LocalStateProvider } from '../src/stateprovider.js';
-import { NearbyIndex } from '../src/nearbyindex.js';
+import { CollectionProvider } from '../src/provider_collection.js';
+import { NearbyIndexCollection } from '../src/nearby_collection.js';
 
 // Add your test cases here
 describe('NearbyIndex Regions', () => {
@@ -18,8 +18,8 @@ describe('NearbyIndex Regions', () => {
             return {itv};
         })
 
-        const src = new LocalStateProvider({insert:items});
-        const index = new NearbyIndex(src);
+        const src = new CollectionProvider({insert:items});
+        const index = new NearbyIndexCollection(src);
 
         let result = [...index.regions({includeEmpty:false})];
 
@@ -45,8 +45,8 @@ describe('NearbyIndex Regions', () => {
             return {itv};
         })
 
-        const src = new LocalStateProvider({insert:items});
-        const index = new NearbyIndex(src);
+        const src = new CollectionProvider({insert:items});
+        const index = new NearbyIndexCollection(src);
 
         let regions = [...index.regions({includeEmpty:true})];
 
@@ -77,8 +77,8 @@ describe('NearbyIndex Regions', () => {
             return {itv};
         })
 
-        const src = new LocalStateProvider({insert:items});
-        const index = new NearbyIndex(src);
+        const src = new CollectionProvider({insert:items});
+        const index = new NearbyIndexCollection(src);
         const regions = [...index.regions({start:1.5, stop:5})];
 
         expect(regions.length).toBe(3);
@@ -101,8 +101,8 @@ describe('NearbyIndex Regions', () => {
             return {itv, data: "data"};
         });
 
-        const src = new LocalStateProvider({insert:items});
-        const index = new NearbyIndex(src);
+        const src = new CollectionProvider({insert:items});
+        const index = new NearbyIndexCollection(src);
         let nearby, next, prev;
 
         nearby = index.nearby(2);
@@ -138,8 +138,8 @@ describe('NearbyIndex Regions', () => {
             return {itv, data: "data"};
         });
 
-        const src = new LocalStateProvider({insert:items});
-        const index = new NearbyIndex(src);
+        const src = new CollectionProvider({insert:items});
+        const index = new NearbyIndexCollection(src);
         let nearby, next;
 
         nearby = index.nearby(-Infinity);

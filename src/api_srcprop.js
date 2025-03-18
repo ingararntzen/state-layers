@@ -1,4 +1,4 @@
-import { implements_callback } from "./util.js";
+import { is_callback_api } from "./api_callback.js";
 
 /************************************************
  * SOURCE PROPERTY (SRCPROP)
@@ -63,7 +63,7 @@ export function addToPrototype (_prototype) {
         // unsubscribe from entities
         if (state.handles.length > 0) {
             for (const [idx, e] of Object.entries(entities)) {
-                if (implements_callback(e)) {
+                if (is_callback_api(e)) {
                     e.remove_callback(state.handles[idx]);
                 }
             }    
@@ -80,7 +80,7 @@ export function addToPrototype (_prototype) {
                 this[`${NAME}_onchange`](propName, eArg);
             }.bind(this);
             for (const e of entities) {
-                if (implements_callback(e)) {
+                if (is_callback_api(e)) {
                     state.handles.push(e.add_callback(handler));
                 }
             }

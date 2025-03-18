@@ -1,3 +1,12 @@
+/**
+ * clock provider must have a now() method
+ */
+export function is_clock_provider(obj) {
+    if (!("now" in obj)) return false;
+    if (typeof obj.now != 'function') return false;
+    return true;
+}
+
 // webpage clock - performance now - seconds
 function local () {
     return performance.now()/1000.0;
@@ -18,17 +27,10 @@ export const LOCAL_CLOCK_PROVIDER = function () {
     const t0_local = local();
     const t0_epoch = epoch();
     return {
-        get value () {
+        now () {
             const t1_local = local();
             return t0_epoch + (t1_local - t0_local);
         }
     }
 }();
 
-/**
- * clock providers must have a value property
- */
-export function is_clockprovider(obj) {
-    const descriptor = Object.getOwnPropertyDescriptor(obj, "value");
-    return !!(descriptor && descriptor.get);
-}

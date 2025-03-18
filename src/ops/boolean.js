@@ -1,5 +1,5 @@
 import { interval, endpoint} from "../intervals.js";
-import { NearbyIndexBase } from "../nearbyindex_base.js";
+import { NearbyIndexBase } from "../nearby_base.js";
 import { Layer } from "../layers.js"
 
 export class BooleanLayer extends Layer {

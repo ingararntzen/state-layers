@@ -1,13 +1,13 @@
 /* global describe, test, expect */
 import * as sl from "../src/index.js";
-import { LocalStateProvider } from '../src/stateprovider.js';
-import { NearbyIndex } from '../src/nearbyindex.js';
+import { CollectionProvider } from '../src/provider_collection.js';
+import { NearbyIndexCollection } from '../src/nearby_collection.js';
 import { BooleanIndex } from '../src/ops/boolean.js';
 
 
 function setup(options) {
-    const sp = new LocalStateProvider(options);
-    const index = new NearbyIndex(sp);
+    const sp = new CollectionProvider(options);
+    const index = new NearbyIndexCollection(sp);
     sp.add_callback((diffs) => {
         index.refresh(diffs);
     });

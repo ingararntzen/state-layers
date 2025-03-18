@@ -1,7 +1,7 @@
 import { endpoint } from "./intervals.js";
-import { NearbyIndexBase, nearby_from } from "./nearbyindex_base.js";
+import { NearbyIndexBase, nearby_from } from "./nearby_base.js";
 import { SortedArray } from "./sortedarray.js";
-import { is_stateprovider } from "./stateprovider.js";
+import { is_collection_provider } from "./provider_collection.js";
 
 const {LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN} = endpoint.types;
 const EP_TYPES = [LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN];
@@ -130,20 +130,26 @@ class ItemsMap {
 }
 
 
-export class NearbyIndex extends NearbyIndexBase {
+/**
+ * NearbyIndexCollection
+ * 
+ * NearbyIndex for CollectionProvider
+ */
 
-    constructor(stateProvider) {
+export class NearbyIndexCollection extends NearbyIndexBase {
+
+    constructor(collectionProvider) {
         super();
 
-        if (!(is_stateprovider(stateProvider))) {
-            throw new Error(`must be stateprovider ${stateProvider}`);
+        if (!(is_collection_provider(collectionProvider))) {
+            throw new Error(`must be collection provider ${collectionProvider}`);
         }
-        this._sp = stateProvider;
+        this._cp = collectionProvider;
 		this._initialise();
 		this.refresh();
 	}
 
-    get src () {return this._sp;}
+    get src () {return this._cp;}
 
 
 	_initialise() {
@@ -165,7 +171,7 @@ export class NearbyIndex extends NearbyIndexBase {
 		let remove_items = [];
 
 		if (diffs == undefined) {
-			insert_items = this.src.get_items();
+			insert_items = this.src.get_all();
 			// clear all state
 			this._initialise();
 		} else {

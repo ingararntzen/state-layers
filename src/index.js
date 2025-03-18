@@ -1,4 +1,4 @@
-import { LocalStateProvider } from "./stateprovider.js";
+import { CollectionProvider } from "./provider_collection.js";
 import { merge } from "./ops/merge.js"
 import { shift } from "./ops/shift.js";
 import { InputLayer, Layer } from "./layers.js";
@@ -17,7 +17,7 @@ function layer(options={}) {
         return src;
     } 
     if (src == undefined) {
-        src = new LocalStateProvider(opts);
+        src = new CollectionProvider(opts);
     }
     return new InputLayer({src, ...opts}); 
 }

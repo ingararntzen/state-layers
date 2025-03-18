@@ -1,14 +1,14 @@
 /* global describe, test, expect */
-import { LocalStateProvider } from "../src/stateprovider.js";
-import { NearbyIndex } from "../src/nearbyindex.js";
+import { CollectionProvider } from "../src/provider_collection.js";
+import { NearbyIndexCollection } from "../src/nearby_collection.js";
 import { endpoint } from "../src/intervals.js";
 
 const EP_POS_INF = endpoint.POS_INF;
 const EP_NEG_INF = endpoint.NEG_INF;
 
 function setup(options) {
-    const sp = new LocalStateProvider(options);
-    const index = new NearbyIndex(sp);
+    const sp = new CollectionProvider(options);
+    const index = new NearbyIndexCollection(sp);
     sp.add_callback((diffs) => {
         index.refresh(diffs);
     });

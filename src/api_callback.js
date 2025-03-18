@@ -37,3 +37,14 @@ export function addToPrototype (_prototype) {
     Object.assign(_prototype, api);
 }
 
+/**
+ * test if object implements callback api
+ */
+export function is_callback_api (obj) {
+    const methods = ["add_callback", "remove_callback"];
+    for (const prop of methods) {
+        if (!(prop in obj)) return false;
+        if (typeof obj[prop] != 'function') return false;
+    }
+    return true;
+}

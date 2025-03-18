@@ -1,10 +1,10 @@
 
-import { is_stateprovider } from "./stateprovider.js";
+import { is_collection_provider } from "./provider_collection.js";
 const METHODS = {assign, move, transition, interpolate};
 
 
 export function cmd (target) {
-    if (!(is_stateprovider(target))) {
+    if (!(is_collection_provider(target))) {
         throw new Error(`target.src must be stateprovider ${target}`);
     }
     let entries = Object.entries(METHODS)

@@ -1,5 +1,5 @@
 import { interval } from "./intervals.js";
-import { random_string, implements_callback } from "./util.js";
+import { random_string} from "./util.js";
 import * as callback from "./api_callback.js";
 
 
@@ -9,22 +9,25 @@ function check_item(item) {
     return item;
 }
 
-
-export function is_stateprovider(obj) {
-    if (!implements_callback(obj)) return false;
-    if (!("get_items" in obj)) return false;
-    if (typeof obj.get_items != 'function') return false;
+/**
+ * collection providers must provide get_all function
+ * and also implement callback interface
+ */
+export function is_collection_provider(obj) {
+    if (!callback.is_callback_api(obj)) return false;
+    if (!("get_all" in obj)) return false;
+    if (typeof obj.get_all != 'function') return false;
     return true;
 }
 
 
 /***************************************************************
-    LOCAL STATE PROVIDER
+    COLLECTION PROVIDER
 ***************************************************************/
 
 /**
- * local state provider
- * collection of items
+ * local collection provider
+ * 
  * 
  * changes = {
  *   remove=[],
@@ -34,25 +37,19 @@ export function is_stateprovider(obj) {
  * 
 */
 
-export class LocalStateProvider {
+export class CollectionProvider {
 
     constructor(options={}) {
         callback.addToInstance(this);
         this._map = new Map();
-        this._initialise(options);
-    }
 
-    /**
-     * Local stateprovider support initialisation with
-     * by giving items or a value. 
-     */
-    _initialise(options={}) {
-        // initialization with items or single value 
+        // initialize
         let {insert, value} = options;
         if (value != undefined) {
             // initialize from value
             insert = [{
-                itv: [-Infinity, Infinity, true, true], 
+                id: random_string(10),
+                itv: [null, null, true, true], 
                 type: "static",
                 data: value
             }];
@@ -116,8 +113,8 @@ export class LocalStateProvider {
         return [...diff_map.values()];
     }
 
-    get_items() {
+    get_all() {
         return [...this._map.values()];
     };
 }
-callback.addToPrototype(LocalStateProvider.prototype);
+callback.addToPrototype(CollectionProvider.prototype);

@@ -1,6 +1,5 @@
 /* global describe, test, expect */
-import { endpoint } from "../src/intervals.js";
-import { NearbyIndexVariable } from "../src/layer_variable.js";
+import { NearbyIndexVariable } from "../src/nearby_variable.js";
 
 function create_variable(_value) {
     return {

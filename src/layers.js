@@ -1,12 +1,11 @@
 import * as eventify from "./api_eventify.js";
 import * as callback from "./api_callback.js";
 import * as srcprop from "./api_srcprop.js";
-import * as segment from "./segments.js";
 
 import { interval, endpoint } from "./intervals.js";
 import { range, toState } from "./util.js";
-import { NearbyIndex } from "./nearbyindex.js";
-import { is_stateprovider } from "./stateprovider.js";
+import { NearbyIndexCollection } from "./nearby_collection.js";
+import { is_collection_provider } from "./provider_collection.js";
 import { load_segment } from "./segments.js";
 
 /************************************************
@@ -191,8 +190,8 @@ export class InputLayer extends Layer {
 
     srcprop_check(propName, src) {
         if (propName == "src") {
-            if (!(is_stateprovider(src))) {
-                throw new Error(`"src" must be state provider ${src}`);
+            if (!(is_collection_provider(src))) {
+                throw new Error(`"src" must be collection provider ${src}`);
             }
             return src;    
         }
@@ -201,7 +200,7 @@ export class InputLayer extends Layer {
     srcprop_onchange(propName, eArg) {
         if (propName == "src") {
             if (this.index == undefined || eArg == "reset") {
-                this.index = new NearbyIndex(this.src);
+                this.index = new NearbyIndexCollection(this.src);
             } 
             if (eArg != "reset") {
                 this.index.refresh(eArg);

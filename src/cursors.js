@@ -1,10 +1,10 @@
 import * as srcprop from "./api_srcprop.js";
-import { LOCAL_CLOCK_PROVIDER, is_clockprovider } from "./clockprovider.js";
+import { LOCAL_CLOCK_PROVIDER, is_clock_provider } from "./provider_clock.js";
 import { cmd } from "./cmd.js";
 import { Layer } from "./layers.js";
 import { interval, endpoint } from "./intervals.js";
 import { bind, release } from "./monitor.js";
-import { NearbyIndexBase } from "./nearbyindex_base.js";
+import { NearbyIndexBase } from "./nearby_base.js";
 
 /**
  * Cursor emulates Layer interface.
@@ -108,7 +108,7 @@ export class Cursor extends Layer {
 
     srcprop_check(propName, obj) {
         if (propName == "ctrl") {
-            if (!(is_clockprovider(obj) || obj instanceof Cursor)) {
+            if (!(is_clock_provider(obj) || obj instanceof Cursor)) {
                 throw new Error(`"ctrl" must be clockProvider or Cursor ${obj}`)
             }
         } else if (propName == "src") {
@@ -263,7 +263,7 @@ export class Cursor extends Layer {
         }
 
         // approach [1]
-        if (is_clockprovider(this.ctrl)) {
+        if (is_clock_provider(this.ctrl)) {
             if (isFinite(high)) {
                 this.__set_timeout(high, current_pos, 1.0, current_ts);
                 return;
@@ -271,7 +271,7 @@ export class Cursor extends Layer {
             // no future event to detect
             return;
         }
-        if (is_clockprovider(this.ctrl.ctrl)) {
+        if (is_clock_provider(this.ctrl.ctrl)) {
             /** 
              * this.ctrl is a cursor
              * 
