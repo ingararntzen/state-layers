@@ -1,45 +1,30 @@
-import { NearbyIndexMerge } from "../nearby_merge.js";
 import { Layer } from "../layer_base.js";
-import { BooleanIndex } from "./boolean.js";
+import { NearbyIndexBoolean } from "./layer_boolean.js";
+import { NearbyIndexMerge } from "../nearby_merge.js";
 
 
-class LogicalMergeLayer extends Layer {
+export function logical_merge_layer(sources, options={}) {
 
-    constructor(sources, options={}) {
-        super();
-
-        const {expr} = options;
-
-        let condition;
-        if (expr) {
-            condition = (center) => {
-                return expr.eval(center);
-            }    
-        }
-                    
-        // subscribe to callbacks from sources
-        const handler = this._onchange.bind(this);
-        for (let src of sources) {
-            src.add_callback(handler);
-        }
-
-        // index
-        let index = new NearbyIndexMerge(sources);
-        this._index = new BooleanIndex(index, {condition});
+    const {expr} = options;
+    let condition;
+    if (expr) {
+        condition = (center) => {
+            return expr.eval(center);
+        }    
     }
 
-    get index () {return this._index};
+    const layer = new Layer();
+    const index = new NearbyIndexMerge(sources);
+    layer.index = new NearbyIndexBoolean(index, {condition});
 
-    _onchange(eArg) {
-        this.clearCaches();
-        this.notify_callbacks();
-        this.eventifyTrigger("change");
-    }
-}
+    // subscribe to callbacks from sources
+    const handles = sources.map((src) => {
+        return src.add_callback(layer.onchange);
+    });
+    
+    layer.sources = sources;
 
-
-export function logical_merge(sources, options) {
-    return new LogicalMergeLayer(sources, options);
+    return layer;
 }
 
 

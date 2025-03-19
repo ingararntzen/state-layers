@@ -1,13 +1,15 @@
 import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
+import { Layer } from "./layer_base.js";
 import { input_layer } from "./layer_input.js";
 import { merge_layer } from "./layer_merge.js";
-import { shift } from "./ops/shift.js";
-import { Layer } from "./layer_base.js";
+import { shift_layer } from "./ops/layer_shift.js";
+import { boolean_layer } from "./ops/layer_boolean.js"
+import { logical_merge_layer, logical_expr} from "./ops/layer_logical_merge.js";
+
 import { Cursor } from "./cursors.js";
-import { boolean } from "./ops/boolean.js"
 import { cmd } from "./cmd.js";
-import { logical_merge, logical_expr} from "./ops/logical_merge.js";
+
 
 /*********************************************************************
     LAYER FACTORY
@@ -40,9 +42,13 @@ function cursor(options={}) {
 
 export { 
     layer, 
+    merge_layer as merge, 
+    shift_layer as shift,
+    boolean_layer as boolean,
+    logical_merge_layer as logical_merge, 
+    logical_expr,
     cmd,
-    cursor, merge_layer as merge, 
+    cursor, 
     cursor as variable, 
     cursor as playback, 
-    shift, boolean, logical_merge, logical_expr
 }

@@ -2,7 +2,7 @@
 import * as sl from "../src/index.js";
 import { CollectionProvider } from '../src/provider_collection.js';
 import { NearbyIndexCollection } from '../src/nearby_collection.js';
-import { BooleanIndex } from '../src/ops/boolean.js';
+import { NearbyIndexBoolean } from '../src/ops/layer_boolean.js';
 
 
 function setup(options) {
@@ -69,7 +69,7 @@ describe('Test Logical Layer', () => {
         });
 
         const [sp, index] = setup({insert:items})
-        const bool_index = new BooleanIndex(index);
+        const bool_index = new NearbyIndexBoolean(index);
 
         // check values
         const offsets = [-1, 0.5, 1.5, 3.5, 4.5, 19]

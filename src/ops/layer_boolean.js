@@ -2,26 +2,23 @@ import { interval, endpoint} from "../intervals.js";
 import { NearbyIndexBase } from "../nearby_base.js";
 import { Layer } from "../layer_base.js"
 
-export class BooleanLayer extends Layer {
+/*********************************************************************
+    BOOLEAN LAYER
+*********************************************************************/
 
-    constructor(layer) {
-        super();
-        this.index = new BooleanIndex(layer.index);
+export function boolean_layer(src) {
+
+    const layer = new Layer();
+    layer.index = new NearbyIndexBoolean(src.index);
     
-        // subscribe
-        const handler = this._onchange.bind(this);
-        layer.add_callback(handler);
-    }
+    // subscribe
+    const handle = src.add_callback((eArg) => {
+        layer.onchange(eArg);
+    });
 
-    _onchange(eArg) {
-        this.clearCaches();
-        this.notify_callbacks();
-        this.eventifyTrigger("change");
-    }
-}
-
-export function boolean(layer) {
-    return new BooleanLayer(layer);
+    // initialise
+    layer.src = src;
+    return layer;
 } 
 
 
@@ -45,7 +42,7 @@ function queryObject (value) {
     }
 }
 
-export class BooleanIndex extends NearbyIndexBase {
+export class NearbyIndexBoolean extends NearbyIndexBase {
 
     constructor(index, options={}) {
         super();

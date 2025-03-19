@@ -40,7 +40,7 @@ describe('EndpointTest', () => {
         expect(endpoint.eq(high_2, low_3) == true);
     });
 
-    test.only('min and max endpoints', () => {
+    test('min and max endpoints', () => {
    
         // 4 intervals which all have endpoints at 4
         const itv_1 = [0, 4, true, false];

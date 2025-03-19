@@ -5,16 +5,16 @@ import * as srcprop from "../api_srcprop.js";
 
 function shifted(p, offset) {
     if (p == undefined || !isFinite(p)) {
-        // p - no skew
+        // p - noop
         return p;
     }
     else if (typeof p == "number") {
-        // p is number - skew
+        // p is number - shift value by offset
         return p + offset;
     } else if (Array.isArray(p) && p.length > 1) {
-        // p is endpoint - skew value
-        let [val, sign] = p;
-        return [val + offset, sign];
+        // p is endpoint - shift value by offset
+        let [val, bracket] = p;
+        return endpoint.from_input([val+offset, bracket]);
     }
 }
 
@@ -23,7 +23,7 @@ function shifted(p, offset) {
     SHIFT INDEX
 *********************************************************************/
 
-class ShiftIndex extends NearbyIndexBase {
+class NearbyIndexShift extends NearbyIndexBase {
 
     constructor (layer, skew) {
         super();
@@ -31,10 +31,10 @@ class ShiftIndex extends NearbyIndexBase {
         this._skew = skew;
         this._cache = layer.createCache();
 
-        // skewing cache object
+        // shifted cache
         this._shifted_cache = {
             query: function (offset) {
-                // skew query (negative) - override result offset
+                // skew query (negative) - result original offset 
                 return {...this._cache.query(shifted(offset, -this._skew)), offset};
             }.bind(this)
         };
@@ -63,19 +63,23 @@ class ShiftIndex extends NearbyIndexBase {
     SHIFT LAYER
 *********************************************************************/
 
+/**
+ * Shifting a Layer by an offset
+ * 
+ * a positive value for offset means that
+ * the layer is shifted to the right on the timeline
+ */
 
-class ShiftLayer extends Layer {
+export function shift_layer (src, offset) {
 
-    constructor(layer, skew, options={}) {
-        super(options);
-        this._skew = skew;
-        // setup src propterty
-        srcprop.addState(this);
-        this.srcprop_register("src");
-        this.src = layer;
-    }
+    const layer = new Layer();
 
-    srcprop_check(propName, src) {
+    // setup src property
+    srcprop.addState(layer);
+    srcprop.addMethods(layer);
+    layer.srcprop_register("src");
+        
+    layer.srcprop_check = function(propName, src) {
         if (propName == "src") {
             if (!(src instanceof Layer)) {
                 throw new Error(`"src" must be Layer ${src}`);
@@ -84,28 +88,17 @@ class ShiftLayer extends Layer {
         }
     }
 
-    srcprop_onchange(propName, eArg) {
+    layer.srcprop_onchange = function(propName, eArg) {
         if (propName == "src") {
-            if (this.index == undefined || eArg == "reset") {
-                this.index = new ShiftIndex(this.src, this._skew)
+            if (eArg == "reset") {
+                this.index = new NearbyIndexShift(this.src, offset)
             } 
-            this.clearCaches();
-            this.notify_callbacks();
-            this.eventifyTrigger("change");    
+            layer.onchange();
         }
     }
-}
-srcprop.addMethods(ShiftLayer.prototype);
 
-/**
- * Skewing a Layer by an offset
- * 
- * a positive value for offset means that
- * the layer is shifted to the right on the timeline
- * 
- * 
- */
-
-export function shift (layer, offset) {
-    return new ShiftLayer(layer, offset);
+    // initialise
+    layer.src = src;
+    
+    return layer;
 }
