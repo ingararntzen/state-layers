@@ -9,27 +9,25 @@ import { toState } from "./util.js";
 import { interval } from "./intervals.js";
 
 /*********************************************************************
-    INPUT LAYER
+    SEGMENT LAYER
 *********************************************************************/
 
 /**
- * Input Layer has either collectionProvider or variableProvider
+ * Segment Layer has either collectionProvider or variableProvider
  * as src property.
  */
-export function is_input_layer (obj) {
+
+export function is_segments_layer (obj) {
     if (obj == undefined) return false;
     // is layer
     if (!(obj instanceof Layer)) return false;
     // has src property
-    const desc = Object.getOwnPropertyDescriptor(obj, prop);
+    const desc = Object.getOwnPropertyDescriptor(obj, "src");
     if (!!(desc?.get && desc?.set) == false) return false;
     return true;
 }
 
-/**
- * Layer with CollectionProvider as src.
- */
-export function input_layer(options={}) {
+export function segments_layer(options={}) {
 
     const {src, ...opts} = options;
     const layer = new Layer({CacheClass:SegmentLayerCache, ...opts});

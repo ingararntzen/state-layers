@@ -1,12 +1,7 @@
 import * as eventify from "./api_eventify.js";
 import * as callback from "./api_callback.js";
-
-import { interval, endpoint } from "./intervals.js";
+import { interval } from "./intervals.js";
 import { range, toState } from "./util.js";
-
-
-
-
 
 /************************************************
  * LAYER

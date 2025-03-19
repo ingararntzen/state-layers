@@ -6,13 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script type="module">
 
-        function render_html (selector, to_value) {
-            let elems = document.querySelector(selector);
-            return function (state) {
-                elems.innerHTML = to_value(state);
-            }
-        }
-
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
         }
@@ -20,9 +13,10 @@
         import * as sl from './libs/layers.es.js';
 
         const offset = sl.variable({value:0});
-        
-
-        offset.bind(render_html("#offset", ({value}) => `${value}`), 200);
+        const elem = document.querySelector("#value");
+        offset.bind((state) => {
+           elem.textContent = `${state.value.toFixed(2)}`; 
+        }, 200);        
 
         document.querySelector("#valueBtn").onclick = () => {
             offset.assign(getRandomInt(10))
@@ -58,10 +52,11 @@
 </script>
 </head>
 <body>
-    <h1>Hello, Cursor!</h1>
-
+    <h1>Hello, Variable!</h1>
     <h3> Value </h3>
-
+    <p>
+        <div id="value"></div>
+    </p>
     <p>
         <button id="valueBtn">SetValue</button>
         <button id="resetBtn">Reset</button>
@@ -70,13 +65,5 @@
         <button id="transBtn">Transition</button>
         <button id="interpolateBtn">Interpolate</button>
     </p>
-    <p>
-        <div id="offset"></div>
-    </p>
-    <p>
-        <div id="color"></div>
-    </p>
-    
-
 </body>
 </html>

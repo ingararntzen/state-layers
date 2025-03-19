@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Document</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="module">
+
+        import * as sl from './libs/layers.es.js';
+        const clock = sl.clock();
+        const elem = document.querySelector("#value");
+        clock.bind((state) => {
+           elem.textContent = `${state.value.toFixed(2)}`; 
+        }, 200);
+
+</script>
+</head>
+<body>
+    <h1>Hello, Clock Cursor!</h1>
+    <h3> Value </h3>
+    <p>
+        <div id="value"></div>
+    </p>
+</body>
+</html>

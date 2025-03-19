@@ -103,3 +103,30 @@ export function random_string(length) {
     }
     return text;
 }
+
+
+/**
+ * Improved timeout.
+ * Callback function is invoked after delay_sec seconds.
+ * The callback is guaranteed to be invoked after delay_sec seconds.
+ */
+export function set_timeout (delay_sec, callback) {
+    const delay_ms = delay_sec * 1000;
+    const t0_ms = performance.now();
+    const t1_ms = t0_ms + delay_ms;   
+    let tid;
+    function cancel_timeout() {
+        clearTimeout(tid);
+    }
+    function handle_timeout () {
+        const ts_ms = performance.now();
+        if (ts_ms < t1_ms) {
+            // reschedule timeout
+            tid = setTimeout(handle_timeout, t1_ms - ts_ms);
+        } else {
+            callback();
+        }
+    }
+    tid = setTimeout(handle_timeout, t1_ms - t0_ms);
+    return {cancel:cancel_timeout};
+}
