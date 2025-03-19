@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
 import * as sl from "../src/index.js";
-import { merge, MergeIndex } from "../src/ops/merge.js"; 
+import { NearbyIndexMerge } from "../src/nearby_merge.js";
 
 const DATA = "data";
 const OFFSET = 4;
@@ -17,7 +17,7 @@ function runtest(intervals, expected) {
         });
     });
 
-    let index = new MergeIndex(layers);
+    let index = new NearbyIndexMerge(layers);
     let result = index.nearby(OFFSET);
     expect(expected.itv).toStrictEqual(result.itv);
     expect(expected.left).toStrictEqual(result.left);
@@ -149,7 +149,7 @@ describe('MergeTest', () => {
         const layer_2 = sl.layer({insert:items_2});
 
         // Merge
-        let layer = merge([layer_1, layer_2]);
+        let layer = sl.merge([layer_1, layer_2]);
 
         const expected = [
             [layer_1],
@@ -194,10 +194,11 @@ describe('MergeTest', () => {
         }
 
         // Merge
-        let layer = merge([layer_1, layer_2], {valueFunc});
+        let layer = sl.merge([layer_1, layer_2], {valueFunc});
 
 
         const expected = [
+            [ 0, 0 ],
             [ 0.8, 1 ],
             [ 0.8, 2 ],
             [ 0.9, 3 ],
@@ -215,10 +216,12 @@ describe('MergeTest', () => {
             [ 0.3, 15 ],
             [ 0.3, 16 ],
             [ 0.3, 17 ],
-            [ 0, 17.5 ]
+            [ 0, 18 ],
+            [ 0, 19 ],
+            [ 0, 20 ]
         ]
             
-        let tups = layer.sample({start:0, end:20});
+        let tups = layer.sample({start:0, stop:20});
         expect(tups).toStrictEqual(expected);
     });
 

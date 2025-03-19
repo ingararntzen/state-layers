@@ -1,6 +1,6 @@
 import { endpoint } from "../intervals.js";
 import { NearbyIndexBase } from "../nearby_base.js";
-import { Layer } from "../layers.js"
+import { Layer } from "../layer_base.js"
 import * as srcprop from "../api_srcprop.js";
 
 function shifted(p, offset) {
@@ -29,7 +29,7 @@ class ShiftIndex extends NearbyIndexBase {
         super();
         this._layer = layer;
         this._skew = skew;
-        this._cache = layer.getCache();
+        this._cache = layer.createCache();
 
         // skewing cache object
         this._shifted_cache = {
@@ -70,7 +70,7 @@ class ShiftLayer extends Layer {
         super(options);
         this._skew = skew;
         // setup src propterty
-        srcprop.addToInstance(this);
+        srcprop.addState(this);
         this.srcprop_register("src");
         this.src = layer;
     }
@@ -95,7 +95,7 @@ class ShiftLayer extends Layer {
         }
     }
 }
-srcprop.addToPrototype(ShiftLayer.prototype);
+srcprop.addMethods(ShiftLayer.prototype);
 
 /**
  * Skewing a Layer by an offset

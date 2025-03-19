@@ -40,20 +40,10 @@ export function is_collection_provider(obj) {
 export class CollectionProvider {
 
     constructor(options={}) {
-        callback.addToInstance(this);
+        callback.addState(this);
         this._map = new Map();
-
         // initialize
-        let {insert, value} = options;
-        if (value != undefined) {
-            // initialize from value
-            insert = [{
-                id: random_string(10),
-                itv: [null, null, true, true], 
-                type: "static",
-                data: value
-            }];
-        }
+        let {insert} = options;
         if (insert != undefined) {
             this._update({insert, reset:true});
         }
@@ -117,4 +107,4 @@ export class CollectionProvider {
         return [...this._map.values()];
     };
 }
-callback.addToPrototype(CollectionProvider.prototype);
+callback.addMethods(CollectionProvider.prototype);

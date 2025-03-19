@@ -1,7 +1,7 @@
 import * as srcprop from "./api_srcprop.js";
 import { LOCAL_CLOCK_PROVIDER, is_clock_provider } from "./provider_clock.js";
 import { cmd } from "./cmd.js";
-import { Layer } from "./layers.js";
+import { Layer } from "./layer_base.js";
 import { interval, endpoint } from "./intervals.js";
 import { bind, release } from "./monitor.js";
 import { NearbyIndexBase } from "./nearby_base.js";
@@ -87,7 +87,7 @@ export class Cursor extends Layer {
         super({CacheClass:CursorCache});
 
         // setup src properties
-        srcprop.addToInstance(this);
+        srcprop.addState(this);
         this.srcprop_register("src");
         this.srcprop_register("ctrl");
 
@@ -446,5 +446,5 @@ export class Cursor extends Layer {
     }
 
 }
-srcprop.addToPrototype(Cursor.prototype);
+srcprop.addMethods(Cursor.prototype);
 

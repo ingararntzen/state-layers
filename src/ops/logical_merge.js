@@ -1,5 +1,5 @@
-import { MergeIndex } from "./merge.js";
-import { Layer } from "../layers.js";
+import { NearbyIndexMerge } from "../nearby_merge.js";
+import { Layer } from "../layer_base.js";
 import { BooleanIndex } from "./boolean.js";
 
 
@@ -24,7 +24,7 @@ class LogicalMergeLayer extends Layer {
         }
 
         // index
-        let index = new MergeIndex(sources);
+        let index = new NearbyIndexMerge(sources);
         this._index = new BooleanIndex(index, {condition});
     }
 

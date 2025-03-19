@@ -1,7 +1,9 @@
 import { CollectionProvider } from "./provider_collection.js";
-import { merge } from "./ops/merge.js"
+import { VariableProvider } from "./provider_variable.js";
+import { input_layer } from "./layer_input.js";
+import { merge_layer } from "./layer_merge.js";
 import { shift } from "./ops/shift.js";
-import { InputLayer, Layer } from "./layers.js";
+import { Layer } from "./layer_base.js";
 import { Cursor } from "./cursors.js";
 import { boolean } from "./ops/boolean.js"
 import { cmd } from "./cmd.js";
@@ -12,14 +14,18 @@ import { logical_merge, logical_expr} from "./ops/logical_merge.js";
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, ...opts} = options;
+    let {src, insert, value, ...opts} = options;
     if (src instanceof Layer) {
         return src;
     } 
     if (src == undefined) {
-        src = new CollectionProvider(opts);
+        if (value != undefined) {
+            src = new VariableProvider({value});
+        } else {
+            src = new CollectionProvider({insert});
+        }
     }
-    return new InputLayer({src, ...opts}); 
+    return input_layer({src, ...opts}); 
 }
 
 /*********************************************************************
@@ -33,8 +39,10 @@ function cursor(options={}) {
 }
 
 export { 
-    layer, cursor, merge, shift, cmd, 
+    layer, 
+    cmd,
+    cursor, merge_layer as merge, 
     cursor as variable, 
     cursor as playback, 
-    boolean, logical_merge, logical_expr
+    shift, boolean, logical_merge, logical_expr
 }

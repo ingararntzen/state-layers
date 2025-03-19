@@ -3,7 +3,7 @@ import { NearbyIndexVariable } from "../src/nearby_variable.js";
 
 function create_variable(_value) {
     return {
-        get value () {
+        get : function () {
             return _value;
         }
     }

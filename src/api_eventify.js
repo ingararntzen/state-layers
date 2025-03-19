@@ -288,8 +288,8 @@ export function eventifyPrototype(_prototype) {
 };
 
 
-export {eventifyInstance as addToInstance};
-export {eventifyPrototype as addToPrototype};
+export {eventifyInstance as addState};
+export {eventifyPrototype as addMethods};
 
 /*
 	Event Variable

@@ -17,11 +17,11 @@ import { is_callback_api } from "./api_callback.js";
 const NAME = "srcprop";
 const PREFIX = `__${NAME}`;
 
-export function addToInstance (object) {
+export function addState (object) {
     object[`${PREFIX}`] = new Map();
 }
 
-export function addToPrototype (_prototype) {
+export function addMethods (object) {
 
     function register(propName, options={}) {
         let {mutable=true} = options;
@@ -91,6 +91,6 @@ export function addToPrototype (_prototype) {
     const api = {};
     api[`${NAME}_register`] = register;
     api[`${PREFIX}_attach`] = attatch;
-    Object.assign(_prototype, api);
+    Object.assign(object, api);
 }
 

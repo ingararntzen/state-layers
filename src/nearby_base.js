@@ -93,12 +93,24 @@ export class NearbyIndexBase {
         throw new Error("Not implemented");
     }
 
+    empty() {
+        return this.first() == undefined;
+    }
+
     /*
         return low point of leftmost entry
     */
     first() {
         let {center, right} = this.nearby(endpoint.NEG_INF);
-        return (center.length > 0) ? endpoint.NEG_INF : right;
+        if (center.length > 0 ) {
+            return endpoint.NEG_INF;
+        }
+        if (endpoint.lt(right, endpoint.POS_INF)) {
+            return right;
+        } else {
+            // empty
+            return undefined;
+        }
     }
 
     /*
@@ -106,7 +118,15 @@ export class NearbyIndexBase {
     */
     last() {
         let {left, center} = this.nearby(endpoint.POS_INF);
-        return (center.length > 0) ? endpoint.POS_INF : left
+        if (center.length > 0) {
+            return endpoint.POS_INF;
+        }
+        if (endpoint.gt(left, endpoint.NEG_INF)) {
+            return left;
+        } else {
+            // empty
+            return undefined;
+        }
     }
 
 

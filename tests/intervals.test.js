@@ -40,7 +40,7 @@ describe('EndpointTest', () => {
         expect(endpoint.eq(high_2, low_3) == true);
     });
 
-    test('min and max endpoints', () => {
+    test.only('min and max endpoints', () => {
    
         // 4 intervals which all have endpoints at 4
         const itv_1 = [0, 4, true, false];
@@ -55,6 +55,14 @@ describe('EndpointTest', () => {
         expect(endpoint.max(high_1, high_2)).toEqual(high_2);
         expect(endpoint.min(low_3, high_1)).toEqual(low_3);
         expect(endpoint.max(low_3, high_1)).toEqual(high_1);
+
+        // with Infinite endpoints
+        expect(endpoint.min(endpoint.NEG_INF, high_1) == endpoint.NEG_INF)
+        expect(endpoint.max(endpoint.NEG_INF, high_1) == high_1)
+        expect(endpoint.min(endpoint.NEG_INF, low_3) == endpoint.NEG_INF)
+        expect(endpoint.max(endpoint.NEG_INF, low_3) == low_3)
+        expect(endpoint.min(endpoint.NEG_INF, endpoint.POS_INF) == endpoint.NEG_INF)
+        expect(endpoint.max(endpoint.NEG_INF, endpoint.POS_INF) == endpoint.POS_INF)
     });
 
     test('infinity values', () => {

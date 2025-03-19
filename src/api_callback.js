@@ -4,7 +4,7 @@
 
 const PREFIX = "__callback";
 
-export function addToInstance(object) {
+export function addState(object) {
     object[`${PREFIX}_handlers`] = [];
 }
 
@@ -30,11 +30,11 @@ function notify_callbacks (eArg) {
 };
 
 
-export function addToPrototype (_prototype) {
+export function addMethods (obj) {
     const api = {
         add_callback, remove_callback, notify_callbacks
     }
-    Object.assign(_prototype, api);
+    Object.assign(obj, api);
 }
 
 /**

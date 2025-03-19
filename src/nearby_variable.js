@@ -22,11 +22,14 @@ export class NearbyIndexVariable extends NearbyIndexBase {
     constructor(variableProvider) {
         super();
         this._vp = variableProvider;
+        this.refresh();
     }
+
+    refresh(diff) {}
 
     nearby(offset) {
         const ep = endpoint.from_input(offset);        
-        const item = this._vp.value;
+        const item = this._vp.get();
 
         if (item == undefined) {
             return {

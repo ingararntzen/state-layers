@@ -1,4 +1,5 @@
 import * as callback from "./api_callback.js";
+import { random_string} from "./util.js";
 
 /**
  * variable providers must have a value property
@@ -18,13 +19,14 @@ export function is_variable_provider(obj) {
 export class VariableProvider {
 
     constructor(options={}) {
-        callback.addToInstance(this);
+        callback.addState(this);
         this._item;
 
         // initialize
         const {value} = options;
         if (value != undefined) {
             this._item = {
+                id: random_string(10),
                 itv: [null, null, true, true], 
                 type: "static",
                 data: value
@@ -44,4 +46,4 @@ export class VariableProvider {
         return this._item;
     }
 }
-callback.addToPrototype(VariableProvider.prototype);
+callback.addMethods(VariableProvider.prototype);
