@@ -53,7 +53,7 @@ export class Cursor {
     // invoked by subclass whenever cursor has changed
     onchange() {
         this.notify_callbacks();
-        this.eventifyTrigger("change");    
+        this.eventifyTrigger("change", this.query());    
     }
 }
 callback.addMethods(Cursor.prototype);

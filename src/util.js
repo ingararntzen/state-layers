@@ -106,27 +106,238 @@ export function random_string(length) {
 
 
 /**
- * Improved timeout.
- * Callback function is invoked after delay_sec seconds.
- * The callback is guaranteed to be invoked after delay_sec seconds.
+ * Improved set_timeout
+ * 
+ * Timeout is defined by a target_ms reading of performance.now().
+ * Callback is not invoked until performance.now() >= target_ms. 
+ * 
+ * This protects against a weakness in basic setTimeout, which may
+ * occationally invoke the callback too early. 
+ * 
  */
-export function set_timeout (delay_sec, callback) {
-    const delay_ms = delay_sec * 1000;
-    const t0_ms = performance.now();
-    const t1_ms = t0_ms + delay_ms;   
+export function set_timeout (callback, target_ms) {
     let tid;
     function cancel_timeout() {
         clearTimeout(tid);
     }
-    function handle_timeout () {
-        const ts_ms = performance.now();
-        if (ts_ms < t1_ms) {
+    function handle_timeout() {
+        const delta_ms = target_ms - performance.now();
+        if (delta_ms > 0) {
             // reschedule timeout
-            tid = setTimeout(handle_timeout, t1_ms - ts_ms);
-        } else {
+            tid = setTimeout(handle_timeout, delta_ms + 1);
+        } else {           
             callback();
         }
     }
-    tid = setTimeout(handle_timeout, t1_ms - t0_ms);
+    // ensure that delta_ms is not negative 
+    const delta_ms = Math.max(target_ms - performance.now(), 0);
+    // schedule timeout 1 ms late, 
+    // to reduce the likelihood of having to reschedule a timeout 
+    tid = setTimeout(handle_timeout, delta_ms + 1);
     return {cancel:cancel_timeout};
+}
+
+
+/**
+ *  Implements deterministic projection based on initial conditions 
+ *  - motion vector describes motion under constant acceleration
+ *
+ *  motion transition 
+ * 
+ *  transition from time domain to position under constant acceleration is given by
+ *  given initial vector [p0,v0,a0,t0]
+ *  p(t) = p0 + v0*(t-t0) + 0.5*a0*(t-t0)*(t-t0)
+ *  v(t) = v0 + a0*(t-t0)
+ *  a(t) = a0
+ *  t(t) = t
+ */
+export function motion_calculate(vector,t) {
+    const [p0,v0,a0,t0] = vector;
+    const d = t - t0;
+    const p = p0 + v0*d + 0.5*a0*d*d;
+    const v = v0 + a0*d;
+    const a = a0;
+    return [p,v,a,t];
+}
+
+/**
+ * Given motion determined from [p0,v0,a0,t0].
+ * Given equation p(t) = p0 + v0*(t-t0) + 0.5*a0*(t-t0)^2 == p1
+ * Calculate if equation has solutions for some real number t.
+ * A solution exists if determinant of quadratic equation is non-negative
+ * (v0^2 - 2a0(p0-p1)) >= 0
+ */
+function motion_has_real_solution(vector, p1) {
+    const [p0,v0,a0,t0] = vector;
+    return (Math.pow(v0,2) - 2*a0*(p0-p1)) >= 0.0
+};
+
+/**
+ * Given motion determined from [p0,v0,a0,t0].
+ * Given equation p(t) = p0 + v0*(t-t0) + 0.5*a0*(t-t0)^2 == p1
+ * Calculate and return real solutions, in ascending order.
+*/  
+function motion_get_real_solutions (vector, p1) {
+    const [p0,v0,a0,t0] = vector;
+    // Constant Position
+    if (a0 === 0.0 && v0 === 0.0) {
+        if (p0 != p1) return [];
+        else return [t0];
+    }
+    // Constant non-zero Velocity
+    if (a0 === 0.0) return [t0 + (p1-p0)/v0];
+    // Constant Acceleration
+    if (motion_has_real_solution(vector, p1) === false) return [];
+    // Exactly on solution
+    var discriminant = Math.pow(v0,2) - 2*a0*(p0-p1);
+    if (discriminant === 0.0) {
+        return [t0-v0/a0];
+    }
+    var sqrt = Math.sqrt(Math.pow(v0,2) - 2*a0*(p0-p1));
+    var d1 = t0 + (-v0 + sqrt)/a0;
+    var d2 = t0 + (-v0 - sqrt)/a0;
+    return [Math.min(d1,d2),Math.max(d1,d2)];
+};
+
+/*
+    calculate time range for given position range
+
+    motion transition from time to position is given by
+    p(t) = p0 + v*t + 0.5*a*t*t
+    find solutions for t so that 
+    p(t) = pos
+
+    do this for both values in range [low,high]
+    accumulate all candidate solutions t in ascending order
+    avoid duplicates
+    this can accumulate 0,1,2,3,4 solution
+    if 0 solutions - undefined (motion does not intersect with range ever) 
+    if 1 solutions - udefined (motion only intersects with range tangentially at one t)
+    if 2 solutions - [0,1] (motion intersects with range at two times)
+    if 3 solutions - [0,2] (motion intersects with range at three times)
+    if 4 solutions - [0,1] and [2,3]
+
+    returns a list of range candidates (at most two but only with acceleration)
+*/
+function motion_time_ranges_from_pos_range(vector, pos_range) {
+    const [p0,v0,a0,t0] = vector;
+    const [low=-Infinity, high=Infinity] = pos_range;
+
+    // [<-, ->]
+    if (low == -Infinity && high == Infinity) {
+        // no pos range == entire value space => time range entire timeline
+        return [[null, null]];
+    } 
+
+    // [FLAT LINE]
+    // pos is either within pos range for all t or never  
+    if (v0 === 0.0 && a0 === 0.0) {
+        // both low and high bound
+        return (p0 >= low && p0 <= high) ? [[null, null]] : [];
+    }
+
+    // aggregate solutions
+    let solutions = [];
+    if (low > -Infinity) {
+        solutions.push(...motion_get_real_solutions(vector, low));
+    } 
+    if (high < Infinity) {
+        solutions.push(...motion_get_real_solutions(vector, low));
+    }
+    // remove duplicates
+    solutions = [...new Set(solutions)];
+    // sort in ascending order
+    solutions.sort((a,b) => a-b);
+
+    // [<-, HIGH]
+    if (low == -Infinity) {
+        // only high bound
+        if (solutions.length == 0) {
+            // parabola not touching low
+            // pos < high or pos > high for all t - just test with t0
+            return (p0 <= high) ? [[null, null]] : [];
+        }
+        else if (solutions.length == 1) {
+            if (a0 > 0.0) {
+                // parabola - touching high from overside
+                // pos > high for all t
+                return [];
+            } else if (a0 < 0.0) {
+                // parabola touching low from underside
+                // pos < high for all t
+                return [[null, null]];
+            } else {
+                // a0 == 0.0 > straigth line
+                if (v0 > 0.0) {
+                    // pos <= high for all t <= solutions[0]
+                    return [null, [solutions[0]]];
+                } else {
+                    // pos <= high for t >= solutions[0]
+                    return [solutions[0], null];
+                }
+            }
+        } else if (solutions.length == 2) {
+            // parabola
+            if (a0 > 0.0) {
+                // one time range between solutions
+                return [[solutions[0], solutions[1]]];
+            } else if (a0 < 0.0) {
+                // one time range on each side 
+                return [[null, solutions[0]], [solutions[1], null]];
+            }
+        }
+
+
+    // [LOW, ->]
+    } else if (high == Infinity) {
+        // only low bound
+        if (solutions.length == 0) {
+            // parabola not touching low
+            // pos > low or pos < low for all t - just test with t0
+            return (p0 >= low) ? [[null, null]] : [];
+        }
+        else if (solutions.length == 1) {
+            if (a0 > 0.0) {
+                // parabola - touching low from overside
+                // pos > low for all t
+                return [[null, null]];
+            } else if (a0 < 0.0) {
+                // parabola touching low from underside
+                // pos < low for all t
+                return [];
+            } else {
+                // a0 == 0.0 > straigth line
+                if (v0 > 0.0) {
+                    // pos >= low for all t >= solutions[0]
+                    return [[solutions[0], null]];
+                } else {
+                    // pos >= low for t <= solutions[0]
+                    return [null, solutions[0]];
+                }
+            }
+        } else if (solutions.length == 2) {
+            // parabola
+            if (a0 > 0.0) {
+                // one time range on each side 
+                return [[null, solutions[0]], [solutions[1], null]];
+            } else if (a0 < 0.0) {
+                // one time range between solutions
+                return [[solutions[0], solutions[1]]];
+            }
+        }
+
+    // [LOW, HIGH]
+    } else {
+        // both low and high bound
+        if (solutions.length == 0) return [];
+        if (solutions.length == 1) return [];
+        if (solutions.length == 2) return [[solutions[0], solutions[1]]];
+        if (solutions.length == 3) return [[solutions[0], solutions[2]]];
+        if (solutions.length == 4) return [[solutions[0], solutions[1]], [solutions[2], solutions[3]]];
+    }
+}
+
+export const motion_utils = {
+    calculate: motion_calculate,
+    time_ranges_from_pos_range: motion_time_ranges_from_pos_range
 }

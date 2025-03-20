@@ -41,6 +41,7 @@ export function addMethods (obj) {
  * test if object implements callback api
  */
 export function is_callback_api (obj) {
+    if (obj == undefined) return false;
     const methods = ["add_callback", "remove_callback"];
     for (const prop of methods) {
         if (!(prop in obj)) return false;

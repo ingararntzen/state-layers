@@ -1,5 +1,5 @@
 import { interval } from "./intervals.js";
-
+import { motion_utils } from "./util.js";
 
 /********************************************************************
 BASE SEGMENT
@@ -44,30 +44,6 @@ export class BaseSegment {
     }
 }
 
-
-
-/********************************************************************
-    LAYERS SEGMENT
-*********************************************************************/
-
-export class LayersSegment extends BaseSegment {
-
-	constructor(itv, args) {
-        super(itv);
-		this._layers = args.layers;
-        this._value_func = args.value_func
-
-        // TODO - figure out dynamic here?
-    }
-
-	state(offset) {
-        // TODO - use value func
-        // for now - just use first layer
-        return {...this._layers[0].query(offset), offset};
-	}
-}
-
-
 /********************************************************************
     STATIC SEGMENT
 *********************************************************************/
@@ -88,10 +64,6 @@ export class StaticSegment extends BaseSegment {
 /********************************************************************
     MOTION SEGMENT
 *********************************************************************/
-/*
-    Implements deterministic projection based on initial conditions 
-    - motion vector describes motion under constant acceleration
-*/
 
 export class MotionSegment extends BaseSegment {
     
@@ -103,31 +75,18 @@ export class MotionSegment extends BaseSegment {
             acceleration:a0=0, 
             timestamp:t0=0
         } = data;
-        // create motion transition
-        this._pos_func = function (ts) {
-            let d = ts - t0;
-            return p0 + v0*d + 0.5*a0*d*d;
-        };
-        this._vel_func = function (ts) {
-            let d = ts - t0;
-            return v0 + a0*d;
-        }
-        this._acc_func = function (ts) {
-            return a0;
-        }
+        this._vector = [p0,v0,a0,t0];
     }
 
     state(offset) {
-        let pos = this._pos_func(offset);
-        let vel = this._vel_func(offset);
-        let acc = this._acc_func(offset);
+        const [p,v,a,t] = motion_utils.calculate(this._vector, offset);
         return {
-            position: pos,
-            velocity: vel,
-            acceleration: acc,
-            timestamp: offset,
-            value: pos,
-            dynamic: (vel != 0 || acc != 0 )
+            // position: p,
+            // velocity: v,
+            // acceleration: a,
+            // timestamp: t,
+            value: p,
+            dynamic: (v != 0 || a != 0 )
         }
     }
 }

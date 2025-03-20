@@ -2,6 +2,7 @@
  * clock provider must have a now() method
  */
 export function is_clock_provider(obj) {
+    if (obj == undefined) return false;
     if (!("now" in obj)) return false;
     if (typeof obj.now != 'function') return false;
     return true;

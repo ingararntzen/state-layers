@@ -53,8 +53,8 @@ export class NearbyIndexVariable extends NearbyIndexBase {
         // invent region left or right
         // calculate boundary values
         const segment = load_segment(item.itv, item);
-        const low_value = segment.query(ep_low[0]);
-        const high_value = segment.query(ep_high[0]);
+        const low_value = segment.query(ep_low[0]).value;
+        const high_value = segment.query(ep_high[0]).value;
         const id = random_string(10);
 
         if (endpoint.lt(ep, ep_low)) {
