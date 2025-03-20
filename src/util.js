@@ -104,7 +104,6 @@ export function random_string(length) {
     return text;
 }
 
-
 /**
  * Improved set_timeout
  * 
@@ -114,8 +113,13 @@ export function random_string(length) {
  * This protects against a weakness in basic setTimeout, which may
  * occationally invoke the callback too early. 
  * 
+ * schedule timeout 1 ms late, to reduce the likelihood of 
+ * having to reschedule a timeout 
  */
-export function set_timeout (callback, target_ms) {
+export function set_timeout (callback, delta_ms) {
+    let ts = performance.now();
+    delta_ms = Math.max(delta_ms, 0);
+    let target_ms = ts + delta_ms;
     let tid;
     function cancel_timeout() {
         clearTimeout(tid);
@@ -125,18 +129,13 @@ export function set_timeout (callback, target_ms) {
         if (delta_ms > 0) {
             // reschedule timeout
             tid = setTimeout(handle_timeout, delta_ms + 1);
-        } else {           
+        } else {
             callback();
         }
     }
-    // ensure that delta_ms is not negative 
-    const delta_ms = Math.max(target_ms - performance.now(), 0);
-    // schedule timeout 1 ms late, 
-    // to reduce the likelihood of having to reschedule a timeout 
     tid = setTimeout(handle_timeout, delta_ms + 1);
     return {cancel:cancel_timeout};
 }
-
 
 /**
  *  Implements deterministic projection based on initial conditions 
@@ -154,7 +153,7 @@ export function set_timeout (callback, target_ms) {
 export function motion_calculate(vector,t) {
     const [p0,v0,a0,t0] = vector;
     const d = t - t0;
-    const p = p0 + v0*d + 0.5*a0*d*d;
+    const p = p0 + v0*d + 0.5*a0*Math.pow(d,2);
     const v = v0 + a0*d;
     const a = a0;
     return [p,v,a,t];
@@ -167,7 +166,7 @@ export function motion_calculate(vector,t) {
  * A solution exists if determinant of quadratic equation is non-negative
  * (v0^2 - 2a0(p0-p1)) >= 0
  */
-function motion_has_real_solution(vector, p1) {
+function motion_has_real_solutions(vector, p1) {
     const [p0,v0,a0,t0] = vector;
     return (Math.pow(v0,2) - 2*a0*(p0-p1)) >= 0.0
 };
@@ -182,12 +181,16 @@ function motion_get_real_solutions (vector, p1) {
     // Constant Position
     if (a0 === 0.0 && v0 === 0.0) {
         if (p0 != p1) return [];
-        else return [t0];
+        else {
+            // any t is a solution
+            // NOTE: has real solutions is true
+            return undefined;
+        };
     }
     // Constant non-zero Velocity
     if (a0 === 0.0) return [t0 + (p1-p0)/v0];
     // Constant Acceleration
-    if (motion_has_real_solution(vector, p1) === false) return [];
+    if (motion_has_real_solutions(vector, p1) === false) return [];
     // Exactly on solution
     var discriminant = Math.pow(v0,2) - 2*a0*(p0-p1);
     if (discriminant === 0.0) {
@@ -221,7 +224,9 @@ function motion_get_real_solutions (vector, p1) {
 */
 function motion_time_ranges_from_pos_range(vector, pos_range) {
     const [p0,v0,a0,t0] = vector;
-    const [low=-Infinity, high=Infinity] = pos_range;
+    let [low, high] = pos_range;
+    if (low == null) low = -Infinity;
+    if (high == null) high = Infinity;
 
     // [<-, ->]
     if (low == -Infinity && high == Infinity) {
@@ -238,11 +243,11 @@ function motion_time_ranges_from_pos_range(vector, pos_range) {
 
     // aggregate solutions
     let solutions = [];
-    if (low > -Infinity) {
+    if (-Infinity < low) {
         solutions.push(...motion_get_real_solutions(vector, low));
     } 
     if (high < Infinity) {
-        solutions.push(...motion_get_real_solutions(vector, low));
+        solutions.push(...motion_get_real_solutions(vector, high));
     }
     // remove duplicates
     solutions = [...new Set(solutions)];
@@ -270,10 +275,10 @@ function motion_time_ranges_from_pos_range(vector, pos_range) {
                 // a0 == 0.0 > straigth line
                 if (v0 > 0.0) {
                     // pos <= high for all t <= solutions[0]
-                    return [null, [solutions[0]]];
+                    return [[null, solutions[0]]];
                 } else {
                     // pos <= high for t >= solutions[0]
-                    return [solutions[0], null];
+                    return [[solutions[0], null]];
                 }
             }
         } else if (solutions.length == 2) {
@@ -312,7 +317,7 @@ function motion_time_ranges_from_pos_range(vector, pos_range) {
                     return [[solutions[0], null]];
                 } else {
                     // pos >= low for t <= solutions[0]
-                    return [null, solutions[0]];
+                    return [[null, solutions[0]]];
                 }
             }
         } else if (solutions.length == 2) {
@@ -339,5 +344,7 @@ function motion_time_ranges_from_pos_range(vector, pos_range) {
 
 export const motion_utils = {
     calculate: motion_calculate,
+    has_real_solutions: motion_has_real_solutions,
+    get_real_solutions: motion_get_real_solutions,
     time_ranges_from_pos_range: motion_time_ranges_from_pos_range
 }

@@ -51,11 +51,15 @@ export function segments_layer(options={}) {
                 if (is_collection_provider(layer.src)) {
                     layer.index = new NearbyIndexCollection(layer.src);
                 } else if (is_variable_provider(layer.src)) {
-                    layer.index = new NearbyIndexVariable(layer.src);
+                    layer.index = new NearbyIndexCollection(layer.src);
                 }
             } 
             if (layer.index != undefined) {
-                layer.index.refresh(eArg);
+                if (is_collection_provider(layer.src)) {
+                    layer.index.refresh(eArg);
+                } else if (is_variable_provider(layer.src)) {
+                    layer.index.refresh();
+                }
                 layer.onchange();
             }
         }        

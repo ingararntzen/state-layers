@@ -2,6 +2,7 @@ import { endpoint } from "./intervals.js";
 import { NearbyIndexBase, nearby_from } from "./nearby_base.js";
 import { SortedArray } from "./sortedarray.js";
 import { is_collection_provider } from "./provider_collection.js";
+import { is_variable_provider } from "./provider_variable.js";
 
 const {LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN} = endpoint.types;
 const EP_TYPES = [LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN];
@@ -141,9 +142,11 @@ export class NearbyIndexCollection extends NearbyIndexBase {
     constructor(collectionProvider) {
         super();
 
-        if (!(is_collection_provider(collectionProvider))) {
+		/*
+		if (!(is_collection_provider(collectionProvider))) {
             throw new Error(`must be collection provider ${collectionProvider}`);
         }
+		*/
         this._cp = collectionProvider;
 		this._initialise();
 		this.refresh();
@@ -171,7 +174,11 @@ export class NearbyIndexCollection extends NearbyIndexBase {
 		let remove_items = [];
 
 		if (diffs == undefined) {
-			insert_items = this.src.get_all();
+			if (is_collection_provider(this.src)) {
+				insert_items = this.src.get_all();
+			} else if (is_variable_provider(this.src)) {
+				insert_items = this.src.get();
+			}
 			// clear all state
 			this._initialise();
 		} else {

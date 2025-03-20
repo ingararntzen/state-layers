@@ -16,34 +16,38 @@ export function is_variable_provider(obj) {
     VARIABLE PROVIDER
 ***************************************************************/
 
+/**
+ * VariableProvider stores a list of items.
+ */
+
 export class VariableProvider {
 
     constructor(options={}) {
         callback.addState(this);
-        this._item;
+        this._items = [];
 
         // initialize
         const {value} = options;
         if (value != undefined) {
-            this._item = {
+            this._items = [{
                 id: random_string(10),
                 itv: [null, null, true, true], 
                 type: "static",
                 data: value
-            };
+            }];
         }
     }
 
-    set (item) {
+    set (items) {
         return Promise.resolve()
             .then(() => {
-                this._item = item;
+                this._items = items;
                 this.notify_callbacks();
             });
     }
 
     get () {
-        return this._item;
+        return this._items;
     }
 }
 callback.addMethods(VariableProvider.prototype);
