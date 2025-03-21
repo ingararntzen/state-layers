@@ -3,9 +3,7 @@
 import { motion_utils } from "../src/util";
 
 const {
-    has_real_solutions,
     get_real_solutions,
-    calculate_motion,
     time_ranges_from_pos_range:trfpr
 } = motion_utils;
 
@@ -66,7 +64,6 @@ describe('MotionUtils', () => {
         v = [0,-1,0,0];
         expect(trfpr(v, [null, null])).toEqual([[null,null]]);
         expect(trfpr(v, [null, 0])).toEqual([[0, null]]);
-        console.log(trfpr(v, [0, 10]));
         expect(trfpr(v, [0, 10])).toEqual([[-10,0]]);
         expect(trfpr(v, [10, null])).toEqual([[null, -10]]);
 

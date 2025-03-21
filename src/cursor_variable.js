@@ -8,8 +8,6 @@ import { is_variable_provider } from "./provider_variable.js";
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { random_string, set_timeout, motion_utils } from "./util.js";
-import { load_segment } from "./segments.js";
-import { endpoint, interval } from "./intervals.js";
 
 function is_finite_number(obj) {
     return (typeof obj == 'number') && isFinite(obj);
@@ -93,19 +91,28 @@ export function variable_cursor(options={}) {
         }
     }
 
-    cursor.query = function () {
+    cursor.query = function query() {
         const offset = cursor.ctrl.now();
         return src_cache.query(offset);
+    }
+    cursor.get = function get() {
+        return cursor.query().value;
     }
 
     /**
      * UPDATE API for Variable Cursor
      */    
-    cursor.set = function (value) {
-        return cursor_set(cursor, value);
+    cursor.set = function set(value) {
+        return set_value(cursor, value);
     }
-    cursor.motion = function (vector) {
-        return cursor_motion(cursor, vector);
+    cursor.motion = function motion(vector) {
+        return set_motion(cursor, vector);
+    }
+    cursor.transition = function transition({target, duration, easing}) {
+        return set_transition(cursor, target, duration, easing);
+    }
+    cursor.interpolate = function interpolate ({tuples, duration}) {
+        return set_interpolation(cursor, tuples, duration);
     }
     
     // initialize
@@ -123,7 +130,7 @@ export function variable_cursor(options={}) {
  * set value of cursor
  */
 
-function cursor_set(cursor, value) {
+function set_value(cursor, value) {
     const items = [{
         id: random_string(10),
         itv: [null, null, true, true],
@@ -148,7 +155,7 @@ function cursor_set(cursor, value) {
  * - these will be set to zero.
  */
 
-function cursor_motion(cursor, vector={}) {
+function set_motion(cursor, vector={}) {
     // get the current state of the cursor
     let {value:p0, offset:t0} = cursor.query();
     // ensure that p0 is number type
@@ -185,7 +192,6 @@ function cursor_motion(cursor, vector={}) {
         return tr[0] <= ts && ts <= tr[1];
     });
     if (time_range != undefined) {
-        
         items.push({
             id: random_string(10),
             itv: [null, time_range[0], true, false],
@@ -222,7 +228,84 @@ function cursor_motion(cursor, vector={}) {
     return update(cursor, items);
 }
 
+/**
+ * set transition - to target position using in <duration> seconds.
+ */
 
+function set_transition(cursor, target, duration, easing) {
+    const {value:v0, offset:t0} = cursor.query();
+    const v1 = target;
+    const t1 = t0 + duration;
+    check_number("position", v0);
+    check_number("position", v1);
+    check_number("position", t0);
+    check_number("position", t1);
+    let items = [
+        {
+            id: random_string(10),
+            itv: [null, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            id: random_string(10),
+            itv: [t0, t1, true, true],
+            type: "transition",
+            data: {v0, v1, t0, t1, easing}
+        },
+        {
+            id: random_string(10),
+            itv: [t1, null, false, true],
+            type: "static",
+            data: v1
+        }
+    ]
+    return update(cursor, items);
+}
+
+/**
+ * set interpolation
+ * 
+ * assumes timestamps are in range [0,1]
+ * scale timestamps to duration and offset by t0
+ * assuming interpolation starts at t0
+ */
+
+function set_interpolation(cursor, tuples, duration) {
+    const now = cursor.ctrl.now();
+    tuples = tuples.map(([v,t]) => {
+        check_number("ts", t);
+        check_number("val", v);
+        return [v, now + t*duration];
+    })
+    const [v0, t0] = tuples[0];
+    const [v1, t1] = tuples[tuples.length-1];
+    const items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "interpolation",
+            data: tuples
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            data: v1
+        }
+    ]    
+    return update(cursor, items);
+}
+
+
+/**
+ * get stateProvider from cursor
+ * check if it exists
+ * check if it is a variable provider
+ */
 
 function get_provider(cursor) {
     if (cursor.src == undefined) {
@@ -233,6 +316,10 @@ function get_provider(cursor) {
     }
     return cursor.src.src;
 }
+
+/**
+ * update the stateProvider with items according to type of provider
+ */
 
 function update(cursor, items) {
     const provider = get_provider(cursor);
