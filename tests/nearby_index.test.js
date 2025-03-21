@@ -1,6 +1,6 @@
 /* global describe, test, expect */
 import { CollectionProvider } from "../src/provider_collection.js";
-import { NearbyIndexCollection } from "../src/nearby_collection.js";
+import { NearbyIndex } from "../src/nearby_index.js";
 import { endpoint } from "../src/intervals.js";
 
 const EP_POS_INF = endpoint.POS_INF;
@@ -8,7 +8,7 @@ const EP_NEG_INF = endpoint.NEG_INF;
 
 function setup(options) {
     const sp = new CollectionProvider(options);
-    const index = new NearbyIndexCollection(sp);
+    const index = new NearbyIndex(sp);
     sp.add_callback((diffs) => {
         index.refresh(diffs);
     });

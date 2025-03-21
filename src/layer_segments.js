@@ -2,8 +2,7 @@ import * as srcprop from "./api_srcprop.js";
 import { Layer } from "./layer_base.js";
 import { is_collection_provider } from "./provider_collection.js";
 import { is_variable_provider} from "./provider_variable.js";
-import { NearbyIndexCollection } from "./nearby_collection.js";
-import { NearbyIndexVariable } from "./nearby_variable.js";
+import { NearbyIndex } from "./nearby_index.js";
 import { load_segment } from "./segments.js";
 import { toState } from "./util.js";
 import { interval } from "./intervals.js";
@@ -49,9 +48,9 @@ export function segments_layer(options={}) {
         if (propName == "src") {
             if (eArg == "reset") {
                 if (is_collection_provider(layer.src)) {
-                    layer.index = new NearbyIndexCollection(layer.src);
+                    layer.index = new NearbyIndex(layer.src);
                 } else if (is_variable_provider(layer.src)) {
-                    layer.index = new NearbyIndexCollection(layer.src);
+                    layer.index = new NearbyIndex(layer.src);
                 }
             } 
             if (layer.index != undefined) {

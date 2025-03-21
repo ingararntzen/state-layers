@@ -44,7 +44,7 @@ describe('MotionUtils', () => {
        
     });
 
-    test.only('time range from pos range', () => {
+    test('time range from pos range', () => {
         // no motion
         let v = [0,0,0,0];
         expect(trfpr(v, [null,null])).toEqual([[null,null]]);

@@ -2,7 +2,7 @@ import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
 import { Layer } from "./layer_base.js";
 import { segments_layer } from "./layer_segments.js";
-import { merge_layer } from "./layer_merge.js";
+import { merge_layer } from "./ops/layer_merge.js";
 import { shift_layer } from "./ops/layer_shift.js";
 import { boolean_layer } from "./ops/layer_boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/layer_logical_merge.js";

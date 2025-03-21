@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
 import { CollectionProvider } from '../src/provider_collection.js';
-import { NearbyIndexCollection } from '../src/nearby_collection.js';
+import { NearbyIndex } from '../src/nearby_index.js';
 
 // Add your test cases here
 describe('NearbyIndex Regions', () => {
@@ -19,7 +19,7 @@ describe('NearbyIndex Regions', () => {
         })
 
         const src = new CollectionProvider({insert:items});
-        const index = new NearbyIndexCollection(src);
+        const index = new NearbyIndex(src);
 
         let result = [...index.regions({includeEmpty:false})];
 
@@ -46,7 +46,7 @@ describe('NearbyIndex Regions', () => {
         })
 
         const src = new CollectionProvider({insert:items});
-        const index = new NearbyIndexCollection(src);
+        const index = new NearbyIndex(src);
 
         let regions = [...index.regions({includeEmpty:true})];
 
@@ -78,7 +78,7 @@ describe('NearbyIndex Regions', () => {
         })
 
         const src = new CollectionProvider({insert:items});
-        const index = new NearbyIndexCollection(src);
+        const index = new NearbyIndex(src);
         const regions = [...index.regions({start:1.5, stop:5})];
 
         expect(regions.length).toBe(3);
@@ -102,7 +102,7 @@ describe('NearbyIndex Regions', () => {
         });
 
         const src = new CollectionProvider({insert:items});
-        const index = new NearbyIndexCollection(src);
+        const index = new NearbyIndex(src);
         let nearby, next, prev;
 
         nearby = index.nearby(2);
@@ -139,7 +139,7 @@ describe('NearbyIndex Regions', () => {
         });
 
         const src = new CollectionProvider({insert:items});
-        const index = new NearbyIndexCollection(src);
+        const index = new NearbyIndex(src);
         let nearby, next;
 
         nearby = index.nearby(-Infinity);

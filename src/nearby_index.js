@@ -132,12 +132,12 @@ class ItemsMap {
 
 
 /**
- * NearbyIndexCollection
+ * NearbyIndex
  * 
- * NearbyIndex for CollectionProvider
+ * NearbyIndex for CollectionProvider or VariableProvider
  */
 
-export class NearbyIndexCollection extends NearbyIndexBase {
+export class NearbyIndex extends NearbyIndexBase {
 
     constructor(collectionProvider) {
         super();

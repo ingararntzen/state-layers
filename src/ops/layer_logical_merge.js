@@ -1,6 +1,6 @@
 import { Layer } from "../layer_base.js";
 import { NearbyIndexBoolean } from "./layer_boolean.js";
-import { NearbyIndexMerge } from "../nearby_merge.js";
+import { NearbyIndexMerge } from "./layer_merge.js";
 
 
 export function logical_merge_layer(sources, options={}) {
@@ -18,7 +18,7 @@ export function logical_merge_layer(sources, options={}) {
     layer.index = new NearbyIndexBoolean(index, {condition});
 
     // subscribe to callbacks from sources
-    const handles = sources.map((src) => {
+    sources.map((src) => {
         return src.add_callback(layer.onchange);
     });
     
