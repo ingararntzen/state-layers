@@ -37,16 +37,16 @@
         color.bind(render_html("#color", ({value}) => `${value}`), 200);
 
         document.querySelector("#valueBtn").onclick = () => {
-            offset.assign(getRandomInt(10))
+            offset.set(getRandomInt(10))
         }
         document.querySelector("#resetBtn").onclick = () => {
-            offset.assign(0);
+            offset.set(0);
         }
         document.querySelector("#playBtn").onclick = () => {
-            offset.move({velocity:1});
+            offset.motion({velocity:1,  range:[-10, 10]});
         }
         document.querySelector("#pauseBtn").onclick = () => {
-            offset.move({velocity:0});
+            offset.motion({velocity:0});
         }
         document.querySelector("#transBtn").onclick = () => {
             offset.transition({target:4, duration:4});
@@ -62,10 +62,9 @@
             ];
             offset.interpolate({tuples, duration:4});
         }
-
-
-
-
+        document.querySelector("#itemBtn").onclick = () => {
+            console.log(offset.get_items());
+        }
 
 </script>
 </head>
@@ -88,7 +87,9 @@
     <p>
         <div id="color"></div>
     </p>
-    
+    <p>
+        <button id="itemBtn">Item</button>
+    </p>
 
 </body>
 </html>

@@ -30,6 +30,10 @@ export class Cursor {
 
     get value () {return this.query().value};
 
+    get () {
+        return this.query().value;
+    }
+
     /*
         Eventify: immediate events
     */

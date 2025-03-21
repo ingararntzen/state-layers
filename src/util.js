@@ -12,7 +12,15 @@ export function divmod(x, base) {
     return [n, r];
 }
 
+export function is_finite_number(obj) {
+    return (typeof obj == 'number') && isFinite(obj);
+}
 
+export function check_number(name, obj) {
+    if (!is_finite_number(obj)) {
+        throw new Error(`${name} must be finite number ${obj}`);
+    }
+}
 /*
     similar to range function in python
 */
@@ -342,9 +350,18 @@ function motion_calculate_time_ranges(vector, pos_range) {
     }
 }
 
+function motion_check_range(obj) {
+    if (Array.isArray(obj) && obj.length != 2) {
+        throw new Error(`range must have two elements ${obj}`);
+    }
+    obj[0] == null || check_number("low", obj[0]);
+    obj[1] == null || check_number("high", obj[1]);
+}
+
 export const motion_utils = {
     calculate: motion_calculate,
     has_real_solutions: motion_has_real_solutions,
     get_real_solutions: motion_get_real_solutions,
-    calculate_time_ranges: motion_calculate_time_ranges
+    calculate_time_ranges: motion_calculate_time_ranges,
+    check_range: motion_check_range
 }

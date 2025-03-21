@@ -7,26 +7,8 @@ import { is_collection_provider } from "./provider_collection.js";
 import { is_variable_provider } from "./provider_variable.js";
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
-import { random_string, set_timeout, motion_utils } from "./util.js";
-
-function is_finite_number(obj) {
-    return (typeof obj == 'number') && isFinite(obj);
-}
-
-function check_number(name, obj) {
-    if (!is_finite_number(obj)) {
-        throw new Error(`${name} must be finite number ${obj}`);
-    }
-}
-
-function check_range(obj) {
-    if (Array.isArray(obj) && obj.length != 2) {
-        throw new Error(`range must have two elements ${obj}`);
-    }
-    obj[0] == null || check_number("low", obj[0]);
-    obj[1] == null || check_number("high", obj[1]);
-}
-
+import { random_string, set_timeout, check_number, motion_utils } from "./util.js";
+const check_range = motion_utils.check_range;
 
 export function variable_cursor(options={}) {
 
@@ -36,7 +18,7 @@ export function variable_cursor(options={}) {
     // cache for src
     let src_cache;
     // timeout
-    let timeout;
+    let tid;
 
     // setup src property
     srcprop.addState(cursor);
@@ -69,36 +51,50 @@ export function variable_cursor(options={}) {
                 src_cache.clear();                
             }
         }
-        detect_future_change();
+        detect_future_event();
         cursor.onchange();
     }
 
-    function detect_future_change() {
-        if (timeout) {
-            timeout.cancel();
-            timeout = undefined;
-        }
+    /**
+     * cursor.ctrl (clock) defines an active region of cursor.src (layer)
+     * at some point in the future, the cursor.ctrl will leave this region.
+     * in that moment, cursor should reevaluate its state - so we need to 
+     * detect this event by timeout  
+     */
+
+    function detect_future_event() {
+        if (tid) {tid.cancel();}
         // ctrl 
         const ts = cursor.ctrl.now();
         // nearby from src
         const nearby = cursor.src.index.nearby(ts);
-        const high = nearby.itv[1] || Infinity;        
-        if (isFinite(high)) {
-            const delta_ms = (high - ts) * 1000;
-            timeout = set_timeout(() => {
-                cursor.onchange();
-            }, delta_ms);
+        const region_high = nearby.itv[1] || Infinity;        
+
+        if (region_high == Infinity) {
+            // no future leave event
+            return;
         }
+        const delta_ms = (region_high - ts) * 1000;
+        tid = set_timeout(() => {
+            cursor.onchange();
+        }, delta_ms);
     }
 
     cursor.query = function query() {
         const offset = cursor.ctrl.now();
         return src_cache.query(offset);
     }
-    cursor.get = function get() {
-        return cursor.query().value;
-    }
 
+    /*
+        return the currently active items of the cursor
+        - basis for segment and current value
+        - typically just one
+    */
+    cursor.get_items = function get_items() {
+        const offset = cursor.ctrl.now();
+        return cursor.src.get_items(offset);
+    }
+    
     /**
      * UPDATE API for Variable Cursor
      */    

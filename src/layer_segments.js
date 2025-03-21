@@ -64,6 +64,11 @@ export function segments_layer(options={}) {
         }        
     }
 
+    // return items valid for given offset.
+    layer.get_items = function get_items(offset) {
+        return [...layer.index.nearby(offset).center];
+    }
+
     // initialise
     layer.src = src;
 

@@ -44,10 +44,9 @@
             ];
             offset.interpolate({tuples, duration:4});
         }
-
-
-
-
+        document.querySelector("#itemBtn").onclick = () => {
+            console.log(offset.get_items());
+        }
 
 </script>
 </head>
@@ -64,6 +63,9 @@
         <button id="pauseBtn">Pause</button>
         <button id="transBtn">Transition</button>
         <button id="interpolateBtn">Interpolate</button>
+    </p>
+    <p>
+        <button id="itemBtn">Item</button>
     </p>
 </body>
 </html>

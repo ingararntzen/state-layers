@@ -1,6 +1,5 @@
 import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
-import { Layer } from "./layer_base.js";
 import { segments_layer } from "./layer_segments.js";
 import { merge_layer } from "./ops/layer_merge.js";
 import { shift_layer } from "./ops/layer_shift.js";
@@ -8,8 +7,7 @@ import { boolean_layer } from "./ops/layer_boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/layer_logical_merge.js";
 import { clock_cursor } from "./cursor_clock.js";
 import { variable_cursor } from "./cursor_variable.js";
-import { cmd } from "./cmd.js";
-
+import { playback_cursor } from "./cursor_playback.js";
 
 /*********************************************************************
     LAYER FACTORY
@@ -17,9 +15,6 @@ import { cmd } from "./cmd.js";
 
 function layer(options={}) {
     let {src, insert, value, ...opts} = options;
-    if (src instanceof Layer) {
-        return src;
-    } 
     if (src == undefined) {
         if (value != undefined) {
             src = new VariableProvider({value});
@@ -40,6 +35,12 @@ function variable(options={}) {
     return variable_cursor({ctrl, src});
 }
 
+function playback(options={}) {
+    const {ctrl, src} = options;
+    return playback_cursor({ctrl, src});
+}
+
+
 export { 
     layer, 
     merge_layer as merge, 
@@ -47,7 +48,7 @@ export {
     boolean_layer as boolean,
     logical_merge_layer as logical_merge, 
     logical_expr,
-    cmd,
     clock_cursor as clock,
-    variable
+    variable,
+    playback
 }
