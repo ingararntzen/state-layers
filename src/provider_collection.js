@@ -103,7 +103,7 @@ export class CollectionProvider {
         return [...diff_map.values()];
     }
 
-    get_all() {
+    get() {
         return [...this._map.values()];
     };
 }

@@ -31,7 +31,6 @@ describe('MotionUtils', () => {
         // constant acceleration
         // top-down
         v = [0,0,1,0];
-        console.log(get_real_solutions(v, 2))
         expect(get_real_solutions(v, 2)).toEqual([-2, 2]);
         expect(get_real_solutions(v, 0)).toEqual([0]);
         expect(get_real_solutions(v, -2)).toEqual([]);

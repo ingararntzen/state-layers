@@ -184,8 +184,8 @@ function set_motion(cursor, vector={}) {
      * where the motion position is legal  
      * low <= p <= high 
      */
-    const trfpr = motion_utils.time_ranges_from_pos_range;
-    const time_ranges = trfpr([p1,v1,a1,t1], range);
+    const ctr = motion_utils.calculate_time_ranges;
+    const time_ranges = ctr([p1,v1,a1,t1], range);
     // pick a time range which contains t1
     const ts = cursor.ctrl.now();
     const time_range = time_ranges.find((tr) => {

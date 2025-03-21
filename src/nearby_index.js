@@ -139,20 +139,21 @@ class ItemsMap {
 
 export class NearbyIndex extends NearbyIndexBase {
 
-    constructor(collectionProvider) {
-        super();
+    constructor(stateProvider) {
+        super();		
 
-		/*
-		if (!(is_collection_provider(collectionProvider))) {
-            throw new Error(`must be collection provider ${collectionProvider}`);
+		if (
+			!is_collection_provider(stateProvider) &&
+			!is_variable_provider(stateProvider)
+		) {
+			throw new Error(`stateProvider must be collectionProvider or variableProvider ${stateProvider}`);
         }
-		*/
-        this._cp = collectionProvider;
+        this._sp = stateProvider;
 		this._initialise();
 		this.refresh();
 	}
 
-    get src () {return this._cp;}
+    get src () {return this._sp;}
 
 
 	_initialise() {
@@ -174,11 +175,7 @@ export class NearbyIndex extends NearbyIndexBase {
 		let remove_items = [];
 
 		if (diffs == undefined) {
-			if (is_collection_provider(this.src)) {
-				insert_items = this.src.get_all();
-			} else if (is_variable_provider(this.src)) {
-				insert_items = this.src.get();
-			}
+			insert_items = this.src.get();		
 			// clear all state
 			this._initialise();
 		} else {
