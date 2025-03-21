@@ -222,7 +222,7 @@ function motion_get_real_solutions (vector, p1) {
 
     returns a list of range candidates (at most two but only with acceleration)
 */
-function motion_time_ranges_from_pos_range(vector, pos_range) {
+function motion_calculate_time_ranges(vector, pos_range) {
     const [p0,v0,a0,t0] = vector;
     let [low, high] = pos_range;
     if (low == null) low = -Infinity;
@@ -346,5 +346,5 @@ export const motion_utils = {
     calculate: motion_calculate,
     has_real_solutions: motion_has_real_solutions,
     get_real_solutions: motion_get_real_solutions,
-    time_ranges_from_pos_range: motion_time_ranges_from_pos_range
+    calculate_time_ranges: motion_calculate_time_ranges
 }

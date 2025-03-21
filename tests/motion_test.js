@@ -1,11 +1,12 @@
 
 /* global describe, test, expect */
-import { motion_utils } from "../src/util";
+import { motion_utils} from "../src/util";
 
 const {
     get_real_solutions,
-    time_ranges_from_pos_range:trfpr
+    calculate_time_ranges: trfpr
 } = motion_utils;
+
 
 // Add your test cases here
 describe('MotionUtils', () => {
@@ -43,7 +44,7 @@ describe('MotionUtils', () => {
        
     });
 
-    test('time range from pos range', () => {
+    test.only('time range from pos range', () => {
         // no motion
         let v = [0,0,0,0];
         expect(trfpr(v, [null,null])).toEqual([[null,null]]);
@@ -57,6 +58,7 @@ describe('MotionUtils', () => {
         // up
         v = [0,1,0,0];
         expect(trfpr(v, [null, null])).toEqual([[null,null]]);
+
         expect(trfpr(v, [null, 0])).toEqual([[null, 0]]);
         expect(trfpr(v, [0, 10])).toEqual([[0,10]]);
         expect(trfpr(v, [10, null])).toEqual([[10,null]]);
@@ -87,10 +89,5 @@ describe('MotionUtils', () => {
         // shift 2 up - to get 1 solution
         v = [2,0,1,0];
         expect(trfpr(v, [0, 2])).toEqual([]);
-
-
     });
-
-
-
 });
