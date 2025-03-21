@@ -7,8 +7,7 @@ import {
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import {interval} from "./intervals.js";
-import { set_timeout, check_number, 
-    motion_utils, is_finite_number } from "./util.js";
+import { set_timeout, is_finite_number } from "./util.js";
 
 
 export function playback_cursor(options={}) {
@@ -29,6 +28,9 @@ export function playback_cursor(options={}) {
     cursor.srcprop_register("ctrl");
     cursor.srcprop_register("src");
 
+    /**
+     * src property initialization check
+     */
     cursor.srcprop_check = function (propName, obj) {
         if (propName == "ctrl") {
             if (is_clock_provider(obj) || obj instanceof Cursor) {
@@ -46,6 +48,9 @@ export function playback_cursor(options={}) {
         }
     }
 
+    /**
+     * handle src property change
+     */
     cursor.srcprop_onchange = function (propName, eArg) {
         if (cursor.src == undefined || cursor.ctrl == undefined) {
             return;
@@ -57,14 +62,16 @@ export function playback_cursor(options={}) {
                 src_cache.clear();                
             }
         }
-        onchange();
+        cursor_onchange();
     }
 
-    function onchange() {
+    /**
+     * main cursor change handler
+     */
+    function cursor_onchange() {
         cursor.onchange();
         detect_future_event();
     }
-
 
     /**
      * cursor.ctrl (cursor/clock) defines an active region of cursor.src (layer)
@@ -107,16 +114,19 @@ export function playback_cursor(options={}) {
                 possible timeout associated with leaving region
                 through region_high - as clock is increasing.
             */
-            const delta_ms = (region_high - current_pos) * 1000;
+           const target_pos = region_high;
+            const delta_ms = (target_pos - current_pos) * 1000;
             tid = set_timeout(() => {
-                onchange();
+                cursor_onchange();
             }, delta_ms);
-            console.log("playback timeout", delta_ms)
             // leave event scheduled
             return;
         } 
         
-        if (is_clock_provider(cursor.ctrl.ctrl) && is_segments_layer(cursor.ctrl.src)) {
+        if (
+            is_clock_provider(cursor.ctrl.ctrl) && 
+            is_segments_layer(cursor.ctrl.src)
+        ) {
             /* 
                 cursor.ctrl is a cursor with a clock provider
 
@@ -126,33 +136,49 @@ export function playback_cursor(options={}) {
                 However, this can only be predicted if cursor.ctrl
                 implements a deterministic function of time.
 
-                This can be the case if cursor.ctr.src is a segments layer,
-                and the current item describes either a motion or a transition (with linear easing).                
+                This can be the case if cursor.ctr.src is a segment layer,
+                and a single active item describes either a motion or a transition (with linear easing).                
             */
             const active_items = cursor.ctrl.src.get_items(current_ts);
-            // prediction depends on a single active item, either motion or transition
+            let target_pos;
+
             if (active_items.length == 1) {
                 const active_item = active_items[0];
                 if (active_item.type == "motion") {
-                    const {velocity, acceleration=0.0} = active_item.data;
+                    const {velocity, acceleration} = active_item.data;
                     // TODO calculate timeout with acceleration too
                     if (acceleration == 0.0) {
-                        // figure out which boundary we hit first
-                        let target_pos = (velocity > 0) ? region_high : region_low;
-                        console.log(target_pos, current_pos)
+                        // figure out which region boundary we hit first
+                        if (velocity > 0) {
+                            target_pos = region_high;
+                        } else {
+                            target_pos = region_low;
+                        }
                         const delta_ms = (target_pos - current_pos) * 1000;
                         tid = set_timeout(() => {
-                            console.log("motion timeout")
-                            onchange();
+                            cursor_onchange();
                         }, delta_ms);
-                        // leave event scheduled
+                        // leave-event scheduled
                         return;
                     }
-
                 } else if (active_item.type == "transition") {
-                    console.log("transition - should make timeout")
-                    // leave event scheduled
-                    // return;
+                    const {v0, v1, t0, t1, easing="linear"} = active_item.data;
+                    if (easing == "linear") {
+                        // linear transtion
+                        let velocity = (v1-v0)/(t1-t0);
+                        if (velocity > 0) {
+                            target_pos = Math.min(region_high, v1);
+                        }
+                        else {
+                            target_pos = Math.max(region_low, v1);
+                        }
+                        const delta_ms = (target_pos - current_pos) * 1000;
+                        tid = set_timeout(() => {
+                            cursor_onchange();
+                        }, delta_ms);
+                        // leave-event scheduled
+                        return;
+                    }
                 }
             }
         }
@@ -179,15 +205,14 @@ export function playback_cursor(options={}) {
         console.log("polling")
         let offset = cursor.ctrl.value;
         if (!interval.covers_endpoint(itv, offset)) {
-            cursor.onchange();
+            cursor_onchange();
         }
     }
 
     /**
-     * internal method
+     * convenience
      * get current state from cursor.ctrl (Cursor or clockProvider)
      * ensure that cursor.ctrl return a number offset
-     * 
      */
     function get_ctrl_state () {
         if (is_clock_provider(cursor.ctrl)) {
@@ -204,19 +229,21 @@ export function playback_cursor(options={}) {
         }
     }
 
+    /**
+     * main query function - resolving query
+     * from cache object associated with cursor.src
+     */
+
     cursor.query = function query() {
         const offset = get_ctrl_state().value; 
         return src_cache.query(offset);
     }
 
-
     /*
-      
         return the currently active items of the cursor
         - only applicable if src is segment layer
         - basis for segment and current value
         - typically just one
-
     */
     cursor.get_items = function get_items() {
         const offset = get_ctrl_state().value; 
