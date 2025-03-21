@@ -2,7 +2,7 @@
 import * as sl from "../src/index.js";
 import { CollectionProvider } from '../src/provider_collection.js';
 import { NearbyIndex } from '../src/nearby_index.js';
-import { NearbyIndexBoolean } from '../src/ops/layer_boolean.js';
+import { NearbyIndexBoolean } from '../src/ops/boolean.js';
 
 
 function setup(options) {

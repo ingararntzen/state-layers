@@ -1,6 +1,6 @@
 import { Layer } from "../layer_base.js";
-import { NearbyIndexBoolean } from "./layer_boolean.js";
-import { NearbyIndexMerge } from "./layer_merge.js";
+import { NearbyIndexBoolean } from "./boolean.js";
+import { NearbyIndexMerge } from "./merge.js";
 
 
 export function logical_merge_layer(sources, options={}) {

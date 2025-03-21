@@ -18,13 +18,13 @@
         mc.bind(render_html("#offset", ({value}) => `${value}`), 200);
 
         document.querySelector("#resetBtn").onclick = () => {
-            mc.move({position:0});
+            mc.motion({position:0});
         }
         document.querySelector("#playBtn").onclick = () => {
-            mc.move({velocity:1});
+            mc.motion({velocity:1});
         }
         document.querySelector("#pauseBtn").onclick = () => {
-            mc.move({velocity:0});
+            mc.motion({velocity:0});
         }
 
 

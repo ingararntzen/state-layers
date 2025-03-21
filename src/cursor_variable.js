@@ -184,28 +184,38 @@ function set_motion(cursor, vector={}) {
     const time_ranges = ctr([p1,v1,a1,t1], range);
     // pick a time range which contains t1
     const ts = cursor.ctrl.now();
+
     const time_range = time_ranges.find((tr) => {
-        return tr[0] <= ts && ts <= tr[1];
+        const low = tr[0] ?? -Infinity;
+        const high = tr[1] ?? Infinity;
+        return low <= ts && ts <= high;
     });
     if (time_range != undefined) {
+        const [low, high] = time_range;
         items.push({
             id: random_string(10),
-            itv: [null, time_range[0], true, false],
-            type: "static",
-            data: range[0]
-        });
-        items.push({
-            id: random_string(10),
-            itv: [time_range[0], time_range[1], true, true],
+            itv: [low, high, true, true],
             type: "motion",
             data: {position:p1, velocity:v1, acceleration:a1, timestamp:t1}
         });
-        items.push({
-            id: random_string(10),
-            itv: [time_range[1], null, false, true],
-            type: "static",
-            data: range[1]
-        });
+        // add left if needed
+        if (low != null) {
+            items.push({
+                id: random_string(10),
+                itv: [null, low, true, false],
+                type: "static",
+                data: range[0]
+            });
+        }
+        // add right if needed
+        if (high != null) {
+            items.push({
+                id: random_string(10),
+                itv: [high, null, false, true],
+                type: "static",
+                data: range[1]
+            });
+        }
     } else {
         /* 
             no time_range found

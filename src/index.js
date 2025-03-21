@@ -1,13 +1,17 @@
+// stateProviders
 import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
+// layers and cursors
 import { segments_layer } from "./layer_segments.js";
-import { merge_layer } from "./ops/layer_merge.js";
-import { shift_layer } from "./ops/layer_shift.js";
-import { boolean_layer } from "./ops/layer_boolean.js"
-import { logical_merge_layer, logical_expr} from "./ops/layer_logical_merge.js";
 import { clock_cursor } from "./cursor_clock.js";
 import { variable_cursor } from "./cursor_variable.js";
 import { playback_cursor } from "./cursor_playback.js";
+// layer operations
+import { layer_from_cursor } from "./ops/layer_from_cursor.js";
+import { merge_layer } from "./ops/merge.js";
+import { shift_layer } from "./ops/shift.js";
+import { boolean_layer } from "./ops/boolean.js"
+import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
 
 /*********************************************************************
     LAYER FACTORY
@@ -40,6 +44,9 @@ function playback(options={}) {
     return playback_cursor({ctrl, src});
 }
 
+/*********************************************************************
+    EXPORTS
+*********************************************************************/
 
 export { 
     layer, 
@@ -50,5 +57,6 @@ export {
     logical_expr,
     clock_cursor as clock,
     variable,
-    playback
+    playback,
+    layer_from_cursor
 }

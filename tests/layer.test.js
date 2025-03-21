@@ -38,4 +38,16 @@ describe('NearbyIndexList', () => {
         });
     });
 
+    test('test layer from cursor', () => {
+
+        const cursor = sl.variable({value:5});
+        const layer = sl.layer_from_cursor(cursor);
+        
+        let result = layer.sample({start:2, stop:8});       
+        expect(result.length).toBe(8-2+1);
+        result.forEach((tup, index) => {
+            expect(tup[1]).toBe(2 + index);
+            expect(tup[0] == 5);
+        });
+    });
 });

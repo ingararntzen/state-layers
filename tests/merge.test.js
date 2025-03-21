@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 
 import * as sl from "../src/index.js";
-import { NearbyIndexMerge } from "../src/ops/layer_merge.js";
+import { NearbyIndexMerge } from "../src/ops/merge.js";
 
 const DATA = "data";
 const OFFSET = 4;
