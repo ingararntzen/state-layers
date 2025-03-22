@@ -214,11 +214,12 @@ function set_motion(cursor, vector={}) {
             if p1 is less than low, then use low
             if p1 is greater than high, then use high
         */
+        const val = (p1 < range[0]) ? range[0] : range[1];
         items.push({
             id: random_string(10),
             itv: [null, null, true, true],
             type: "static",
-            data: p1
+            data: val
         });
     }
     return update(cursor, items);
@@ -325,3 +326,17 @@ function update(cursor, items) {
         return provider.update({insert:items, reset:true});
     }
 }
+
+/**
+ * TODO: support alternative update, which does not repalace the state
+ * but rather adds to it. This effectively means that recording is a 
+ * bultin feature of the variable cursor. Could be enabled by option.
+ * To calcultate the new state, need to truncate existing state
+ * and append new items. Index support for the provider would be needed,
+ * so that we can clear all state in interval [ts, null], 
+ * and then append new items to the same interval. Would also need to
+ * forward a ts from each of the update methods.
+ * 
+ * Check out some similar code from State Trajectory 
+ * 
+ */
