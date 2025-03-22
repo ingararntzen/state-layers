@@ -238,17 +238,6 @@ export function playback_cursor(options={}) {
         const offset = get_ctrl_state().value; 
         return src_cache.query(offset);
     }
-
-    /*
-        return the currently active items of the cursor
-        - only applicable if src is segment layer
-        - basis for segment and current value
-        - typically just one
-    */
-    cursor.get_items = function get_items() {
-        const offset = get_ctrl_state().value; 
-        return cursor.src.get_items(offset);
-    }
     
     // initialize
     cursor.ctrl = ctrl;

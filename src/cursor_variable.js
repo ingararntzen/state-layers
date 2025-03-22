@@ -84,16 +84,6 @@ export function variable_cursor(options={}) {
         const offset = cursor.ctrl.now();
         return src_cache.query(offset);
     }
-
-    /*
-        return the currently active items of the cursor
-        - basis for segment and current value
-        - typically just one
-    */
-    cursor.get_items = function get_items() {
-        const offset = cursor.ctrl.now();
-        return cursor.src.get_items(offset);
-    }
     
     /**
      * UPDATE API for Variable Cursor

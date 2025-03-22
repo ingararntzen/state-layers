@@ -12,6 +12,9 @@ import { merge_layer } from "./ops/merge.js";
 import { shift_layer } from "./ops/shift.js";
 import { boolean_layer } from "./ops/boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
+// cursor operations
+import { skew_cursor } from "./ops/skew.js";
+
 
 /*********************************************************************
     LAYER FACTORY
@@ -58,5 +61,6 @@ export {
     clock_cursor as clock,
     variable,
     playback,
-    layer_from_cursor
+    layer_from_cursor,
+    skew_cursor as skew
 }

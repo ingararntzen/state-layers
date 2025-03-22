@@ -6,35 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script type="module">
 
-        function render_html (selector, to_value) {
-            let elems = document.querySelector(selector);
-            return function (state) {
-                elems.innerHTML = to_value(state);
-            }
-        }
-
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
         }
 
         import * as sl from './libs/layers.es.js';
 
-        const items = [
-            {itv: [0, 1], data: "red"},
-            {itv: [1, 2], data: "blue"},
-            {itv: [2, 3], data: "green"},
-            {itv: [3, 4], data: "yellow"},
-            {itv: [4, 5], data: "orange"},
-            {itv: [5, 6], data: "#4B0082"},
-            {itv: [6, 7], data: "violet"},
-        ];
+        // Variable
+        const offset = sl.variable({value:0});        
+        const elem = document.querySelector("#value");
+        offset.bind((state) => {
+            elem.textContent = `${state.value.toFixed(2)}`; 
+        }, 200);        
 
-        const colors = sl.layer({insert:items})
-        const offset = sl.variable({value:0});
-        const color = sl.playback({src:colors, ctrl:offset});
+        // Skewed Variable
+        const skewed = sl.skew(offset, {skew:2});
+        const skewedElem = document.querySelector("#skewed-value");
+        skewed.bind((state) => {
+            skewedElem.textContent = `${state.value.toFixed(2)}`; 
+        }, 200);
 
-        offset.bind(render_html("#offset", ({value}) => `${value}`), 200);
-        color.bind(render_html("#color", ({value}) => `${value}`), 200);
 
         document.querySelector("#valueBtn").onclick = () => {
             offset.set(getRandomInt(10))
@@ -43,7 +34,7 @@
             offset.set(0);
         }
         document.querySelector("#playBtn").onclick = () => {
-            offset.motion({velocity:1,  range:[-10, 10]});
+            offset.motion({velocity:1, range:[-10, 10]});
         }
         document.querySelector("#pauseBtn").onclick = () => {
             offset.motion({velocity:0});
@@ -69,9 +60,21 @@
 </script>
 </head>
 <body>
-    <h1>Hello, Layer Playback!</h1>
-
+    <h1>Hello, Variable!</h1>
     <h3> Value </h3>
+    <p>
+        <div>
+            <span>Variable: </span>
+            <span id="value"></span>
+        </div>
+    </p>
+    <p>
+        <div>
+            <span>Skewed Variable: </span>
+            <span id="skewed-value"></span>
+        </div>
+    </p>
+
 
     <p>
         <button id="valueBtn">SetValue</button>
@@ -82,14 +85,7 @@
         <button id="interpolateBtn">Interpolate</button>
     </p>
     <p>
-        <div id="offset"></div>
-    </p>
-    <p>
-        <div id="color"></div>
-    </p>
-    <p>
         <button id="itemBtn">Item</button>
     </p>
-
 </body>
 </html>
