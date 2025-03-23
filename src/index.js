@@ -14,7 +14,7 @@ import { boolean_layer } from "./ops/boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
 // cursor operations
 import { transform_cursor_timeline } from "./ops/cursor_timeline_transform.js";
-
+import { transform_cursor_values} from "./ops/cursor_value_transform.js";
 
 import { Layer } from "./layer_base.js";
 import { Cursor } from "./cursor_base.js";
@@ -28,6 +28,14 @@ function transform_timeline(src, options) {
     }
     throw new Error(`"src" must be Layer or Cursor ${src}`);
 }
+
+function transform_values(src, options) {
+    if ((src instanceof Cursor)) {
+        return transform_cursor_values(src, options);
+    }
+    throw new Error(`"src" must be Cursor ${src}`);
+}
+
 
 /*********************************************************************
     LAYER FACTORY
@@ -74,5 +82,6 @@ export {
     variable,
     playback,
     layer_from_cursor,
-    transform_timeline
+    transform_timeline,
+    transform_values
 }

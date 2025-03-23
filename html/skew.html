@@ -19,11 +19,18 @@
             elem.textContent = `${state.value.toFixed(2)}`; 
         }, 200);        
 
-        // Skewed Variable
-        const skewed = sl.transform_timeline(offset, {shift:2});
-        const skewedElem = document.querySelector("#skewed-value");
-        skewed.bind((state) => {
-            skewedElem.textContent = `${state.value.toFixed(2)}`; 
+        // Time-shifted Variable
+        const time_shifted = sl.transform_timeline(offset, {shift:2});
+        const time_shiftedElem = document.querySelector("#time-shifted");
+        time_shifted.bind((state) => {
+            time_shiftedElem.textContent = `${state.value.toFixed(2)}`; 
+        }, 200);
+
+        // Value-shifted Variable
+        const value_shifted = sl.transform_values(offset, {shift:2});
+        const value_shiftedElem = document.querySelector("#value-shifted");
+        value_shifted.bind((state) => {
+            value_shiftedElem.textContent = `${state.value.toFixed(2)}`; 
         }, 200);
 
 
@@ -70,11 +77,16 @@
     </p>
     <p>
         <div>
-            <span>Skewed Variable: </span>
-            <span id="skewed-value"></span>
+            <span>Time-shifted Variable: </span>
+            <span id="time-shifted"></span>
         </div>
     </p>
-
+    <p>
+        <div>
+            <span>Value-shifted Variable: </span>
+            <span id="value-shifted"></span>
+        </div>
+    </p>
 
     <p>
         <button id="valueBtn">SetValue</button>

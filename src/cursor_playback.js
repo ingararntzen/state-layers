@@ -202,7 +202,6 @@ export function playback_cursor(options={}) {
      * handle polling
      */
     function handle_polling(itv) {
-        console.log("polling")
         let offset = cursor.ctrl.value;
         if (!interval.covers_endpoint(itv, offset)) {
             cursor_onchange();
