@@ -20,7 +20,7 @@
         ]});
 
         const OFFSET = 2
-        const l2 = sl.shift(l1, OFFSET);
+        const l2 = sl.transform_timeline(l1, {shift: OFFSET});
 
         console.log("Layer 1")
 

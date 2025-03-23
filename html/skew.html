@@ -20,7 +20,7 @@
         }, 200);        
 
         // Skewed Variable
-        const skewed = sl.skew(offset, {skew:2});
+        const skewed = sl.transform_timeline(offset, {shift:2});
         const skewedElem = document.querySelector("#skewed-value");
         skewed.bind((state) => {
             skewedElem.textContent = `${state.value.toFixed(2)}`; 
@@ -34,7 +34,7 @@
             offset.set(0);
         }
         document.querySelector("#playBtn").onclick = () => {
-            offset.motion({velocity:1, range:[-10, 10]});
+            offset.motion({velocity:1});
         }
         document.querySelector("#pauseBtn").onclick = () => {
             offset.motion({velocity:0});

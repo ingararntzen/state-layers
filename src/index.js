@@ -9,12 +9,25 @@ import { playback_cursor } from "./cursor_playback.js";
 // layer operations
 import { layer_from_cursor } from "./ops/layer_from_cursor.js";
 import { merge_layer } from "./ops/merge.js";
-import { shift_layer } from "./ops/shift.js";
+import { transform_layer_timeline } from "./ops/layer_timeline_transform.js";
 import { boolean_layer } from "./ops/boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
 // cursor operations
-import { skew_cursor } from "./ops/skew.js";
+import { transform_cursor_timeline } from "./ops/cursor_timeline_transform.js";
 
+
+import { Layer } from "./layer_base.js";
+import { Cursor } from "./cursor_base.js";
+
+function transform_timeline(src, options) {
+    if ((src instanceof Layer)) {
+        return transform_layer_timeline(src, options);
+    }
+    if ((src instanceof Cursor)) {
+        return transform_cursor_timeline(src, options);
+    }
+    throw new Error(`"src" must be Layer or Cursor ${src}`);
+}
 
 /*********************************************************************
     LAYER FACTORY
@@ -54,7 +67,6 @@ function playback(options={}) {
 export { 
     layer, 
     merge_layer as merge, 
-    shift_layer as shift,
     boolean_layer as boolean,
     logical_merge_layer as logical_merge, 
     logical_expr,
@@ -62,5 +74,5 @@ export {
     variable,
     playback,
     layer_from_cursor,
-    skew_cursor as skew
+    transform_timeline
 }
