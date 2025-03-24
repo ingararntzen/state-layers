@@ -51,7 +51,7 @@ describe('NearbyIndexList', () => {
         });
     });
 
-    test.only('test transform', () => {
+    test('test transform', () => {
         const items = [
             {itv: [2, 4, true, false], data: 0.5},
             {itv: [6, 8, true, false], data: 1.0},
