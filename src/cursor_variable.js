@@ -3,11 +3,11 @@ import {
     LOCAL_CLOCK_PROVIDER, 
     is_clock_provider 
 } from "./provider_clock.js";
-import { is_collection_provider } from "./provider_collection.js";
-import { is_variable_provider } from "./provider_variable.js";
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util.js";
+import { update_state_provider } from "./provider.js";
+
 const check_range = motion_utils.check_range;
 
 export function variable_cursor(options={}) {
@@ -123,7 +123,8 @@ function set_value(cursor, value) {
         type: "static",
         data: value                 
     }];
-    return update(cursor, items);
+    const stateProvider = get_provider(cursor);
+    return update_state_provider(stateProvider, {insert:items, reset:true});
 }
 
 /**
@@ -222,7 +223,8 @@ function set_motion(cursor, vector={}) {
             data: val
         });
     }
-    return update(cursor, items);
+    const stateProvider = get_provider(cursor);
+    return update_state_provider(stateProvider, {insert:items, reset:true});
 }
 
 /**
@@ -257,7 +259,8 @@ function set_transition(cursor, target, duration, easing) {
             data: v1
         }
     ]
-    return update(cursor, items);
+    const stateProvider = get_provider(cursor);
+    return update_state_provider(stateProvider, {insert:items, reset:true});
 }
 
 /**
@@ -293,8 +296,9 @@ function set_interpolation(cursor, tuples, duration) {
             type: "static",
             data: v1
         }
-    ]    
-    return update(cursor, items);
+    ]
+    const stateProvider = get_provider(cursor);
+    return update_state_provider(stateProvider, {insert:items, reset:true});
 }
 
 
@@ -314,22 +318,10 @@ function get_provider(cursor) {
     return cursor.src.src;
 }
 
-/**
- * update the stateProvider with items according to type of provider
- */
-
-function update(cursor, items) {
-    const provider = get_provider(cursor);
-    if (is_variable_provider(provider)) {
-        return provider.set(items);
-    } else if (is_collection_provider(provider)) {
-        return provider.update({insert:items, reset:true});
-    }
-}
 
 /**
- * TODO: support alternative update, which does not repalace the state
- * but rather adds to it. This effectively means that recording is a 
+ * TODO: support alternative update for state recording.
+ * This effectively means that recording is a 
  * bultin feature of the variable cursor. Could be enabled by option.
  * To calcultate the new state, need to truncate existing state
  * and append new items. Index support for the provider would be needed,
