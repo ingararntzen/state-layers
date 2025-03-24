@@ -2,7 +2,7 @@
 import * as sl from "../src/index.js";
 
 // Add your test cases here
-describe('NearbyIndexList', () => {
+describe('Test Layer', () => {
 
     test('sample layer with collectionProvider', () => {
 
