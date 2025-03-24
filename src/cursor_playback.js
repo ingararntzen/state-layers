@@ -1,4 +1,4 @@
-import { Cursor } from "./cursor_base.js";
+import { Cursor, get_cursor_ctrl_state } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
 import { 
     LOCAL_CLOCK_PROVIDER, 
@@ -6,9 +6,13 @@ import {
 } from "./provider_clock.js";
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
-import {interval} from "./intervals.js";
-import { set_timeout, is_finite_number } from "./util.js";
+import { interval } from "./intervals.js";
+import { set_timeout } from "./util.js";
+import { ClockCursor } from "./cursor_clock.js";
 
+/*****************************************************
+ * PLAYBACK CURSOR
+ *****************************************************/
 
 export function playback_cursor(options={}) {
 
@@ -33,7 +37,11 @@ export function playback_cursor(options={}) {
      */
     cursor.srcprop_check = function (propName, obj) {
         if (propName == "ctrl") {
-            if (is_clock_provider(obj) || obj instanceof Cursor) {
+            if (is_clock_provider(obj)) {
+                // wrap clock provider as cursor
+                return new ClockCursor({ctrl:obj});
+            }
+            if (obj instanceof Cursor) {
                 return obj
             } else {
                 throw new Error(`ctrl must be clockProvider or Cursor ${obj}`);
@@ -84,7 +92,7 @@ export function playback_cursor(options={}) {
         if (pid) { clearInterval(pid); }
 
         // current state of cursor.ctrl 
-        const ctrl_state = get_ctrl_state();
+        const ctrl_state = get_cursor_ctrl_state(cursor);
         // current (position, time) of cursor.ctrl
         const current_pos = ctrl_state.value;
         const current_ts = ctrl_state.offset;
@@ -107,7 +115,7 @@ export function playback_cursor(options={}) {
             return;
         }
 
-        if (is_clock_provider(cursor.ctrl)) {
+        if (cursor.ctrl instanceof ClockCursor) {
             /* 
                 cursor.ctrl is a clock provider
 
@@ -124,7 +132,7 @@ export function playback_cursor(options={}) {
         } 
         
         if (
-            is_clock_provider(cursor.ctrl.ctrl) && 
+            cursor.ctrl.ctrl instanceof ClockCursor && 
             is_segments_layer(cursor.ctrl.src)
         ) {
             /* 
@@ -208,25 +216,6 @@ export function playback_cursor(options={}) {
         }
     }
 
-    /**
-     * convenience
-     * get current state from cursor.ctrl (Cursor or clockProvider)
-     * ensure that cursor.ctrl return a number offset
-     */
-    function get_ctrl_state () {
-        if (is_clock_provider(cursor.ctrl)) {
-            const ts = cursor.ctrl.now();
-            return {value:ts, dynamic:true, offset:ts};
-        } else {
-            const state = cursor.ctrl.query();
-            const offset = cursor.ctrl.value;
-            // protect against nonnumber values
-            if (!is_finite_number(offset)) {
-                throw new Error(`warning: cursor ctrl value must be number ${offset}`);
-            }
-            return state;
-        }
-    }
 
     /**
      * main query function - resolving query
@@ -234,7 +223,7 @@ export function playback_cursor(options={}) {
      */
 
     cursor.query = function query() {
-        const offset = get_ctrl_state().value; 
+        const offset = get_cursor_ctrl_state(cursor).value; 
         return src_cache.query(offset);
     }
     

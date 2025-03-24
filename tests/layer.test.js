@@ -50,4 +50,34 @@ describe('NearbyIndexList', () => {
             expect(tup[0] == 5);
         });
     });
+
+    test.only('test transform', () => {
+        const items = [
+            {itv: [2, 4, true, false], data: 0.5},
+            {itv: [6, 8, true, false], data: 1.0},
+        ];
+        const l1 = sl.layer({insert:items});
+
+        function valueFunc(value) {
+            if (typeof value == "number") {
+                return value + 2;
+            }
+            return value;
+        }
+
+        const l2 = sl.layer_transform(l1, {valueFunc});
+        let result1 = l1.sample({start:2, stop:8});        
+        let result2 = l2.sample({start:2, stop:8});
+        for (let i=0; i<result1.length; i++) {
+            const [v1, t1] = result1[i];
+            const [v2, t2] = result2[i];
+            expect(t1==t2)
+            if (v1 == undefined) {
+                expect(v1 == v2)
+            } else {
+                expect(v1 + 2 == v2)
+            }
+
+        }        
+    });
 });

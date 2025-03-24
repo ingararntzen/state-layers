@@ -19,15 +19,11 @@
             elem.textContent = `${state.value.toFixed(2)}`; 
         }, 200);        
 
-        // Time-shifted Variable
-        const time_shifted = sl.transform_timeline(offset, {shift:2});
-        const time_shiftedElem = document.querySelector("#time-shifted");
-        time_shifted.bind((state) => {
-            time_shiftedElem.textContent = `${state.value.toFixed(2)}`; 
-        }, 200);
-
         // Value-shifted Variable
-        const value_shifted = sl.transform_values(offset, {shift:2});
+        function valueFunc(value) {
+            return value + 2;
+        } 
+        const value_shifted = sl.cursor_transform(offset, {valueFunc});
         const value_shiftedElem = document.querySelector("#value-shifted");
         value_shifted.bind((state) => {
             value_shiftedElem.textContent = `${state.value.toFixed(2)}`; 
@@ -67,7 +63,7 @@
 </script>
 </head>
 <body>
-    <h1>Hello, Variable!</h1>
+    <h1>Hello, Skew!</h1>
     <h3> Value </h3>
     <p>
         <div>
@@ -77,13 +73,7 @@
     </p>
     <p>
         <div>
-            <span>Time-shifted Variable: </span>
-            <span id="time-shifted"></span>
-        </div>
-    </p>
-    <p>
-        <div>
-            <span>Value-shifted Variable: </span>
+            <span>Transformed Variable: </span>
             <span id="value-shifted"></span>
         </div>
     </p>

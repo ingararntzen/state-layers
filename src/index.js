@@ -3,38 +3,17 @@ import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
 // layers and cursors
 import { segments_layer } from "./layer_segments.js";
-import { clock_cursor } from "./cursor_clock.js";
+import { clock } from "./cursor_clock.js"
 import { variable_cursor } from "./cursor_variable.js";
 import { playback_cursor } from "./cursor_playback.js";
-// layer operations
+// operations
 import { layer_from_cursor } from "./ops/layer_from_cursor.js";
 import { merge_layer } from "./ops/merge.js";
-import { transform_layer_timeline } from "./ops/layer_timeline_transform.js";
 import { boolean_layer } from "./ops/boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
-// cursor operations
-import { transform_cursor_timeline } from "./ops/cursor_timeline_transform.js";
-import { transform_cursor_values} from "./ops/cursor_value_transform.js";
+import { timeline_transform } from "./ops/timeline_transform.js";
+import { cursor_transform, layer_transform } from "./ops/transform.js";
 
-import { Layer } from "./layer_base.js";
-import { Cursor } from "./cursor_base.js";
-
-function transform_timeline(src, options) {
-    if ((src instanceof Layer)) {
-        return transform_layer_timeline(src, options);
-    }
-    if ((src instanceof Cursor)) {
-        return transform_cursor_timeline(src, options);
-    }
-    throw new Error(`"src" must be Layer or Cursor ${src}`);
-}
-
-function transform_values(src, options) {
-    if ((src instanceof Cursor)) {
-        return transform_cursor_values(src, options);
-    }
-    throw new Error(`"src" must be Cursor ${src}`);
-}
 
 
 /*********************************************************************
@@ -58,13 +37,13 @@ function layer(options={}) {
 *********************************************************************/
 
 function variable(options={}) {
-    const {ctrl, ...opts} = options;
+    let {ctrl, ...opts} = options;
     const src = layer(opts);
     return variable_cursor({ctrl, src});
 }
 
 function playback(options={}) {
-    const {ctrl, src} = options;
+    let {ctrl, src} = options;
     return playback_cursor({ctrl, src});
 }
 
@@ -78,10 +57,11 @@ export {
     boolean_layer as boolean,
     logical_merge_layer as logical_merge, 
     logical_expr,
-    clock_cursor as clock,
+    clock,
     variable,
     playback,
     layer_from_cursor,
-    transform_timeline,
-    transform_values
+    layer_transform,
+    cursor_transform,
+    timeline_transform
 }

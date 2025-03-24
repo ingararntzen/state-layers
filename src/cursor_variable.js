@@ -7,8 +7,14 @@ import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util.js";
 import { update_state_provider } from "./provider.js";
+import { ClockCursor } from "./cursor_clock.js";
 
 const check_range = motion_utils.check_range;
+
+
+/*****************************************************
+ * VARIABLE CURSOR
+ *****************************************************/
 
 export function variable_cursor(options={}) {
 
@@ -31,7 +37,8 @@ export function variable_cursor(options={}) {
             if (!is_clock_provider(obj)) {
                 throw new Error(`ctrl must be a clock provider ${obj}`);
             }
-            return obj;
+            // wrap clock provider as cursor
+            return new ClockCursor({ctrl:obj});
         }
         if (propName == "src") {
             if (!is_segments_layer(obj)) {
@@ -65,7 +72,7 @@ export function variable_cursor(options={}) {
     function detect_future_event() {
         if (tid) {tid.cancel();}
         // ctrl 
-        const ts = cursor.ctrl.now();
+        const ts = cursor.ctrl.value;
         // nearby from src
         const nearby = cursor.src.index.nearby(ts);
         const region_high = nearby.itv[1] || Infinity;        
@@ -81,8 +88,8 @@ export function variable_cursor(options={}) {
     }
 
     cursor.query = function query() {
-        const offset = cursor.ctrl.now();
-        return src_cache.query(offset);
+        const ts = cursor.ctrl.value;
+        return src_cache.query(ts);
     }
     
     /**
@@ -174,7 +181,7 @@ function set_motion(cursor, vector={}) {
     const ctr = motion_utils.calculate_time_ranges;
     const time_ranges = ctr([p1,v1,a1,t1], range);
     // pick a time range which contains t1
-    const ts = cursor.ctrl.now();
+    const ts = cursor.ctrl.value;
 
     const time_range = time_ranges.find((tr) => {
         const low = tr[0] ?? -Infinity;
@@ -272,7 +279,7 @@ function set_transition(cursor, target, duration, easing) {
  */
 
 function set_interpolation(cursor, tuples, duration) {
-    const now = cursor.ctrl.now();
+    const now = cursor.ctrl.value;
     tuples = tuples.map(([v,t]) => {
         check_number("ts", t);
         check_number("val", v);

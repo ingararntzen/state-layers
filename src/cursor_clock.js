@@ -1,41 +1,43 @@
 import { Cursor } from "./cursor_base.js";
-import { 
-    LOCAL_CLOCK_PROVIDER, 
-    is_clock_provider 
-} from "./provider_clock.js";
+import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
 import * as srcprop from "./api_srcprop.js";
 
-export function clock_cursor(options={}) {
 
-    const {ctrl=LOCAL_CLOCK_PROVIDER} = options;
-    const cursor = new Cursor();
+export class ClockCursor extends Cursor {
+    
+    constructor(options={}) {
+        super();
 
-    // setup src property
-    srcprop.addState(cursor);
-    srcprop.addMethods(cursor);
-    cursor.srcprop_register("ctrl");
+        // setup src property
+        srcprop.addState(this);
+        this.srcprop_register("ctrl");
 
-    cursor.srcprop_check = function (propName, obj) {
+        const {ctrl=LOCAL_CLOCK_PROVIDER} = options;
+        this.ctrl = ctrl;
+    }
+
+    srcprop_check = function (propName, obj) {
         if (propName == "ctrl") {
             if (!is_clock_provider(obj)) {
-                throw new Error(`"ctr" must be a clock provider ${obj}`);
+                throw new Error(`"ctrl" must be a clock provider ${obj}`);
             }
             return obj;
         }
     }
-    cursor.srcprop_onchange = function (propName, eArg) {
+    srcprop_onchange = function (propName, eArg) {
         if (propName == "ctrl") {
-            cursor.onchange();
+            this.onchange();
         }
     }
 
-    cursor.query = function () {
+    query() {
         const ts = this.ctrl.now();
         return {value:ts, dynamic:true, offset:ts};
     }
+}
+srcprop.addMethods(ClockCursor.prototype);
 
-    // initialize
-    cursor.ctrl = ctrl;
 
-    return cursor;
+export function clock (obj) {
+    return new ClockCursor({ctrl:obj});
 }

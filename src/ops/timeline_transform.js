@@ -94,7 +94,7 @@ class NearbyIndexATT extends NearbyIndexBase {
  *   by a factor of 2
  */
 
-export function transform_layer_timeline (src, options={}) {
+export function timeline_transform (src, options={}) {
 
     const layer = new Layer();
 
@@ -126,3 +126,4 @@ export function transform_layer_timeline (src, options={}) {
     
     return layer;
 }
+

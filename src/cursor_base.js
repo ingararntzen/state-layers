@@ -1,6 +1,20 @@
 import * as eventify from "./api_eventify.js";
 import * as callback from "./api_callback.js";
 import { bind, release } from "./monitor.js";
+import { is_finite_number } from "./util.js";
+
+/**
+ * convenience
+ * get current state from cursor.ctrl
+ * ensure that cursor.ctrl return a number offset
+ */
+export function get_cursor_ctrl_state (cursor) {
+    const state = cursor.ctrl.query();
+    if (!is_finite_number(state.value)) {
+        throw new Error(`warning: cursor ctrl value must be number ${state.value}`);
+    }
+    return state;
+}
 
 /************************************************
  * CURSOR

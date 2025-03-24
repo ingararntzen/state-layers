@@ -19,7 +19,7 @@ describe('SkewLayerTest', () => {
             {itv: [7, 8, true, false], data: 7},
         ]});
 
-        const l2 = sl.shift(l1, OFFSET);
+        const l2 = sl.timeline_transform(l1, {shift:OFFSET});
 
         const samples_1 = l2.sample(0,10);
         const samples_2 = l2.sample(0 + OFFSET, 10 + OFFSET);

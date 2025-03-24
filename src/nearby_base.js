@@ -332,3 +332,27 @@ export function nearby_from (
     return result;
 }
 
+
+/**
+ * Create a NearbyIndex for a src object Layer.
+ * 
+ * The src object resolves queries for the entire timeline.
+ * In order for the default LayerCache to work, an
+ * object with a .query(offset) method is needed in 
+ * nearby.center.
+ */
+
+export class NearbyIndexSrc extends NearbyIndexBase {
+
+    constructor(src) {
+        super();
+        this._src = src;
+        this._cache = src.createCache();
+    }
+
+    nearby(offset) {
+        const nearby = this._src.index.nearby(offset);
+        nearby.center = [this._cache];
+        return nearby;
+    }
+}
