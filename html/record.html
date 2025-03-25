@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Document</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="module">
+        import * as sl from './libs/layers.es.js';
+
+        // live clock
+        const live_clock = sl.clock();
+        // playout clock
+        const playout_clock = sl.skew(live_clock, -2);
+        // src variable
+        const variable = sl.variable({ctrl:live_clock, value:0});
+        // dst layer
+        const layer = sl.record({src:variable});
+
+        function render_cursor (selector, cursor) {
+            const elem = document.querySelector(selector);
+            cursor.bind((state) => {
+                elem.textContent = `${state.value.toFixed(2)}`;    
+            }, 200);
+        }
+        render_cursor("#clock", live_clock);
+        render_cursor("#playout-clock", playout_clock);
+        render_cursor("#variable", variable);
+        
+
+
+        function getRandomInt(max) {
+          return Math.floor(Math.random() * max);
+        }
+
+        document.querySelector("#valueBtn").onclick = () => {
+            variable.set(getRandomInt(10))
+        }
+        document.querySelector("#resetBtn").onclick = () => {
+            variable.set(0);
+        }
+        document.querySelector("#playBtn").onclick = () => {
+            variable.motion({velocity:1, range:[-10, 10]});
+        }
+        document.querySelector("#pauseBtn").onclick = () => {
+            variable.motion({velocity:0});
+        }
+        document.querySelector("#transBtn").onclick = () => {
+            variable.transition({target:4, duration:4});
+        }
+        document.querySelector("#interpolateBtn").onclick = () => {
+            const tuples = [
+                [4.0, 0.0],
+                [4.8, 0.2],
+                [5.2, 0.4],
+                [5.3, 0.6],
+                [4.7, 0.8],
+                [4.2, 1.0]
+            ];
+            variable.interpolate({tuples, duration:4});
+        }
+
+
+</script>
+</head>
+<body>
+    <h1>Hello, Record!</h1>
+    <p>
+        <div>
+            <span>Record Clock: </span>
+            <span id="clock"></span>
+        </div>
+        <div>
+            <span>Playout Clock: </span>
+            <span id="playout-clock"></span>
+        </div>
+
+    </p>
+
+    <p>
+        <div>
+            <span>Recorded Variable: </span>
+            <span id="variable"></span>
+        </div>
+    </p>
+
+    <p>
+        <button id="valueBtn">SetValue</button>
+        <button id="resetBtn">Reset</button>
+        <button id="playBtn">Play</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="transBtn">Transition</button>
+        <button id="interpolateBtn">Interpolate</button>
+    </p>
+
+
+    <p>
+        <div>
+            <span>Playout Variable: </span>
+            <span id="playbout-variable"></span>
+        </div>
+    </p>
+
+</body>
+</html>

@@ -1,22 +1,17 @@
 import { Cursor, get_cursor_ctrl_state } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
-import { 
-    LOCAL_CLOCK_PROVIDER, 
-    is_clock_provider 
-} from "./provider_clock.js";
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { interval } from "./intervals.js";
 import { set_timeout } from "./util.js";
-import { clock_cursor, is_clock_cursor } from "./cursor_clock.js";
+import { is_clock_cursor } from "./cursor_clock.js";
 
 /*****************************************************
  * PLAYBACK CURSOR
  *****************************************************/
 
-export function playback_cursor(options={}) {
+export function playback_cursor(ctrl, src) {
 
-    const {src, ctrl=LOCAL_CLOCK_PROVIDER} = options;
     const cursor = new Cursor();
 
     // src cache
@@ -37,10 +32,6 @@ export function playback_cursor(options={}) {
      */
     cursor.srcprop_check = function (propName, obj) {
         if (propName == "ctrl") {
-            if (is_clock_provider(obj)) {
-                // wrap clock provider as cursor
-                return clock_cursor({ctrl:obj});
-            }
             if (obj instanceof Cursor) {
                 return obj
             } else {

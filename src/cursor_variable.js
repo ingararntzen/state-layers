@@ -1,23 +1,17 @@
 import { Cursor } from "./cursor_base.js";
-import { 
-    LOCAL_CLOCK_PROVIDER, 
-    is_clock_provider 
-} from "./provider_clock.js";
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util.js";
-import { clock_cursor } from "./cursor_clock.js";
+import { is_clock_cursor } from "./cursor_clock.js";
 
 const check_range = motion_utils.check_range;
-
 
 /*****************************************************
  * VARIABLE CURSOR
  *****************************************************/
 
-export function variable_cursor(options={}) {
+export function variable_cursor(ctrl, src) {
 
-    const {src, ctrl=LOCAL_CLOCK_PROVIDER} = options;
     const cursor = new Cursor();
 
     // cache for src
@@ -32,12 +26,12 @@ export function variable_cursor(options={}) {
     cursor.srcprop_register("src");
 
     cursor.srcprop_check = function (propName, obj) {
+
         if (propName == "ctrl") {
-            if (!is_clock_provider(obj)) {
-                throw new Error(`ctrl must be a clock provider ${obj}`);
+            if (!is_clock_cursor(obj)) {
+                throw new Error(`ctrl must be a clock cursor ${obj}`);
             }
-            // wrap clock provider as cursor
-            return clock_cursor({ctrl:obj});
+            return obj;
         }
         if (propName == "src") {
             if (!is_segments_layer(obj)) {

@@ -1,6 +1,5 @@
 import { Cursor } from "./cursor_base.js";
-import { LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
-
+import { is_clock_provider } from "./provider_clock.js";
 /**
  * Clock cursor is a thin wrapper around a clockProvider,
  * so that it can be consumed as a cursor.
@@ -21,11 +20,14 @@ export function is_clock_cursor(obj) {
     return obj instanceof Cursor && obj.ctrl == undefined && obj.src == undefined; 
 }
 
-export function clock_cursor(options={}) {
-    const {ctrl=LOCAL_CLOCK_PROVIDER} = options;
+export function clock_cursor(src) {
+
+    if (!is_clock_provider(src)) {
+        throw new Error(`src must be clockProvider ${src}`);
+    }
     const cursor = new Cursor();
     cursor.query = function () {
-        const ts = ctrl.now();
+        const ts = src.now();
         return {value:ts, dynamic:true, offset:ts};
     }
     return cursor;
