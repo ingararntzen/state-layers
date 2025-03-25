@@ -7,7 +7,7 @@ import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util.js";
 import { update_state_provider } from "./provider.js";
-import { ClockCursor } from "./cursor_clock.js";
+import { clock_cursor } from "./cursor_clock.js";
 
 const check_range = motion_utils.check_range;
 
@@ -38,7 +38,7 @@ export function variable_cursor(options={}) {
                 throw new Error(`ctrl must be a clock provider ${obj}`);
             }
             // wrap clock provider as cursor
-            return new ClockCursor({ctrl:obj});
+            return clock_cursor({ctrl:obj});
         }
         if (propName == "src") {
             if (!is_segments_layer(obj)) {

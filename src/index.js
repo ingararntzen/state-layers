@@ -3,7 +3,7 @@ import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
 // layers and cursors
 import { segments_layer } from "./layer_segments.js";
-import { clock } from "./cursor_clock.js"
+import { clock_cursor } from "./cursor_clock.js"
 import { variable_cursor } from "./cursor_variable.js";
 import { playback_cursor } from "./cursor_playback.js";
 // operations
@@ -57,7 +57,7 @@ export {
     boolean_layer as boolean,
     logical_merge_layer as logical_merge, 
     logical_expr,
-    clock,
+    clock_cursor as clock,
     variable,
     playback,
     layer_from_cursor,

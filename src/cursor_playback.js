@@ -8,7 +8,7 @@ import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { interval } from "./intervals.js";
 import { set_timeout } from "./util.js";
-import { ClockCursor } from "./cursor_clock.js";
+import { clock_cursor, is_clock_cursor } from "./cursor_clock.js";
 
 /*****************************************************
  * PLAYBACK CURSOR
@@ -39,7 +39,7 @@ export function playback_cursor(options={}) {
         if (propName == "ctrl") {
             if (is_clock_provider(obj)) {
                 // wrap clock provider as cursor
-                return new ClockCursor({ctrl:obj});
+                return clock_cursor({ctrl:obj});
             }
             if (obj instanceof Cursor) {
                 return obj
@@ -115,7 +115,7 @@ export function playback_cursor(options={}) {
             return;
         }
 
-        if (cursor.ctrl instanceof ClockCursor) {
+        if (is_clock_cursor(cursor.ctrl)) {
             /* 
                 cursor.ctrl is a clock provider
 
@@ -132,7 +132,7 @@ export function playback_cursor(options={}) {
         } 
         
         if (
-            cursor.ctrl.ctrl instanceof ClockCursor && 
+            is_clock_cursor(cursor.ctrl.ctrl) && 
             is_segments_layer(cursor.ctrl.src)
         ) {
             /* 
