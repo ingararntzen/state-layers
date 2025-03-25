@@ -5,8 +5,7 @@ import { is_variable_provider} from "./provider_variable.js";
 import { NearbyIndex } from "./nearby_index.js";
 import { load_segment } from "./segments.js";
 import { toState } from "./util.js";
-import { interval } from "./intervals.js";
-
+import { endpoint, interval } from "./intervals.js";
 
 /*********************************************************************
     SEGMENT LAYER
@@ -65,9 +64,23 @@ export function segments_layer(options={}) {
         }        
     }
 
-    // return items valid for given offset.
+
+    /**
+     * convenience method for getting items at offset
+     * only segment layer supports this method
+     */
     layer.get_items = function get_items(offset) {
         return [...layer.index.nearby(offset).center];
+    }
+
+    /******************************************************************
+     * LAYER UPDATE API
+     * ***************************************************************/
+    layer.update = function update(changes) {
+        return layer_update(layer, changes);
+    }
+    layer.append = function append(items, offset) {
+        return layer_append(layer, items, offset);
     }
 
     // initialise
@@ -130,4 +143,101 @@ class SegmentLayerCache {
         this._segment = undefined;
     }
 }
+
+
+
+
+/*********************************************************************
+    LAYER UPDATE
+*********************************************************************/
+
+/*
+    Segment layer forwards update to state provider
+*/
+function layer_update(layer, changes={}) {
+    if (is_collection_provider(layer.src)) {
+        return layer.src.update(changes);
+    } else if (is_variable_provider(layer.src)) {     
+        let {
+            insert=[],
+            remove=[],
+            reset=false
+        } = changes;
+        if (reset) {
+            return layer.src.set(insert);
+        } else {
+            const map = new Map(layer.src.get()
+                .map((item) => [item.id, item]));
+            // remove
+            remove.forEach((id) => map.delete(id));
+            // insert
+            insert.forEach((item) => map.set(item.id, item));
+            // set
+            const items = Array.from(map.values());
+            return layer.src.set(items);
+        }
+    }
+}
+    
+
+/*********************************************************************
+    LAYER APPEND
+*********************************************************************/
+
+/**
+ * append items to layer at offset
+ * 
+ * append implies that pre-existing items beyond offset,
+ * will either be removed or truncated, so that the layer
+ * is empty after offset.
+ * 
+ * items will only be inserted after offset, so any new
+ * item before offset will be truncated or dropped.
+ * 
+ * new items will only be be applied for t >= offset
+ * old items will be kept for t < offset
+ * 
+ */
+function layer_append(layer, items, offset) {
+    const ep = endpoint.from_input(offset);
+    
+    // make sure new items are only valid for t >= offset
+    items = items
+        .filter((item) => {
+            // keep only items with itv.high >= offset
+            const highEp = endpoint.from_interval(item.itv)[1];
+            return endpoint.ge(highEp, ep);
+        })
+        .map((item) => {
+            // truncate item overlapping offset itv.low=offset
+            if (interval.covers_endpoint(item.itv, ep)) {
+                const new_item = {...item};
+                new_item.itv = [offset, item.itv[1], true, item.itv[3]];
+                return new_item;
+            }
+            return item;
+        });
+
+    // truncate pre-existing items overlapping offset
+    items.push(...layer.index.nearby(offset).center.map((item) => {
+        const new_item = {...item};
+        new_item.itv = [item.itv[0], offset, item.itv[2], false];
+        return new_item;
+    }));
+    
+    //remove pre-existing items where itv.low > offset
+    const remove = layer.src.get()
+        .filter((item) => {
+            const lowEp = endpoint.from_interval(item.itv)[0];
+            return endpoint.gt(lowEp, ep);
+        })
+        .map((item) => {
+            return item.id;
+        });
+
+    // layer update
+    return layer_update(layer, {remove, insert:items, reset:false})
+}
+
+
 

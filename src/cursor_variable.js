@@ -6,7 +6,6 @@ import {
 import { is_segments_layer } from "./layer_segments.js";
 import * as srcprop from "./api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util.js";
-import { update_state_provider } from "./provider.js";
 import { clock_cursor } from "./cursor_clock.js";
 
 const check_range = motion_utils.check_range;
@@ -115,9 +114,9 @@ export function variable_cursor(options={}) {
 }
 
 
-/*
-    CURSOR UPDATE API
-*/
+/******************************************************************
+ * CURSOR UPDATE API
+ * ***************************************************************/
 
 /**
  * set value of cursor
@@ -130,8 +129,7 @@ function set_value(cursor, value) {
         type: "static",
         data: value                 
     }];
-    const stateProvider = get_provider(cursor);
-    return update_state_provider(stateProvider, {insert:items, reset:true});
+    return cursor.src.update({insert:items, reset:true});
 }
 
 /**
@@ -230,8 +228,7 @@ function set_motion(cursor, vector={}) {
             data: val
         });
     }
-    const stateProvider = get_provider(cursor);
-    return update_state_provider(stateProvider, {insert:items, reset:true});
+    return cursor.src.update({insert:items, reset:true});
 }
 
 /**
@@ -266,8 +263,7 @@ function set_transition(cursor, target, duration, easing) {
             data: v1
         }
     ]
-    const stateProvider = get_provider(cursor);
-    return update_state_provider(stateProvider, {insert:items, reset:true});
+    return cursor.src.update({insert:items, reset:true});
 }
 
 /**
@@ -304,25 +300,7 @@ function set_interpolation(cursor, tuples, duration) {
             data: v1
         }
     ]
-    const stateProvider = get_provider(cursor);
-    return update_state_provider(stateProvider, {insert:items, reset:true});
-}
-
-
-/**
- * get stateProvider from cursor
- * check if it exists
- * check if it is a variable provider
- */
-
-function get_provider(cursor) {
-    if (cursor.src == undefined) {
-        throw new Error(`Drop update: src undefined ${cursor.src}`);
-    }
-    if (cursor.src.src == undefined) {
-        throw new Error(`Drop update: src.src undefined ${cursor.src.src}`)
-    }
-    return cursor.src.src;
+    return cursor.src.update({insert:items, reset:true});
 }
 
 

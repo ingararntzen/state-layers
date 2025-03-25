@@ -15,8 +15,10 @@ function check_item(item) {
  */
 export function is_collection_provider(obj) {
     if (!callback.is_callback_api(obj)) return false;
-    if (!("get_all" in obj)) return false;
-    if (typeof obj.get_all != 'function') return false;
+    if (!("get" in obj)) return false;
+    if (typeof obj.get != 'function') return false;
+    if (!("update" in obj)) return false;
+    if (typeof obj.update != 'function') return false;
     return true;
 }
 

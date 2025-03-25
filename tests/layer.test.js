@@ -80,4 +80,52 @@ describe('Test Layer', () => {
 
         }        
     });
+
+
+    test('Test layer append', () => {
+
+        const init_items = [
+            {id: "0", itv: [0, 1, true, false], data: 0},
+            {id: "1", itv: [1, 2, true, false], data: 1},
+            {id: "2", itv: [2, 3, true, false], data: 2},
+            {id: "3", itv: [3, 4, true, false], data: 3},
+            {id: "4", itv: [4, 5, true, false], data: 4},
+            {id: "5", itv: [5, 6, true, false], data: 5},
+            {id: "6", itv: [6, 7, true, false], data: 6},
+            {id: "7", itv: [7, 8, true, false], data: 7},
+        ]
+        const l1 = sl.layer({insert:init_items});
+
+
+        const new_items = [
+            {id: "a", itv: [2.5, 3.5, true, false], data: 20},
+            {id: "b", itv: [3.5, 4.5, true, false], data: 30},
+            {id: "c", itv: [4.5, 5.5, true, false], data: 40},
+            {id: "d", itv: [5.5, 6.5, true, false], data: 50},
+            {id: "e", itv: [6.5, 7.5, true, false], data: 60},
+            {id: "f", itv: [7.5, 8.5, true, false], data: 70},
+        ]
+
+
+        l1.append(new_items, 4.5).then(() => {            
+            const result = l1.src.get();
+
+            expect(result[0]).toStrictEqual(init_items[0]);
+            expect(result[1]).toStrictEqual(init_items[1]);
+            expect(result[2]).toStrictEqual(init_items[2]);
+            expect(result[3]).toStrictEqual(init_items[3]);
+
+            // truncated high
+            expect(result[4].data == init_items[4].data)
+            expect(result[4].itv[1] == 4.5)
+            expect(result[4].itv[3] == false)
+            
+            // truncated low
+            expect(result[5]).toStrictEqual(new_items[2]);
+            expect(result[6]).toStrictEqual(new_items[3]);
+            expect(result[7]).toStrictEqual(new_items[4]);
+            expect(result[8]).toStrictEqual(new_items[5]);
+        });
+    });
+
 });

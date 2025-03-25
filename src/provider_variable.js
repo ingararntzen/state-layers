@@ -9,6 +9,8 @@ export function is_variable_provider(obj) {
     if (!callback.is_callback_api(obj)) return false;
     if (!("get" in obj)) return false;
     if (typeof obj.get != 'function') return false;
+    if (!("set" in obj)) return false;
+    if (typeof obj.set != 'function') return false;
     return true;
 }
 
