@@ -1,6 +1,7 @@
 import { Cursor } from "../cursor_base.js";
 import { Layer } from "../layer_base.js"
 import { NearbyIndexSrc } from "../nearby_base.js"
+import { is_clock_cursor } from "../cursor_clock.js";
 
 
 function toState(state, options={}) {
@@ -33,14 +34,30 @@ export function cursor_transform(src, options={}) {
         return toState(state, options);
     }
 
-    // adopt ctrl from src cursor
-    cursor.ctrl = src.ctrl;
-    // add callbacks
-    if (cursor.ctrl instanceof Cursor) {
+    // adopt the ctrl of the src-cursor
+    if (!is_clock_cursor(src)) {
+        cursor.ctrl = src.ctrl;
+        // add callbacks
         cursor.ctrl.add_callback(() => {cursor.onchange()});
     }
-    cursor.src = src.src;
-    cursor.src.add_callback(() => {cursor.onchange()});
+
+    /* 
+        Current definition of Cursor src property is that it is a layer or undefined.
+        This leaves cursor transform options.
+        1) wrap src cursor as a layer,
+        2) let src property be undefined
+        3) adopt the src property of the src cursor as its own src
+
+        We go for 3)
+    */
+
+    // adopt the src of the src-cursor as src
+    if (!is_clock_cursor(src)) {
+        cursor.src = src.src;
+    }
+
+    // callbacks from src-cursor
+    src.add_callback(() => {cursor.onchange()});
     return cursor;
 }
 
