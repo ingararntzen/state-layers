@@ -1,6 +1,6 @@
 import { Cursor, get_cursor_ctrl_state } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
-import { is_segments_layer } from "./layer_segments.js";
+import { is_items_layer } from "./layer_items.js";
 import * as srcprop from "./api_srcprop.js";
 import { interval } from "./intervals.js";
 import { set_timeout } from "./util.js";
@@ -124,7 +124,7 @@ export function playback_cursor(ctrl, src) {
         
         if (
             is_clock_cursor(cursor.ctrl.ctrl) && 
-            is_segments_layer(cursor.ctrl.src)
+            is_items_layer(cursor.ctrl.src)
         ) {
             /* 
                 cursor.ctrl is a cursor with a clock provider
@@ -135,7 +135,7 @@ export function playback_cursor(ctrl, src) {
                 However, this can only be predicted if cursor.ctrl
                 implements a deterministic function of time.
 
-                This can be the case if cursor.ctr.src is a segment layer,
+                This can be the case if cursor.ctr.src is an items layer,
                 and a single active item describes either a motion or a transition (with linear easing).                
             */
             const active_items = cursor.ctrl.src.get_items(current_ts);

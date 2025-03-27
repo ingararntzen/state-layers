@@ -8,15 +8,15 @@ import { toState } from "./util.js";
 import { endpoint, interval } from "./intervals.js";
 
 /*********************************************************************
-    SEGMENT LAYER
+    ITEMS LAYER
 *********************************************************************/
 
 /**
- * Segment Layer has either collectionProvider or variableProvider
+ * Items Layer has a stateProvider (either collectionProvider or variableProvider)
  * as src property.
  */
 
-export function is_segments_layer (obj) {
+export function is_items_layer (obj) {
     if (obj == undefined) return false;
     // is layer
     if (!(obj instanceof Layer)) return false;
@@ -26,10 +26,10 @@ export function is_segments_layer (obj) {
     return true;
 }
 
-export function segments_layer(options={}) {
+export function items_layer(options={}) {
 
     const {src, ...opts} = options;
-    const layer = new Layer({CacheClass:SegmentLayerCache, ...opts});
+    const layer = new Layer({CacheClass:ItemsLayerCache, ...opts});
 
     // setup src property
     srcprop.addState(layer);
@@ -66,8 +66,8 @@ export function segments_layer(options={}) {
 
 
     /**
-     * convenience method for getting items at offset
-     * only segment layer supports this method
+     * convenience method for getting items valid at offset
+     * only items layer supports this method
      */
     layer.get_items = function get_items(offset) {
         return [...layer.index.nearby(offset).center];
@@ -91,20 +91,20 @@ export function segments_layer(options={}) {
 
 
 /*********************************************************************
-    SEGMENT LAYER CACHE
+    ITEMS LAYER CACHE
 *********************************************************************/
 
 /*
     Layers with a CollectionProvider or a VariableProvider as src 
     use a specific cache implementation, as objects in the 
     index are assumed to be items from the provider, not layer objects. 
-    Thus, queries are not resolved directly on the objects in the index, but
-    rather on corresponding segment objects, instantiated as needed.
+    Thus, queries are not resolved directly on the items in the index, but
+    rather from corresponding segment objects, instantiated from items.
 
     Caching here applies to nearby state and segment objects.
 */
 
-class SegmentLayerCache {
+class ItemsLayerCache {
     constructor(layer) {
         // layer
         this._layer = layer;
@@ -152,7 +152,7 @@ class SegmentLayerCache {
 *********************************************************************/
 
 /*
-    Segment layer forwards update to state provider
+    Items Layer forwards update to stateProvider
 */
 function layer_update(layer, changes={}) {
     if (is_collection_provider(layer.src)) {
@@ -197,12 +197,17 @@ function layer_update(layer, changes={}) {
  * new items will only be be applied for t >= offset
  * old items will be kept for t < offset
  * 
+ * 
+ * TODO - not safe for repeting state
+ * 
  */
 function layer_append(layer, items, offset) {
     const ep = endpoint.from_input(offset);
     
-    // make sure new items are only valid for t >= offset
-    items = items
+    // console.log("all items", items.length);
+
+    // truncate or remove new items before offset
+    const insert_items = items
         .filter((item) => {
             // keep only items with itv.high >= offset
             const highEp = endpoint.from_interval(item.itv)[1];
@@ -217,14 +222,18 @@ function layer_append(layer, items, offset) {
             }
             return item;
         });
+    
+    // console.log("insert", insert_items.length);
 
     // truncate pre-existing items overlapping offset
-    items.push(...layer.index.nearby(offset).center.map((item) => {
+    const modify_items = layer.index.nearby(offset).center.map((item) => {
         const new_item = {...item};
         new_item.itv = [item.itv[0], offset, item.itv[2], false];
         return new_item;
-    }));
+    });
     
+    // console.log("modify", modify_items.length);
+
     //remove pre-existing items where itv.low > offset
     const remove = layer.src.get()
         .filter((item) => {
@@ -235,8 +244,11 @@ function layer_append(layer, items, offset) {
             return item.id;
         });
 
+    // console.log("remove", remove.length);
+
     // layer update
-    return layer_update(layer, {remove, insert:items, reset:false})
+    const insert = [...modify_items, ...insert_items];
+    return layer_update(layer, {remove, insert, reset:false})
 }
 
 

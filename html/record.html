@@ -4,6 +4,13 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .item-id {color:red;}
+        .item-itv {color: green;}
+        .item-type {color: purple;}
+        .item-data {color: blue;}
+        .variable {color: red; font-weight: bold;}
+    </style>
     <script type="module">
         import * as sl from './libs/layers.es.js';
 
@@ -14,19 +21,23 @@
         // src variable
         const variable = sl.variable({ctrl:live_clock, value:0});
         // dst layer
-        const layer = sl.record({src:variable});
+        const layer = sl.record({src:variable, value:0});
+        // playout variable
+        const playout_variable = sl.playback({ctrl:playout_clock, src:layer});
 
         function render_cursor (selector, cursor) {
             const elem = document.querySelector(selector);
             cursor.bind((state) => {
-                elem.textContent = `${state.value.toFixed(2)}`;    
+                if (state.value == undefined) {
+                    elem.textContent = "";
+                } else {
+                    elem.textContent = `${state.value.toFixed(2)}`;
+                }
             }, 200);
         }
-        render_cursor("#clock", live_clock);
-        render_cursor("#playout-clock", playout_clock);
         render_cursor("#variable", variable);
+        render_cursor("#playout-variable", playout_variable);
         
-
 
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
@@ -59,27 +70,19 @@
             variable.interpolate({tuples, duration:4});
         }
 
+        // playout state
+        const viewer_elem = document.querySelector("#playout-state");
+        const viewer = sl.viewer(layer.src, viewer_elem);
 
 </script>
 </head>
 <body>
     <h1>Hello, Record!</h1>
-    <p>
-        <div>
-            <span>Record Clock: </span>
-            <span id="clock"></span>
-        </div>
-        <div>
-            <span>Playout Clock: </span>
-            <span id="playout-clock"></span>
-        </div>
-
-    </p>
 
     <p>
         <div>
-            <span>Recorded Variable: </span>
-            <span id="variable"></span>
+            <span>Live Variable: </span>
+            <span class="variable" id="variable"></span>
         </div>
     </p>
 
@@ -92,13 +95,20 @@
         <button id="interpolateBtn">Interpolate</button>
     </p>
 
+    <p>
+        <div>
+            <span>Timeshifted Playback </span>
+            <span class="variable" id="playout-variable"></span>
+        </div>
+    </p>
 
     <p>
         <div>
-            <span>Playout Variable: </span>
-            <span id="playbout-variable"></span>
+            <span>Recorded State </span>
+            <span id="playout-state"></span>
         </div>
     </p>
+
 
 </body>
 </html>

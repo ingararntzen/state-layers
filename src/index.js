@@ -9,7 +9,7 @@ import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
 
 // factory functions
-import { segments_layer } from "./layer_segments.js";
+import { items_layer } from "./layer_items.js";
 import { clock_cursor, is_clock_cursor } from "./cursor_clock.js"
 import { variable_cursor } from "./cursor_variable.js";
 import { playback_cursor } from "./cursor_playback.js";
@@ -21,6 +21,15 @@ import { timeline_transform } from "./ops/timeline_transform.js";
 import { cursor_transform, layer_transform } from "./ops/transform.js";
 import { record_layer } from "./ops/record.js";
 
+
+
+// util
+import { StateProviderViewer } from "./provider_viewer.js";
+
+function viewer(stateProvider, elem, options={}) {
+    // create a new viewer
+    return new StateProviderViewer(stateProvider, elem, options);
+}
 
 /*********************************************************************
     LAYER FACTORIES
@@ -38,7 +47,7 @@ function layer(options={}) {
             src = new CollectionProvider({insert});
         }
     }
-    return segments_layer({src, ...opts}); 
+    return items_layer({src, ...opts}); 
 }
 
 function record (options={}) {
@@ -115,5 +124,6 @@ export {
     cursor_transform,
     timeline_transform,
     record,
-    skew
+    skew,
+    viewer
 }

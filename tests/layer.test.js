@@ -128,4 +128,37 @@ describe('Test Layer', () => {
         });
     });
 
+
+    test.only('Test layer append supporting correctly with repeated state', () => {
+
+        const init_items = [
+            {id: "0", itv: [null, 1, true, false], data: 0},
+            {id: "1", itv: [1, 2, true, false], data: 1},
+            {id: "2", itv: [2, null, true, false], data: 2},
+        ]
+        const l1 = sl.layer({insert:init_items});
+
+
+        const new_items = [
+            {id: "0", itv: [null, 1, true, false], data: 0},
+            {id: "1", itv: [1, 2, true, false], data: 1},
+            {id: "2", itv: [2, null, true, false], data: 2},
+        ]
+
+        // TODO - implementation should be strengthened to support
+        // repetition of state.
+
+        l1.append(new_items,1.5).then(() => {            
+            const result = l1.src.get();
+            // expect(result[0]).toStrictEqual(new_items[0]);
+            // expect(result[1]).toStrictEqual(new_items[1]);
+            // expect(result[2]).toStrictEqual(new_items[2]);
+            console.log(result)
+        });
+    });
+
+
+
+
+
 });

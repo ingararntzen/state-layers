@@ -1,5 +1,5 @@
 import { Cursor } from "./cursor_base.js";
-import { is_segments_layer } from "./layer_segments.js";
+import { is_items_layer } from "./layer_items.js";
 import * as srcprop from "./api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util.js";
 import { is_clock_cursor } from "./cursor_clock.js";
@@ -34,8 +34,8 @@ export function variable_cursor(ctrl, src) {
             return obj;
         }
         if (propName == "src") {
-            if (!is_segments_layer(obj)) {
-                throw new Error(`src must be a segments layer ${obj}`);
+            if (!is_items_layer(obj)) {
+                throw new Error(`src must be an item layer ${obj}`);
             }
             return obj;
         }
@@ -130,10 +130,10 @@ function set_value(cursor, value) {
  * set motion state
  *  
  * motion only makes sense if variable cursor is restricted to number values,
- * which in turn implies that the cursor.src (Segment Layer) should be
+ * which in turn implies that the cursor.src (Items Layer) should be
  * restricted to number values. 
  * If non-number values occur - we simply replace with 0.
- * Also, segment layer should have one segment/item in nearby center.
+ * Also, items layer should have a single item in nearby center.
  * 
  * if position is omitted in vector - current position will be assumed
  * if timestamp is omittted in vector - current timestamp will be assumed
