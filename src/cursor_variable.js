@@ -80,9 +80,9 @@ export function variable_cursor(ctrl, src) {
         }, delta_ms);
     }
 
-    cursor.query = function query() {
-        const ts = cursor.ctrl.value;
-        return src_cache.query(ts);
+    cursor.query = function query(local_ts) {
+        const offset = cursor.ctrl.query(local_ts).value;
+        return src_cache.query(offset);
     }
     
     /**

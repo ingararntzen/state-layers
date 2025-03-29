@@ -1,4 +1,5 @@
 import {divmod} from "./util.js";
+import {local_clock } from "./provider_clock.js";
 
 /*
     Timeout Monitor

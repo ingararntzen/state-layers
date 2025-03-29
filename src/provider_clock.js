@@ -9,9 +9,13 @@ export function is_clock_provider(obj) {
 }
 
 // webpage clock - performance now - seconds
-function local () {
-    return performance.now()/1000.0;
-}
+export const local_clock = function local_clock () {
+    return {
+        now () {
+            return performance.now()/1000.0;
+        }
+    }
+}();
 
 // system clock - epoch - seconds
 function epoch () {
@@ -25,12 +29,11 @@ function epoch () {
  * time adjustments.
  */
 export const LOCAL_CLOCK_PROVIDER = function () {
-    const t0_local = local();
+    const t0 = local_clock.now();
     const t0_epoch = epoch();
     return {
-        now () {
-            const t1_local = local();
-            return t0_epoch + (t1_local - t0_local);
+        now (local_ts = local_clock.now()) {
+            return t0_epoch + (local_ts - t0);
         }
     }
 }();

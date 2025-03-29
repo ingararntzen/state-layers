@@ -8,8 +8,8 @@ import { is_finite_number } from "./util.js";
  * get current state from cursor.ctrl
  * ensure that cursor.ctrl return a number offset
  */
-export function get_cursor_ctrl_state (cursor) {
-    const state = cursor.ctrl.query();
+export function get_cursor_ctrl_state (cursor, ts_local) {
+    const state = cursor.ctrl.query(ts_local);
     if (!is_finite_number(state.value)) {
         throw new Error(`warning: cursor ctrl value must be number ${state.value}`);
     }

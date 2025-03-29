@@ -4,22 +4,41 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .cursor {color: red; font-weight: bold;}
+    </style>
+
     <script type="module">
 
         import * as sl from './libs/layers.es.js';
+
+        // cursors
         const clock = sl.clock();
-        const elem = document.querySelector("#value");
-        clock.bind((state) => {
-           elem.textContent = `${state.value.toFixed(2)}`; 
-        }, 200);
+        const skew_clock = sl.skew(clock, -2);
+
+        function render_cursor (selector, cursor) {
+            const elem = document.querySelector(selector);
+            cursor.bind((state) => {
+                if (state.value == undefined) {
+                    elem.textContent = "";
+                } else {
+                    elem.textContent = `${state.value.toFixed(2)}`;
+                }
+            }, 200);
+        }
+
+        render_cursor("#clock", clock);
+        render_cursor("#skew-clock", skew_clock);
 
 </script>
 </head>
 <body>
-    <h1>Hello, Clock Cursor!</h1>
-    <h3> Value </h3>
+    <h1>Hello, Clock Cursors!</h1>
+
     <p>
-        <div id="value"></div>
+        <div class="cursor" id="clock"></div>
+        <div class="cursor" id="skew-clock"></div>
     </p>
+
 </body>
 </html>

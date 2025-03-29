@@ -4,7 +4,11 @@ import { Layer } from "./layer_base.js";
 import { Cursor } from "./cursor_base.js";
 
 // stateProviders
-import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
+import { 
+    is_clock_provider, 
+    LOCAL_CLOCK_PROVIDER, 
+    local_clock
+} from "./provider_clock.js";
 import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
 

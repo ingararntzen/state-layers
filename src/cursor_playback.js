@@ -213,8 +213,8 @@ export function playback_cursor(ctrl, src) {
      * from cache object associated with cursor.src
      */
 
-    cursor.query = function query() {
-        const offset = get_cursor_ctrl_state(cursor).value; 
+    cursor.query = function query(local_ts) {
+        const offset = get_cursor_ctrl_state(cursor, local_ts).value; 
         return src_cache.query(offset);
     }
     

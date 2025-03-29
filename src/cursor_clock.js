@@ -26,9 +26,9 @@ export function clock_cursor(src) {
         throw new Error(`src must be clockProvider ${src}`);
     }
     const cursor = new Cursor();
-    cursor.query = function () {
-        const ts = src.now();
-        return {value:ts, dynamic:true, offset:ts};
+    cursor.query = function (local_ts) {
+        const clock_ts = src.now(local_ts);
+        return {value:clock_ts, dynamic:true, offset:local_ts};
     }
     return cursor;
 }
