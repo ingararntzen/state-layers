@@ -47,6 +47,24 @@ export function range (start, end, step = 1, options={}) {
 }
 
 
+// webpage clock - performance now - seconds
+export const local_clock = function local_clock () {
+    return {
+        now: () => {
+            return performance.now()/1000.0;
+        }
+    }
+}();
+
+// system clock - epoch - seconds
+export const local_epoch = function local_epoch () {
+    return {
+        now: () => {
+            return new Date()/1000.0;
+        }
+    }
+}();
+
 /**
  * Create a single state from a list of states, using a valueFunc
  * state:{value, dynamic, offset}

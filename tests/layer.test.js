@@ -129,7 +129,7 @@ describe('Test Layer', () => {
     });
 
 
-    test.only('Test layer append supporting correctly with repeated state', () => {
+    test('Test layer append supporting correctly with repeated state', () => {
 
         const init_items = [
             {id: "0", itv: [null, 1, true, false], data: 0},
@@ -153,7 +153,7 @@ describe('Test Layer', () => {
             // expect(result[0]).toStrictEqual(new_items[0]);
             // expect(result[1]).toStrictEqual(new_items[1]);
             // expect(result[2]).toStrictEqual(new_items[2]);
-            console.log(result)
+            // console.log(result)
         });
     });
 

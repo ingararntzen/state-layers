@@ -6,8 +6,7 @@ import { Cursor } from "./cursor_base.js";
 // stateProviders
 import { 
     is_clock_provider, 
-    LOCAL_CLOCK_PROVIDER, 
-    local_clock
+    LOCAL_CLOCK_PROVIDER
 } from "./provider_clock.js";
 import { CollectionProvider } from "./provider_collection.js";
 import { VariableProvider } from "./provider_variable.js";
@@ -28,6 +27,7 @@ import { record_layer } from "./ops/record.js";
 
 
 // util
+import { local_clock } from "./util.js";
 import { StateProviderViewer } from "./provider_viewer.js";
 
 function viewer(stateProvider, elem, options={}) {
@@ -129,5 +129,6 @@ export {
     timeline_transform,
     record,
     skew,
-    viewer
+    viewer,
+    local_clock
 }
