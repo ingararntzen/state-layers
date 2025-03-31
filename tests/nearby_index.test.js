@@ -1,7 +1,7 @@
 /* global describe, test, expect */
 import { CollectionProvider } from "../src/provider_collection.js";
 import { NearbyIndex } from "../src/nearby_index.js";
-import { endpoint } from "../src/intervals.js";
+import { endpoint } from "../src/util/intervals.js";
 
 const EP_POS_INF = endpoint.POS_INF;
 const EP_NEG_INF = endpoint.NEG_INF;

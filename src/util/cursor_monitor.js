@@ -1,4 +1,4 @@
-import { local_clock } from "./util.js";
+import { local_clock } from "./common.js";
 
 /**
  * polling a callback function periodically with 

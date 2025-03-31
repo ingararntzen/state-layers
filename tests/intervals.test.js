@@ -1,6 +1,6 @@
 /* global describe, test, expect */
 
-import {endpoint, interval} from '../src/intervals.js';
+import {endpoint, interval} from '../src/util/intervals.js';
 
 
 describe('EndpointTest', () => {

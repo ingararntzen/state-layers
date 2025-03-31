@@ -1,6 +1,6 @@
 
 /* global describe, test, expect */
-import { motion_utils} from "../src/util";
+import { motion_utils} from "../src/util/common.js";
 
 const {
     get_real_solutions,

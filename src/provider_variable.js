@@ -1,5 +1,5 @@
-import * as callback from "./api_callback.js";
-import { random_string} from "./util.js";
+import * as callback from "./util/api_callback.js";
+import { random_string} from "./util/common.js";
 
 /**
  * variable providers must have a value property

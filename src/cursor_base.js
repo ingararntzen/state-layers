@@ -1,7 +1,7 @@
-import * as eventify from "./api_eventify.js";
-import * as callback from "./api_callback.js";
-import { bind, release } from "./monitor.js";
-import { is_finite_number } from "./util.js";
+import * as eventify from "./util/api_eventify.js";
+import * as callback from "./util/api_callback.js";
+import { bind, release } from "./util/cursor_monitor.js";
+import { is_finite_number } from "./util/common.js";
 
 /**
  * convenience

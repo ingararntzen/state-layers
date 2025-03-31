@@ -3,7 +3,7 @@
 import {
     StaticSegment, MotionSegment,
     TransitionSegment, InterpolationSegment
-} from '../src/segments.js';
+} from '../src/util/segments.js';
 
 describe('StaticSegment class', () => {
     test('should return correct value for offset within interval', () => {

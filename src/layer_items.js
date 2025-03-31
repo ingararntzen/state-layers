@@ -1,11 +1,11 @@
-import * as srcprop from "./api_srcprop.js";
+import * as srcprop from "./util/api_srcprop.js";
 import { Layer } from "./layer_base.js";
 import { is_collection_provider } from "./provider_collection.js";
 import { is_variable_provider} from "./provider_variable.js";
 import { NearbyIndex } from "./nearby_index.js";
-import { load_segment } from "./segments.js";
-import { toState } from "./util.js";
-import { endpoint, interval } from "./intervals.js";
+import { load_segment } from "./util/segments.js";
+import { toState } from "./util/common.js";
+import { endpoint, interval } from "./util/intervals.js";
 
 /*********************************************************************
     ITEMS LAYER

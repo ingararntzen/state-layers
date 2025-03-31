@@ -1,5 +1,5 @@
 import { interval } from "./intervals.js";
-import { motion_utils, range } from "./util.js";
+import { motion_utils } from "./common.js";
 
 /********************************************************************
 BASE SEGMENT

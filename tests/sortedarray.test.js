@@ -1,5 +1,5 @@
 /* global describe, test, expect */
-import { SortedArray } from "../src/sortedarray.js";
+import { SortedArray } from "../src/util/sortedarray.js";
 
 // Add your test cases here
 describe('SkewLayerTest', () => {

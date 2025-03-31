@@ -1,4 +1,4 @@
-import { interval, endpoint} from "../intervals.js";
+import { interval, endpoint} from "../util/intervals.js";
 import { NearbyIndexBase } from "../nearby_base.js";
 import { Layer } from "../layer_base.js"
 
@@ -12,7 +12,7 @@ export function boolean_layer(src) {
     layer.index = new NearbyIndexBoolean(src.index);
     
     // subscribe
-    const handle = src.add_callback((eArg) => {
+    src.add_callback((eArg) => {
         layer.onchange(eArg);
     });
 

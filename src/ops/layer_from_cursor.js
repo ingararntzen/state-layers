@@ -1,4 +1,4 @@
-import { endpoint} from "../intervals.js";
+import { endpoint} from "../util/intervals.js";
 import { NearbyIndexBase } from "../nearby_base.js";
 import { Layer } from "../layer_base.js"
 import { Cursor } from "../cursor_base.js";
@@ -17,7 +17,7 @@ export function layer_from_cursor(src) {
     layer.index = new CursorIndex(src);
     
     // subscribe
-    const handle = src.add_callback((eArg) => {
+    src.add_callback((eArg) => {
         layer.onchange(eArg);
     });
 

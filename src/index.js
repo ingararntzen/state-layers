@@ -27,8 +27,8 @@ import { record_layer } from "./ops/record.js";
 
 
 // util
-import { local_clock } from "./util.js";
-import { StateProviderViewer } from "./provider_viewer.js";
+import { local_clock } from "./util/common.js";
+import { StateProviderViewer } from "./util/provider_viewer.js";
 
 function viewer(stateProvider, elem, options={}) {
     // create a new viewer

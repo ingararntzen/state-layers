@@ -1,9 +1,9 @@
 import { Cursor, get_cursor_ctrl_state } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
 import { is_items_layer } from "./layer_items.js";
-import * as srcprop from "./api_srcprop.js";
-import { interval } from "./intervals.js";
-import { set_timeout } from "./util.js";
+import * as srcprop from "./util/api_srcprop.js";
+import { interval } from "./util/intervals.js";
+import { set_timeout } from "./util/common.js";
 import { is_clock_cursor } from "./cursor_clock.js";
 
 /*****************************************************

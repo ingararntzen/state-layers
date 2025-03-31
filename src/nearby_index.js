@@ -1,6 +1,6 @@
-import { endpoint } from "./intervals.js";
+import { endpoint } from "./util/intervals.js";
 import { NearbyIndexBase, nearby_from } from "./nearby_base.js";
-import { SortedArray } from "./sortedarray.js";
+import { SortedArray } from "./util/sortedarray.js";
 import { is_collection_provider } from "./provider_collection.js";
 import { is_variable_provider } from "./provider_variable.js";
 
