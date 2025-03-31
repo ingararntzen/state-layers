@@ -1,14 +1,31 @@
 import { Cursor } from "./cursor_base.js";
-import { is_items_layer } from "./layer_items.js";
+import { is_items_layer, items_layer } from "./layer_items.js";
 import * as srcprop from "./util/api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util/common.js";
-import { is_clock_cursor } from "./cursor_clock.js";
+import { is_clock_cursor, clock_cursor } from "./cursor_clock.js";
+import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
+import { is_collection_provider } from "./provider_collection.js";
+import { is_variable_provider } from "./provider_variable.js";
 
 const check_range = motion_utils.check_range;
 
 /*****************************************************
  * VARIABLE CURSOR
  *****************************************************/
+
+/**
+ * src is a layer or a stateProvider
+ * ctrl is a clockCursor or a clockProvider
+ * 
+ * clockProvider is wrapped as clockCursor
+ * to ensure that "ctrl" property of cursors is always a cursor
+ * 
+ * stateProvider is wrapped as itemsLayer
+ * to ensure that "src" property of cursors is always a layer
+ * additionally, this ensures that variable cursor can easily
+ * support live recording, which depends on the nearbyindex of the layer.
+ * 
+ */
 
 export function variable_cursor(ctrl, src) {
 
@@ -25,15 +42,20 @@ export function variable_cursor(ctrl, src) {
     cursor.srcprop_register("ctrl");
     cursor.srcprop_register("src");
 
-    cursor.srcprop_check = function (propName, obj) {
-
+    cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
         if (propName == "ctrl") {
+            if (is_clock_provider(obj)) {
+                obj = clock_cursor(obj);
+            }
             if (!is_clock_cursor(obj)) {
                 throw new Error(`ctrl must be a clock cursor ${obj}`);
             }
             return obj;
         }
         if (propName == "src") {
+            if (is_collection_provider(obj) || is_variable_provider(obj)) {
+                obj = items_layer({src:obj});
+            }
             if (!is_items_layer(obj)) {
                 throw new Error(`src must be an item layer ${obj}`);
             }
@@ -279,16 +301,19 @@ function set_interpolation(cursor, tuples, duration) {
     const [v1, t1] = tuples[tuples.length-1];
     const items = [
         {
+            id: random_string(10),
             itv: [-Infinity, t0, true, false],
             type: "static",
             data: v0
         },
         {
+            id: random_string(10),
             itv: [t0, t1, true, false],
             type: "interpolation",
             data: tuples
         },
         {
+            id: random_string(10),
             itv: [t1, Infinity, true, true],
             type: "static",
             data: v1
@@ -296,18 +321,3 @@ function set_interpolation(cursor, tuples, duration) {
     ]
     return cursor.src.update({insert:items, reset:true});
 }
-
-
-/**
- * TODO: support alternative update for state recording.
- * This effectively means that recording is a 
- * bultin feature of the variable cursor. Could be enabled by option.
- * To calcultate the new state, need to truncate existing state
- * and append new items. Index support for the provider would be needed,
- * so that we can clear all state in interval [ts, null], 
- * and then append new items to the same interval. Would also need to
- * forward a ts from each of the update methods.
- * 
- * Check out some similar code from State Trajectory 
- * 
- */

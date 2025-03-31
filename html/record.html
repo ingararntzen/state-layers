@@ -9,9 +9,17 @@
         .item-itv {color: green;}
         .item-type {color: purple;}
         .item-data {color: blue;}
-        .variable {color: red; font-weight: bold;}
+        .cursor {color: red; font-weight: bold;}
     </style>
     <script type="module">
+
+        function getRandomInt(max) {
+          return Math.floor(Math.random() * max);
+        }
+        function htmlFunc({value}) {
+            return (value != undefined) ? `${value.toFixed(2)}` : "";
+        }
+
         import * as sl from './libs/layers.es.js';
 
         // live clock
@@ -25,24 +33,9 @@
         // playout variable
         const playout_variable = sl.playback({ctrl:playout_clock, src:layer});
 
-        function render_cursor (selector, cursor) {
-            const elem = document.querySelector(selector);
-            cursor.bind((state) => {
-                if (state.value == undefined) {
-                    elem.textContent = "";
-                } else {
-                    elem.textContent = `${state.value.toFixed(2)}`;
-                }
-            }, 200);
-        }
-        render_cursor("#variable", variable);
-        render_cursor("#playout-variable", playout_variable);
+        sl.render_cursor(variable, "#variable", {htmlFunc});
+        sl.render_cursor(playout_variable, "#playout-variable", {htmlFunc});
         
-
-        function getRandomInt(max) {
-          return Math.floor(Math.random() * max);
-        }
-
         document.querySelector("#valueBtn").onclick = () => {
             variable.set(getRandomInt(10))
         }
@@ -71,8 +64,7 @@
         }
 
         // playout state
-        const viewer_elem = document.querySelector("#playout-state");
-        const viewer = sl.viewer(layer.src, viewer_elem);
+        const viewer = sl.render_provider(layer.src, "#playout-state");
 
 </script>
 </head>
@@ -82,7 +74,7 @@
     <p>
         <div>
             <span>Live Variable: </span>
-            <span class="variable" id="variable"></span>
+            <span class="cursor" id="variable"></span>
         </div>
     </p>
 
@@ -98,7 +90,7 @@
     <p>
         <div>
             <span>Timeshifted Playback </span>
-            <span class="variable" id="playout-variable"></span>
+            <span class="cursor" id="playout-variable"></span>
         </div>
     </p>
 

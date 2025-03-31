@@ -195,7 +195,6 @@ export class NearbyIndex extends NearbyIndexBase {
 			where they were registered (LOW, ACTIVE, HIGH) 
 		*/
 		for (const item of remove_items) {			
-			const eps = this._endpoints.lookup(item.itv);
 			for (const ep of this._endpoints.lookup(item.itv)) {
 				// TODO: check if this is correct
 				const became_empty = this._itemsmap.unregister(ep, item);

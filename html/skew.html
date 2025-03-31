@@ -4,30 +4,31 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .cursor {color: red; font-weight: bold;}
+    </style>
     <script type="module">
 
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
         }
+        function htmlFunc({value}) {
+            return `${value.toFixed(2)}`;
+        }
+
 
         import * as sl from './libs/layers.es.js';
 
         // Variable
         const offset = sl.variable({value:0});        
-        const elem = document.querySelector("#value");
-        offset.bind((state) => {
-            elem.textContent = `${state.value.toFixed(2)}`; 
-        }, 200);        
+        sl.render_cursor(offset, "#offset", {htmlFunc});
+        
+        // Skewed Variable
+        const skew_offset = sl.cursor_transform(offset, {
+            valueFunc: (value) => value + 2
+        });
+        sl.render_cursor(skew_offset, "#skew-offset", {htmlFunc});
 
-        // Value-shifted Variable
-        function valueFunc(value) {
-            return value + 2;
-        } 
-        const value_shifted = sl.cursor_transform(offset, {valueFunc});
-        const value_shiftedElem = document.querySelector("#value-shifted");
-        value_shifted.bind((state) => {
-            value_shiftedElem.textContent = `${state.value.toFixed(2)}`; 
-        }, 200);
 
 
         document.querySelector("#valueBtn").onclick = () => {
@@ -56,9 +57,6 @@
             ];
             offset.interpolate({tuples, duration:4});
         }
-        document.querySelector("#itemBtn").onclick = () => {
-            console.log(offset.src.get_items(offset.value));
-        }
 
 </script>
 </head>
@@ -68,13 +66,13 @@
     <p>
         <div>
             <span>Variable: </span>
-            <span id="value"></span>
+            <span class="cursor" id="offset"></span>
         </div>
     </p>
     <p>
         <div>
             <span>Transformed Variable: </span>
-            <span id="value-shifted"></span>
+            <span class="cursor" id="skew-offset"></span>
         </div>
     </p>
 
@@ -85,9 +83,6 @@
         <button id="pauseBtn">Pause</button>
         <button id="transBtn">Transition</button>
         <button id="interpolateBtn">Interpolate</button>
-    </p>
-    <p>
-        <button id="itemBtn">Item</button>
     </p>
 </body>
 </html>

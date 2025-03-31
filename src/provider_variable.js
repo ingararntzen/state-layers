@@ -28,7 +28,6 @@ export class VariableProvider {
     constructor(options={}) {
         callback.addState(this);
         this._items = [];
-
         // initialize
         const {value} = options;
         if (value != undefined) {

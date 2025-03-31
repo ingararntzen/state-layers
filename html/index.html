@@ -4,19 +4,18 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .cursor {color: red; font-weight: bold;}
+    </style>
     <script type="module">
 
-        function render_html (selector, to_value) {
-            let elems = document.querySelector(selector);
-            return function (state) {
-                elems.innerHTML = to_value(state);
-            }
+        function htmlFunc({value}) {
+            return (value != undefined) ? `${value.toFixed(2)}` : "";
         }
+
         import * as sl from './libs/layers.es.js';
         const mc = sl.variable({value:0});
-
-        mc.bind(render_html("#offset", ({value}) => `${value}`), 200);
-
+        sl.render_cursor(mc, "#offset", {htmlFunc});
         document.querySelector("#resetBtn").onclick = () => {
             mc.motion({position:0});
         }
@@ -26,7 +25,6 @@
         document.querySelector("#pauseBtn").onclick = () => {
             mc.motion({velocity:0});
         }
-
 
 </script>
 </head>
@@ -41,7 +39,7 @@
         <button id="pauseBtn">Pause</button>
     </p>
     <p>
-        <div id="offset"></div>
+        <div class="cursor" id="offset"></div>
     </p>
     
 </body>

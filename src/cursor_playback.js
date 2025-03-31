@@ -1,14 +1,28 @@
 import { Cursor, get_cursor_ctrl_state } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
-import { is_items_layer } from "./layer_items.js";
+import { is_items_layer, items_layer } from "./layer_items.js";
 import * as srcprop from "./util/api_srcprop.js";
 import { interval } from "./util/intervals.js";
 import { set_timeout } from "./util/common.js";
-import { is_clock_cursor } from "./cursor_clock.js";
+import { is_clock_cursor, clock_cursor } from "./cursor_clock.js";
+import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
+import { is_collection_provider } from "./provider_collection.js";
+import { is_variable_provider } from "./provider_variable.js";
 
 /*****************************************************
  * PLAYBACK CURSOR
  *****************************************************/
+
+/**
+ * src is a layer or a stateProvider
+ * ctrl is a cursor or a clockProvider
+ * 
+ * clockProvider is wrapped as clockCursor
+ * to ensure that "ctrl" property of cursors is always a cursor
+ * 
+ * stateProvider is wrapped as itemsLayer
+ * to ensure that "src" property of cursors is always a layer
+ */
 
 export function playback_cursor(ctrl, src) {
 
@@ -30,8 +44,11 @@ export function playback_cursor(ctrl, src) {
     /**
      * src property initialization check
      */
-    cursor.srcprop_check = function (propName, obj) {
+    cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
         if (propName == "ctrl") {
+            if (is_clock_provider(obj)) {
+                obj = clock_cursor(obj);
+            }
             if (obj instanceof Cursor) {
                 return obj
             } else {
@@ -39,6 +56,9 @@ export function playback_cursor(ctrl, src) {
             }
         }
         if (propName == "src") {
+            if (is_collection_provider(obj) || is_variable_provider(obj)) {
+                obj = items_layer({src:obj});
+            }
             if (obj instanceof Layer) {
                 return obj;
             } else {

@@ -1,9 +1,13 @@
 import { Cursor } from "../cursor_base.js";
-import { is_clock_cursor } from "../cursor_clock.js";
+import { is_clock_cursor, clock_cursor } from "../cursor_clock.js";
 import { is_items_layer } from "../layer_items.js";
+import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "../provider_clock.js";
 
-export function record_layer(ctrl, src, dst) {
+export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
 
+    if (is_clock_provider(ctrl)) {
+        ctrl = clock_cursor(ctrl);
+    }
     // ctrl must be clock cursor or media cursor
     if (
         !is_clock_cursor(ctrl) &&

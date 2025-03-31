@@ -5,7 +5,6 @@ import { Cursor } from "./cursor_base.js";
 
 // stateProviders
 import { 
-    is_clock_provider, 
     LOCAL_CLOCK_PROVIDER
 } from "./provider_clock.js";
 import { CollectionProvider } from "./provider_collection.js";
@@ -13,7 +12,7 @@ import { VariableProvider } from "./provider_variable.js";
 
 // factory functions
 import { items_layer } from "./layer_items.js";
-import { clock_cursor, is_clock_cursor } from "./cursor_clock.js"
+import { clock_cursor } from "./cursor_clock.js"
 import { variable_cursor } from "./cursor_variable.js";
 import { playback_cursor } from "./cursor_playback.js";
 import { layer_from_cursor } from "./ops/layer_from_cursor.js";
@@ -25,15 +24,31 @@ import { cursor_transform, layer_transform } from "./ops/transform.js";
 import { record_layer } from "./ops/record.js";
 
 
-
 // util
 import { local_clock } from "./util/common.js";
 import { StateProviderViewer } from "./util/provider_viewer.js";
 
-function viewer(stateProvider, elem, options={}) {
-    // create a new viewer
-    return new StateProviderViewer(stateProvider, elem, options);
+function render_provider(stateProvider, selector, options={}) {
+    const elems = document.querySelector(selector);
+    return new StateProviderViewer(stateProvider, elems, options);
 }
+
+function render_cursor (cursor, selector, options={}) {
+    const {delay=200, htmlFunc, novalue} = options;
+    const elems = document.querySelector(selector);
+    function render(state) {
+        if (state.value == undefined && novalue != undefined) {
+            state.value = novalue;
+        }
+        if (htmlFunc != undefined) {
+            elems.innerHTML = htmlFunc(state, elems);
+        } else {
+            elems.innerHTML = (state.value != undefined) ? `${state.value}` : "";
+        }
+    }
+    return cursor.bind(render, delay);
+}
+
 
 /*********************************************************************
     LAYER FACTORIES
@@ -55,53 +70,33 @@ function layer(options={}) {
 }
 
 function record (options={}) {
-    let {ctrl, src, dst, ...ops} = options;
-    ctrl = cursor(ctrl);
-    src = cursor(src);
+    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst, ...ops} = options;
     dst = layer({dst:src, ...ops});
     record_layer(ctrl, src, dst);
     return dst;
 }
 
-
 /*********************************************************************
     CURSOR FACTORIES
 *********************************************************************/
 
-
-function cursor (src=LOCAL_CLOCK_PROVIDER) {
-    if (src instanceof Cursor) {
-        return src;
-    }
-    if (is_clock_cursor(src)) {
-        return src;
-    }
-    if (is_clock_provider(src)) {
-        return clock_cursor(src);
-    }
-    throw new Error(`src must be cursor, clockProvider or undefined ${src}`);
-}
-
 function clock (src) {
-    return cursor(src);
+    return clock_cursor(src);
 }
 
 function variable(options={}) {
     let {ctrl, ...opts} = options;
-    ctrl = cursor(ctrl);
     const src = layer(opts);
     return variable_cursor(ctrl, src);
 }
 
 function playback(options={}) {
     let {ctrl, ...opts} = options;
-    ctrl = cursor(ctrl);
     const src = layer(opts);
     return playback_cursor(ctrl, src);
 }
 
 function skew (src, offset) {
-    src = cursor(src);
     function valueFunc(value) {
         return value + offset;
     } 
@@ -129,6 +124,7 @@ export {
     timeline_transform,
     record,
     skew,
-    viewer,
+    render_provider,
+    render_cursor,
     local_clock
 }

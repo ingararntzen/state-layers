@@ -105,13 +105,16 @@ export function items_layer(options={}) {
 */
 
 class ItemsLayerCache {
-    constructor(layer) {
+    constructor(layer, options={}) {
         // layer
         this._layer = layer;
         // cached nearby object
         this._nearby = undefined;
         // cached segment
         this._segment = undefined;
+        // default value
+        this._options = options;
+
     }
 
     get src() {return this._layer};
@@ -135,7 +138,7 @@ class ItemsLayerCache {
             return seg.query(offset);
         });
         // calculate single result state
-        return toState(this._segments, states, offset, this._layer.options)
+        return toState(this._segments, states, offset, this._layer.options);
     }
 
     clear() {
@@ -150,6 +153,14 @@ class ItemsLayerCache {
 /*********************************************************************
     LAYER UPDATE
 *********************************************************************/
+
+/**
+ * NOTE - layer update is essentially about stateProvider update.
+ * so these methods could (for the most part) be moved to the provider.
+ * However, update_append benefits from using the index of the layer,
+ * so we keep it here for now. 
+ */
+
 
 /*
     Items Layer forwards update to stateProvider

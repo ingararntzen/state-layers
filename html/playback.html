@@ -4,17 +4,23 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .cursor {color: red; font-weight: bold;}
+    </style>
     <script type="module">
-
-        function render_html (selector, to_value) {
-            let elems = document.querySelector(selector);
-            return function (state) {
-                elems.innerHTML = to_value(state);
-            }
-        }
 
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
+        }
+        function htmlFunc({value}) {
+            return `${value.toFixed(2)}`;
+        }
+
+        function colorFunc({value}) {
+            if (value === undefined) {
+                return `undefined`;
+            }
+            return `<span style="color: ${value};">${value}</span>`;
         }
 
         import * as sl from './libs/layers.es.js';
@@ -33,9 +39,11 @@
         const offset = sl.variable({value:0});
         const color = sl.playback({src:colors, ctrl:offset});
 
-        offset.bind(render_html("#offset", ({value}) => `${value}`), 200);
-        color.bind(render_html("#color", ({value}) => `${value}`), 200);
+        // render
+        sl.render_cursor(offset, "#offset", {htmlFunc, novalue:0});
+        sl.render_cursor(color, "#color", {htmlFunc:colorFunc});
 
+        // button controls
         document.querySelector("#valueBtn").onclick = () => {
             offset.set(getRandomInt(10))
         }
@@ -62,9 +70,6 @@
             ];
             offset.interpolate({tuples, duration:4});
         }
-        document.querySelector("#itemBtn").onclick = () => {
-            console.log(offset.src.get_items(offset.value));
-        }
 
 </script>
 </head>
@@ -82,13 +87,10 @@
         <button id="interpolateBtn">Interpolate</button>
     </p>
     <p>
-        <div id="offset"></div>
+        <div class="cursor" id="offset"></div>
     </p>
     <p>
-        <div id="color"></div>
-    </p>
-    <p>
-        <button id="itemBtn">Item</button>
+        <div class="cursor" id="color"></div>
     </p>
 
 </body>

@@ -12,23 +12,16 @@
 
         import * as sl from './libs/layers.es.js';
 
+        function htmlFunc({value}) {
+            return `${value.toFixed(2)}`;
+        }
+
         // cursors
         const clock = sl.clock();
         const skew_clock = sl.skew(clock, -2);
 
-        function render_cursor (selector, cursor) {
-            const elem = document.querySelector(selector);
-            cursor.bind((state) => {
-                if (state.value == undefined) {
-                    elem.textContent = "";
-                } else {
-                    elem.textContent = `${state.value.toFixed(2)}`;
-                }
-            }, 200);
-        }
-
-        render_cursor("#clock", clock);
-        render_cursor("#skew-clock", skew_clock);
+        sl.render_cursor(clock, "#clock", {delay:100, htmlFunc});
+        sl.render_cursor(skew_clock, "#skew-clock", {delay:100, htmlFunc});
 
 </script>
 </head>

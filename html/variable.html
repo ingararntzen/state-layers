@@ -4,20 +4,25 @@
     <title>Document</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .cursor {color: red; font-weight: bold;}
+    </style>
     <script type="module">
 
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
         }
+        function htmlFunc({value}) {
+            return `${value.toFixed(2)}`;
+        }
 
         import * as sl from './libs/layers.es.js';
 
-        const offset = sl.variable({value:0});
-        const elem = document.querySelector("#value");
-        offset.bind((state) => {
-            elem.textContent = `${state.value.toFixed(2)}`; 
-        }, 200);        
+        // variable
+        const offset = sl.variable();
+        sl.render_cursor(offset, "#offset", {htmlFunc, novalue:0});
 
+        // button controls
         document.querySelector("#valueBtn").onclick = () => {
             offset.set(getRandomInt(10))
         }
@@ -44,9 +49,6 @@
             ];
             offset.interpolate({tuples, duration:4});
         }
-        document.querySelector("#itemBtn").onclick = () => {
-            console.log(offset.src.get_items(offset.value));
-        }
 
 </script>
 </head>
@@ -54,7 +56,7 @@
     <h1>Hello, Variable!</h1>
     <h3> Value </h3>
     <p>
-        <div id="value"></div>
+        <div class="cursor" id="offset"></div>
     </p>
     <p>
         <button id="valueBtn">SetValue</button>
@@ -63,9 +65,6 @@
         <button id="pauseBtn">Pause</button>
         <button id="transBtn">Transition</button>
         <button id="interpolateBtn">Interpolate</button>
-    </p>
-    <p>
-        <button id="itemBtn">Item</button>
     </p>
 </body>
 </html>
