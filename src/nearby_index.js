@@ -175,7 +175,7 @@ export class NearbyIndex extends NearbyIndexBase {
 		let remove_items = [];
 
 		if (diffs == undefined) {
-			insert_items = this.src.get();		
+			insert_items = this.src.get() || [];
 			// clear all state
 			this._initialise();
 		} else {

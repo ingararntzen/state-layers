@@ -177,7 +177,7 @@ function layer_update(layer, changes={}) {
         if (reset) {
             return layer.src.set(insert);
         } else {
-            const map = new Map(layer.src.get()
+            const map = new Map((layer.src.get() || [])
                 .map((item) => [item.id, item]));
             // remove
             remove.forEach((id) => map.delete(id));
