@@ -78,7 +78,7 @@ export class StateProviderViewer {
     }
 
     _onchange() {
-        const items = this._sp.get();
+        const items = this._sp.get() || [];
 
         // sort by low endpoint
         items.sort((item_a, item_b) => {
