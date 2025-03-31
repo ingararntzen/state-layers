@@ -1,3 +1,5 @@
+
+(function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
 /*
     
     INTERVAL ENDPOINTS
@@ -345,241 +347,6 @@ const interval = {
     from_input: interval_from_input
 };
 
-// ovverride modulo to behave better for negative numbers
-function mod(n, m) {
-    return ((n % m) + m) % m;
-}
-function divmod(x, base) {
-    let n = Math.floor(x / base);
-    let r = mod(x, base);
-    return [n, r];
-}
-
-
-/*
-    similar to range function in python
-*/
-
-function range (start, end, step = 1, options={}) {
-    const result = [];
-    const {include_end=false} = options;
-    if (step === 0) {
-        throw new Error('Step cannot be zero.');
-    }
-    if (start < end) {
-        for (let i = start; i < end; i += step) {
-          result.push(i);
-        }
-    } else if (start > end) {
-        for (let i = start; i > end; i -= step) {
-          result.push(i);
-        }
-    }
-    if (include_end) {
-        result.push(end);
-    }
-    return result;
-}
-
-
-/**
- * Create a single state from a list of states, using a valueFunc
- * state:{value, dynamic, offset}
- * 
- */
-
-function toState(sources, states, offset, options={}) {
-    let {valueFunc, stateFunc} = options; 
-    if (valueFunc != undefined) {
-        let value = valueFunc({sources, states, offset});
-        let dynamic = states.map((v) => v.dymamic).some(e=>e);
-        return {value, dynamic, offset};
-    } else if (stateFunc != undefined) {
-        return {...stateFunc({sources, states, offset}), offset};
-    }
-    // no valueFunc or stateFunc
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
-    }
-    // fallback - just use first state
-    let state = states[0];
-    return {...state, offset}; 
-}
-
-
-function random_string(length) {
-    var text = "";
-    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    for(var i = 0; i < length; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
-}
-
-/*
-    This decorates an object/prototype with basic (synchronous) callback support.
-*/
-
-const PREFIX$1 = "__callback";
-
-function addToInstance$1(object) {
-    object[`${PREFIX$1}_handlers`] = [];
-}
-
-function add_callback (handler) {
-    let handle = {
-        handler: handler
-    };
-    this[`${PREFIX$1}_handlers`].push(handle);
-    return handle;
-}
-function remove_callback (handle) {
-    let index = this[`${PREFIX$1}_handlers`].indexOf(handle);
-    if (index > -1) {
-        this[`${PREFIX$1}_handlers`].splice(index, 1);
-    }
-}
-function notify_callbacks (eArg) {
-    this[`${PREFIX$1}_handlers`].forEach(function(handle) {
-        handle.handler(eArg);
-    });
-}
-
-function addToPrototype$1 (_prototype) {
-    const api = {
-        add_callback, remove_callback, notify_callbacks
-    };
-    Object.assign(_prototype, api);
-}
-
-function implements_callback (obj) {
-    const methods = ["add_callback", "remove_callback"];
-    for (const prop of methods) {
-        if (!(prop in obj)) return false;
-        if (typeof obj[prop] != 'function') return false;
-    }
-    return true;
-}
-
-function check_item(item) {
-    item.itv = interval.from_input(item.itv);
-    item.id = item.id || random_string(10);
-    return item;
-}
-
-
-function is_stateprovider(obj) {
-    if (!implements_callback(obj)) return false;
-    if (!("get_items" in obj)) return false;
-    if (typeof obj.get_items != 'function') return false;
-    return true;
-}
-
-
-/***************************************************************
-    LOCAL STATE PROVIDER
-***************************************************************/
-
-/**
- * local state provider
- * collection of items
- * 
- * changes = {
- *   remove=[],
- *   insert=[],
- *   reset=false 
- * }
- * 
-*/
-
-class LocalStateProvider {
-
-    constructor(options={}) {
-        addToInstance$1(this);
-        this._map = new Map();
-        this._initialise(options);
-    }
-
-    /**
-     * Local stateprovider support initialisation with
-     * by giving items or a value. 
-     */
-    _initialise(options={}) {
-        // initialization with items or single value 
-        let {insert, value} = options;
-        if (value != undefined) {
-            // initialize from value
-            insert = [{
-                itv: [-Infinity, Infinity, true, true], 
-                type: "static",
-                data: value
-            }];
-        }
-        if (insert != undefined) {
-            this._update({insert, reset:true});
-        }
-    }
-
-    /**
-     * Local stateproviders decouple update request from
-     * update processing, and returns Promise.
-     */
-    update (changes) {
-        return Promise.resolve()
-        .then(() => {
-            let diffs;
-            if (changes != undefined) {
-                diffs = this._update(changes);
-                this.notify_callbacks(diffs);
-            }
-            return diffs;
-        });
-    }
-
-    _update(changes) {
-        const diff_map = new Map();
-        let {
-            insert=[],
-            remove=[],
-            reset=false
-        } = changes;
-
-
-        if (reset) {
-            for (const [id, item] of this._map.entries()) {
-                diff_map.set(id, {id, new:undefined, old:item});
-            }
-            // clear all items
-            this._map = new Map();
-        } else {
-            // remove items by id
-            for (const id of remove) {
-                let item = this._map.get(id);
-                if (item != undefined) {
-                    diff_map.set(item.id, {
-                        id:item.id, new:undefined, old:item
-                    });
-                    this._map.delete(id);
-                }
-            }
-        }
-        // insert items
-        for (let item of insert) {
-            item = check_item(item);
-            const diff = diff_map.get(item.id);
-            const old = (diff != undefined) ? diff.old : this._map.get(item.id);
-            diff_map.set(item.id, {id:item.id, new:item, old});
-            this._map.set(item.id, item);
-        }
-        return [...diff_map.values()];
-    }
-
-    get_items() {
-        return [...this._map.values()];
-    };
-}
-addToPrototype$1(LocalStateProvider.prototype);
-
 /*********************************************************************
     NEARBY INDEX
 *********************************************************************/
@@ -673,12 +440,24 @@ class NearbyIndexBase {
         throw new Error("Not implemented");
     }
 
+    empty() {
+        return this.first() == undefined;
+    }
+
     /*
         return low point of leftmost entry
     */
     first() {
         let {center, right} = this.nearby(endpoint.NEG_INF);
-        return (center.length > 0) ? endpoint.NEG_INF : right;
+        if (center.length > 0 ) {
+            return endpoint.NEG_INF;
+        }
+        if (endpoint.lt(right, endpoint.POS_INF)) {
+            return right;
+        } else {
+            // empty
+            return undefined;
+        }
     }
 
     /*
@@ -686,7 +465,15 @@ class NearbyIndexBase {
     */
     last() {
         let {left, center} = this.nearby(endpoint.POS_INF);
-        return (center.length > 0) ? endpoint.POS_INF : left
+        if (center.length > 0) {
+            return endpoint.POS_INF;
+        }
+        if (endpoint.gt(left, endpoint.NEG_INF)) {
+            return left;
+        } else {
+            // empty
+            return undefined;
+        }
     }
 
 
@@ -890,6 +677,31 @@ function nearby_from (
     result.itv = interval.from_endpoints(low, high);
 
     return result;
+}
+
+
+/**
+ * Create a NearbyIndex for a src object Layer.
+ * 
+ * The src object resolves queries for the entire timeline.
+ * In order for the default LayerCache to work, an
+ * object with a .query(offset) method is needed in 
+ * nearby.center.
+ */
+
+class NearbyIndexSrc extends NearbyIndexBase {
+
+    constructor(src) {
+        super();
+        this._src = src;
+        this._cache = src.createCache();
+    }
+
+    nearby(offset) {
+        const nearby = this._src.index.nearby(offset);
+        nearby.center = [this._cache];
+        return nearby;
+    }
 }
 
 /*
@@ -1206,6 +1018,1077 @@ class EventVariable {
 }
 eventifyPrototype(EventVariable.prototype);
 
+/*
+    This decorates an object/prototype with basic (synchronous) callback support.
+*/
+
+const PREFIX$1 = "__callback";
+
+function addState$1(object) {
+    object[`${PREFIX$1}_handlers`] = [];
+}
+
+function add_callback (handler) {
+    let handle = {
+        handler: handler
+    };
+    this[`${PREFIX$1}_handlers`].push(handle);
+    return handle;
+}
+function remove_callback (handle) {
+    let index = this[`${PREFIX$1}_handlers`].indexOf(handle);
+    if (index > -1) {
+        this[`${PREFIX$1}_handlers`].splice(index, 1);
+    }
+}
+function notify_callbacks (eArg) {
+    this[`${PREFIX$1}_handlers`].forEach(function(handle) {
+        handle.handler(eArg);
+    });
+}
+
+function addMethods$1 (obj) {
+    const api = {
+        add_callback, remove_callback, notify_callbacks
+    };
+    Object.assign(obj, api);
+}
+
+/**
+ * test if object implements callback api
+ */
+function is_callback_api (obj) {
+    if (obj == undefined) return false;
+    const methods = ["add_callback", "remove_callback"];
+    for (const prop of methods) {
+        if (!(prop in obj)) return false;
+        if (typeof obj[prop] != 'function') return false;
+    }
+    return true;
+}
+
+function is_finite_number(obj) {
+    return (typeof obj == 'number') && isFinite(obj);
+}
+
+function check_number(name, obj) {
+    if (!is_finite_number(obj)) {
+        throw new Error(`${name} must be finite number ${obj}`);
+    }
+}
+/*
+    similar to range function in python
+*/
+
+function range (start, end, step = 1, options={}) {
+    const result = [];
+    const {include_end=false} = options;
+    if (step === 0) {
+        throw new Error('Step cannot be zero.');
+    }
+    if (start < end) {
+        for (let i = start; i < end; i += step) {
+          result.push(i);
+        }
+    } else if (start > end) {
+        for (let i = start; i > end; i -= step) {
+          result.push(i);
+        }
+    }
+    if (include_end) {
+        result.push(end);
+    }
+    return result;
+}
+
+
+// webpage clock - performance now - seconds
+const local_clock = function local_clock () {
+    return {
+        now: () => {
+            return performance.now()/1000.0;
+        }
+    }
+}();
+
+// system clock - epoch - seconds
+const local_epoch = function local_epoch () {
+    return {
+        now: () => {
+            return new Date()/1000.0;
+        }
+    }
+}();
+
+/**
+ * Create a single state from a list of states, using a valueFunc
+ * state:{value, dynamic, offset}
+ * 
+ */
+
+function toState$1(sources, states, offset, options={}) {
+    let {valueFunc, stateFunc} = options; 
+    if (valueFunc != undefined) {
+        let value = valueFunc({sources, states, offset});
+        let dynamic = states.map((v) => v.dymamic).some(e=>e);
+        return {value, dynamic, offset};
+    } else if (stateFunc != undefined) {
+        return {...stateFunc({sources, states, offset}), offset};
+    }
+    // no valueFunc or stateFunc
+    if (states.length == 0) {
+        return {value:undefined, dynamic:false, offset}
+    }
+    // fallback - just use first state
+    let state = states[0];
+    return {...state, offset}; 
+}
+
+
+function random_string(length) {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    for(var i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
+/**
+ * Improved set_timeout
+ * 
+ * Timeout is defined by a target_ms reading of performance.now().
+ * Callback is not invoked until performance.now() >= target_ms. 
+ * 
+ * This protects against a weakness in basic setTimeout, which may
+ * occationally invoke the callback too early. 
+ * 
+ * schedule timeout 1 ms late, to reduce the likelihood of 
+ * having to reschedule a timeout 
+ */
+function set_timeout (callback, delta_ms) {
+    let ts = performance.now();
+    delta_ms = Math.max(delta_ms, 0);
+    let target_ms = ts + delta_ms;
+    let tid;
+    function cancel_timeout() {
+        clearTimeout(tid);
+    }
+    function handle_timeout() {
+        const delta_ms = target_ms - performance.now();
+        if (delta_ms > 0) {
+            // reschedule timeout
+            tid = setTimeout(handle_timeout, delta_ms + 1);
+        } else {
+            callback();
+        }
+    }
+    tid = setTimeout(handle_timeout, delta_ms + 1);
+    return {cancel:cancel_timeout};
+}
+
+/**
+ *  Implements deterministic projection based on initial conditions 
+ *  - motion vector describes motion under constant acceleration
+ *
+ *  motion transition 
+ * 
+ *  transition from time domain to position under constant acceleration is given by
+ *  given initial vector [p0,v0,a0,t0]
+ *  p(t) = p0 + v0*(t-t0) + 0.5*a0*(t-t0)*(t-t0)
+ *  v(t) = v0 + a0*(t-t0)
+ *  a(t) = a0
+ *  t(t) = t
+ */
+function motion_calculate(vector,t) {
+    const [p0,v0,a0,t0] = vector;
+    const d = t - t0;
+    const p = p0 + v0*d + 0.5*a0*Math.pow(d,2);
+    const v = v0 + a0*d;
+    const a = a0;
+    return [p,v,a,t];
+}
+
+/**
+ * Given motion determined from [p0,v0,a0,t0].
+ * Given equation p(t) = p0 + v0*(t-t0) + 0.5*a0*(t-t0)^2 == p1
+ * Calculate if equation has solutions for some real number t.
+ * A solution exists if determinant of quadratic equation is non-negative
+ * (v0^2 - 2a0(p0-p1)) >= 0
+ */
+function motion_has_real_solutions(vector, p1) {
+    const [p0,v0,a0,t0] = vector;
+    return (Math.pow(v0,2) - 2*a0*(p0-p1)) >= 0.0
+}
+/**
+ * Given motion determined from [p0,v0,a0,t0].
+ * Given equation p(t) = p0 + v0*(t-t0) + 0.5*a0*(t-t0)^2 == p1
+ * Calculate and return real solutions, in ascending order.
+*/  
+function motion_get_real_solutions (vector, p1) {
+    const [p0,v0,a0,t0] = vector;
+    // Constant Position
+    if (a0 === 0.0 && v0 === 0.0) {
+        if (p0 != p1) return [];
+        else {
+            // any t is a solution
+            // NOTE: has real solutions is true
+            return undefined;
+        }    }
+    // Constant non-zero Velocity
+    if (a0 === 0.0) return [t0 + (p1-p0)/v0];
+    // Constant Acceleration
+    if (motion_has_real_solutions(vector, p1) === false) return [];
+    // Exactly on solution
+    var discriminant = Math.pow(v0,2) - 2*a0*(p0-p1);
+    if (discriminant === 0.0) {
+        return [t0-v0/a0];
+    }
+    var sqrt = Math.sqrt(Math.pow(v0,2) - 2*a0*(p0-p1));
+    var d1 = t0 + (-v0 + sqrt)/a0;
+    var d2 = t0 + (-v0 - sqrt)/a0;
+    return [Math.min(d1,d2),Math.max(d1,d2)];
+}
+/*
+    calculate time range for given position range
+
+    motion transition from time to position is given by
+    p(t) = p0 + v*t + 0.5*a*t*t
+    find solutions for t so that 
+    p(t) = pos
+
+    do this for both values in range [low,high]
+    accumulate all candidate solutions t in ascending order
+    avoid duplicates
+    this can accumulate 0,1,2,3,4 solution
+    if 0 solutions - undefined (motion does not intersect with range ever) 
+    if 1 solutions - udefined (motion only intersects with range tangentially at one t)
+    if 2 solutions - [0,1] (motion intersects with range at two times)
+    if 3 solutions - [0,2] (motion intersects with range at three times)
+    if 4 solutions - [0,1] and [2,3]
+
+    returns a list of range candidates (at most two but only with acceleration)
+*/
+function motion_calculate_time_ranges(vector, pos_range) {
+    const [p0,v0,a0,t0] = vector;
+    let [low, high] = pos_range;
+    if (low == null) low = -Infinity;
+    if (high == null) high = Infinity;
+
+    // [<-, ->]
+    if (low == -Infinity && high == Infinity) {
+        // no pos range == entire value space => time range entire timeline
+        return [[null, null]];
+    } 
+
+    // [FLAT LINE]
+    // pos is either within pos range for all t or never  
+    if (v0 === 0.0 && a0 === 0.0) {
+        // both low and high bound
+        return (p0 >= low && p0 <= high) ? [[null, null]] : [];
+    }
+
+    // aggregate solutions
+    let solutions = [];
+    if (-Infinity < low) {
+        solutions.push(...motion_get_real_solutions(vector, low));
+    } 
+    if (high < Infinity) {
+        solutions.push(...motion_get_real_solutions(vector, high));
+    }
+    // remove duplicates
+    solutions = [...new Set(solutions)];
+    // sort in ascending order
+    solutions.sort((a,b) => a-b);
+
+    // [<-, HIGH]
+    if (low == -Infinity) {
+        // only high bound
+        if (solutions.length == 0) {
+            // parabola not touching low
+            // pos < high or pos > high for all t - just test with t0
+            return (p0 <= high) ? [[null, null]] : [];
+        }
+        else if (solutions.length == 1) {
+            if (a0 > 0.0) {
+                // parabola - touching high from overside
+                // pos > high for all t
+                return [];
+            } else if (a0 < 0.0) {
+                // parabola touching low from underside
+                // pos < high for all t
+                return [[null, null]];
+            } else {
+                // a0 == 0.0 > straigth line
+                if (v0 > 0.0) {
+                    // pos <= high for all t <= solutions[0]
+                    return [[null, solutions[0]]];
+                } else {
+                    // pos <= high for t >= solutions[0]
+                    return [[solutions[0], null]];
+                }
+            }
+        } else if (solutions.length == 2) {
+            // parabola
+            if (a0 > 0.0) {
+                // one time range between solutions
+                return [[solutions[0], solutions[1]]];
+            } else if (a0 < 0.0) {
+                // one time range on each side 
+                return [[null, solutions[0]], [solutions[1], null]];
+            }
+        }
+
+
+    // [LOW, ->]
+    } else if (high == Infinity) {
+        // only low bound
+        if (solutions.length == 0) {
+            // parabola not touching low
+            // pos > low or pos < low for all t - just test with t0
+            return (p0 >= low) ? [[null, null]] : [];
+        }
+        else if (solutions.length == 1) {
+            if (a0 > 0.0) {
+                // parabola - touching low from overside
+                // pos > low for all t
+                return [[null, null]];
+            } else if (a0 < 0.0) {
+                // parabola touching low from underside
+                // pos < low for all t
+                return [];
+            } else {
+                // a0 == 0.0 > straigth line
+                if (v0 > 0.0) {
+                    // pos >= low for all t >= solutions[0]
+                    return [[solutions[0], null]];
+                } else {
+                    // pos >= low for t <= solutions[0]
+                    return [[null, solutions[0]]];
+                }
+            }
+        } else if (solutions.length == 2) {
+            // parabola
+            if (a0 > 0.0) {
+                // one time range on each side 
+                return [[null, solutions[0]], [solutions[1], null]];
+            } else if (a0 < 0.0) {
+                // one time range between solutions
+                return [[solutions[0], solutions[1]]];
+            }
+        }
+
+    // [LOW, HIGH]
+    } else {
+        // both low and high bound
+        if (solutions.length == 0) return [];
+        if (solutions.length == 1) return [];
+        if (solutions.length == 2) return [[solutions[0], solutions[1]]];
+        if (solutions.length == 3) return [[solutions[0], solutions[2]]];
+        if (solutions.length == 4) return [[solutions[0], solutions[1]], [solutions[2], solutions[3]]];
+    }
+}
+
+function motion_check_range(obj) {
+    if (Array.isArray(obj) && obj.length != 2) {
+        throw new Error(`range must have two elements ${obj}`);
+    }
+    obj[0] == null || check_number("low", obj[0]);
+    obj[1] == null || check_number("high", obj[1]);
+}
+
+const motion_utils = {
+    calculate: motion_calculate,
+    has_real_solutions: motion_has_real_solutions,
+    get_real_solutions: motion_get_real_solutions,
+    calculate_time_ranges: motion_calculate_time_ranges,
+    check_range: motion_check_range
+};
+
+/************************************************
+ * LAYER
+ ************************************************/
+
+/**
+ * Layer is abstract base class for Layers
+ * 
+ * Layer interface is defined by (index, CacheClass, options)
+ * 
+ * CacheClass
+ * ----------
+ * The CacheClass implements the query operation for the layer, using
+ * the index for lookups on cache miss. Layer has a private cache. 
+ * Additionally, if layer has multiple consumers, they can each 
+ * create their own private cache. 
+ * 
+ * options
+ * -------
+ * The the result from the query operation can be controlled by supplying
+ * optional custom function, either valueFunc or a stateFunc 
+ * {valueFunc,stateFunc}
+ * 
+ * index
+ * -----
+ * The nearby index is supplied by Layer implementations, either by 
+ * subclassing it, or by assigning the index. 
+ */
+
+class Layer {
+
+    constructor(options={}) {
+
+        let {CacheClass=LayerCache, ...opts} = options; 
+
+        // layer options
+        this._options = opts;
+
+        // callbacks
+        addState$1(this);
+        // define change event
+        eventifyInstance(this);
+        this.eventifyDefine("change", {init:true});
+
+        // index
+        this.index;
+
+        // cache
+        this._CacheClass = CacheClass;
+        this._private_cache;
+        this._consumer_caches = [];
+    }
+
+    // layer options
+    get options () { return this._options; }
+
+    // private cache
+    get cache () {
+        if (this._private_cache == undefined) {
+            this._private_cache = new this._CacheClass(this);
+        }
+        return this._private_cache;
+    }
+
+    // invoked by layer consumer
+    query(offset) {
+        return this.cache.query(offset);
+    }
+
+    // invoked by layer consumer
+    createCache () {
+        const cache = new this._CacheClass(this);
+        this._consumer_caches.push(cache);
+        return cache;
+    }
+    releaseCache (cache) {
+        const idx = this._consumer_caches.indexOf(cache);
+        if (idx > -1) {
+            this._consumer_caches.splice(idx, 1);
+        }
+    }
+
+
+    clearCaches() {
+        for (const cache of this._consumer_caches){
+            cache.clear();
+        }
+        if (this._private_cache != undefined) {
+            this._private_cache.clear();
+        }
+    }
+
+    // invoked by subclass whenever layer has changed
+    onchange() {
+        this.clearCaches();
+        this.notify_callbacks();
+        this.eventifyTrigger("change");    
+    }
+
+    // iterator for regions of the layer index
+    regions (options) {
+        return this.index.regions(options);
+    }
+
+    /*
+        Sample layer values by timeline offset increments
+        return list of tuples [value, offset]
+        options
+        - start
+        - stop
+        - step
+
+        TODO - this should be an iterator
+    */
+    sample(options={}) {
+        if (this.index.empty()) {
+            return [];
+        }
+        let {start, stop, step=1} = options;
+        
+        if (start == undefined) {
+            // check if index.first is a number
+            const first = this.index.first();
+            if (first[0] != null) {
+                start = first[0];
+            } else {
+                throw new Error("undefined start");
+            }    
+        }
+        if (stop == undefined) {
+            // check if index.last is a number
+            const last = this.index.last();
+            if (last[0] != null) {
+                stop = last[0];
+            } else {
+                throw new Error("undefined stop");
+            }
+        }
+        if (start > stop) {
+            throw new Error ("stop must be larger than start", start, stop)
+        }
+        const cache = this.createCache();
+        const samples = range(start, stop, step, {include_end:true})
+            .map((offset) => {
+                return [cache.query(offset).value, offset];
+            });
+        this.releaseCache(cache);
+        return samples;
+    }
+}
+addMethods$1(Layer.prototype);
+eventifyPrototype(Layer.prototype);
+
+
+/************************************************
+ * LAYER CACHE
+ ************************************************/
+
+/**
+ * Layer Cache is the regular cache type, intended for
+ * _derived_ Layers - that is a layers which index references
+ * other source layers.
+ * 
+ * A query is resolved by identifying the relevant region in
+ * the nearby index (index.nearby(offset)), and then querying 
+ * the state of all the objects found in the region (nearby.center).
+ *  
+ * Options {valueFunc or stateFunc} are used to compute a 
+ * single query result from the list of states.
+ * 
+ * The result state is only cached if it is static.
+ * Cache miss is triggered if no state has been cached, or if 
+ * offset is outside the region of the cached state.
+ * 
+ */
+
+class LayerCache {
+
+    constructor(layer) {
+        // cache belongs to layer
+        this._layer = layer;
+        // cached nearby state
+        this._nearby;
+        // cached state
+        this._state;
+    }
+
+    get layer() {return this._layer};
+
+    /**
+     * query cache
+     */
+    query(offset) {
+        const need_index_lookup = (
+            this._nearby == undefined ||
+            !interval.covers_endpoint(this._nearby.itv, offset)
+        );
+        if (
+            !need_index_lookup && 
+            this._state != undefined &&
+            !this._state.dynamic
+        ) {
+            // cache hit
+            return {...this._state, offset};
+        }
+        // cache miss
+        if (need_index_lookup) {
+            this._nearby = this._layer.index.nearby(offset);
+        }
+        // perform queries
+        const states = this._nearby.center.map((cache) => {
+            return cache.query(offset);
+        });
+        // calculate single result state
+        const state = toState$1(this._nearby.center, states, offset, this._layer.options);
+        // cache state only if not dynamic
+        this._state = (state.dynamic) ? undefined : state;
+        return state    
+    }
+
+    clear() {
+        this._nearby = undefined;
+        this._state = undefined;
+    }
+}
+
+/**
+ * polling a callback function periodically with 
+ * a fixed delay (ms).
+ * If delay is 0, use requestAnimationFrame,
+ * else use setTimeout.
+ * Delay can be set dynamically. Pause and resume
+ * is needed for new delay to take effect.
+ */
+
+class Poller {
+
+    constructor(callback) {
+        this._callback = callback;
+        this._handle;
+        this._delay;
+    }
+    
+    set delay (delay_ms) {
+        if (typeof delay_ms != "number") {
+            throw new Error(`delay must be a number ${delay_ms}`);
+        }
+        if (this._delay != delay_ms) {   
+            this._delay = delay_ms;
+        }
+    }
+    get delay () {return this._delay;}
+
+    is_polling () {
+        return this._handle != undefined;
+    }
+
+    pause() {
+        if (this._handle != undefined) {
+            this._handle.cancel();
+            this._handle = undefined;
+        }
+    }
+
+    poll() {
+        // poll callback
+        this._callback();
+        // schedule next poll
+        this.pause();
+        this.resume();
+    }
+
+    resume() {
+        if (this._handle == undefined) {
+            if (this._delay == 0) {
+                // framerate
+                const aid = requestAnimationFrame(this.poll.bind(this));
+                this._handle = {cancel: () => cancelAnimationFrame(aid)};
+            } else {
+                // timeout
+                const tid = setTimeout(this.poll.bind(this), this._delay);
+                this._handle = {cancel: () => clearTimeout(tid)};
+            }
+        }
+    }
+}
+
+/**
+ * Cursor Monitor
+ */
+
+class CursorMonitor {
+    constructor() {
+        /*
+            set of bindings
+            poll cursor (when dynamic) periodically with given (minimum) delay, and invoke callback with cursor state 
+            binding : {cursor, callback, delay_ms}
+            - cursor:
+            - callback: function(state)
+            - delay: (ms) between samples (when variable is dynamic)
+            there can be multiple bindings for the same cursor
+        */
+        this._binding_set = new Set();
+
+        /*
+            cursors
+            map: cursor -> {sub, polling, bindings:[]}
+        */
+        this._cursor_map = new Map();
+
+        // Poller
+        this._poller = new Poller(this.onpoll.bind(this));
+    }
+
+    bind(cursor, callback, delay) {
+        // check delay
+        if (delay == undefined) {
+            delay = 0;
+        } else if (typeof delay != "number") {
+            throw new Error(`delay must be a number ${delay}`);
+        }
+        // register binding
+        let binding = {cursor, callback, delay};
+        this._binding_set.add(binding);
+        // register cursor
+        if (!this._cursor_map.has(cursor)) { 
+            let sub = cursor.on("change", this.oncursorchange.bind(this));
+            this._cursor_map.set(cursor, {
+                sub, polling: false, bindings: [binding]
+            });
+        } else {
+            this._cursor_map.get(cursor).bindings.push(binding);
+        }
+        return binding;
+    }
+
+    release (binding) {
+        // unregister binding
+        const removed = this._binding_set.delete(binding);
+        if (!removed) return;
+        // cleanup
+        const cursor = binding.cursor;
+        const {sub, bindings} = this._cursor_map.get(cursor);
+        // remove binding
+        const idx = bindings.indexOf(binding);
+        if (idx >= 0) {
+            bindings.splice(idx, 1);
+        }
+        if (bindings.length == 0) {
+            // no more bindings
+            cursor.off(sub);
+            this._cursor_map.delete(cursor);
+        }
+    }
+
+    /**
+     * a cursor has changed
+     * forward change event to all callbacks for this cursor.
+     * and reevaluate polling status, pausing or resuming
+     * polling if needed.
+     */
+    oncursorchange(eArg, eInfo) {
+        const cursor = eInfo.src;
+        const state = eArg;
+        // reevaluate polling status
+        this._cursor_map.get(cursor).polling = state.dynamic;
+        // find cursors which need polling
+        const polling_cursors = [...this._cursor_map.values()]
+            .filter(entry => entry.polling);
+        this.reevaluate_polling(polling_cursors);
+        // forward change event to all for this cursor callbacks
+        const {bindings} = this._cursor_map.get(cursor);
+        for (const binding of bindings) {
+            binding.callback(state);
+        }
+    }
+
+    onpoll() {
+        const ts = local_clock.now();
+        // poll all cursors with need of polling
+        for (const [cursor, entry] of this._cursor_map) {
+            if (entry.polling) {
+                const state = cursor.query(ts);
+                // forward polled state to all callbacks for this cursor
+                for (const binding of entry.bindings) {
+                    binding.callback(state);
+                }
+            }
+        }
+    }
+
+    reevaluate_polling(polling_cursors) {
+        if (polling_cursors.length == 0) {
+            this._poller.pause();
+        } else {
+            // find minimum delay
+            const delays = polling_cursors.map(entry => {
+                return entry.bindings.map(binding => binding.delay);
+            });
+            const min_delay = Math.min(...delays);
+            this._poller.delay = min_delay;
+            this._poller.pause();
+            this._poller.resume();
+        }
+    }
+}
+
+
+/*********************************************************************
+    BIND RELEASE
+*********************************************************************/
+
+// monitor singleton
+const monitor = new CursorMonitor();
+
+function bind(cursor, callback, delay) {
+    return monitor.bind(cursor, callback, delay);
+}
+function release(binding) {
+    return monitor.release(binding);
+}
+
+/**
+ * convenience
+ * get current state from cursor.ctrl
+ * ensure that cursor.ctrl return a number offset
+ */
+function get_cursor_ctrl_state (cursor, ts_local) {
+    const state = cursor.ctrl.query(ts_local);
+    if (!is_finite_number(state.value)) {
+        throw new Error(`warning: cursor ctrl value must be number ${state.value}`);
+    }
+    return state;
+}
+
+/************************************************
+ * CURSOR
+ ************************************************/  
+
+/**
+ * Abstract base class for Cursor interface
+ */
+
+class Cursor {
+    
+    constructor() {
+        // callbacks
+        addState$1(this);
+        // define change event
+        eventifyInstance(this);
+        this.eventifyDefine("change", {init:true});
+    }
+
+    /**********************************************************
+     * QUERY API
+     **********************************************************/
+
+    query() {
+        throw new Error("query() not implemented");
+    }
+
+    get value () {return this.query().value};
+
+    get () {
+        return this.query().value;
+    }
+
+    /*
+        Eventify: immediate events
+    */
+    eventifyInitEventArgs(name) {
+        if (name == "change") {
+            return [this.query()];
+        }
+    }
+    
+    /**********************************************************
+     * BIND RELEASE (convenience)
+     **********************************************************/
+
+    bind(callback, delay, options={}) {
+        return bind(this, callback, delay);
+    }
+    release(handle) {
+        return release(handle);
+    }
+
+    // invoked by subclass whenever cursor has changed
+    onchange() {
+        this.notify_callbacks();
+        this.eventifyTrigger("change", this.query());    
+    }
+}
+addMethods$1(Cursor.prototype);
+eventifyPrototype(Cursor.prototype);
+
+/**
+ * clock provider must have a now() method
+ */
+function is_clock_provider(obj) {
+    if (obj == undefined) return false;
+    if (!("now" in obj)) return false;
+    if (typeof obj.now != 'function') return false;
+    return true;
+}
+
+
+/**
+ * CLOCK gives epoch values, but is implemented
+ * using performance now for better
+ * time resolution and protection against system 
+ * time adjustments.
+ */
+const LOCAL_CLOCK_PROVIDER = function () {
+    const t0 = local_clock.now();
+    const t0_epoch = local_epoch.now();
+    return {
+        now (local_ts = local_clock.now()) {
+            return t0_epoch + (local_ts - t0);
+        }
+    }
+}();
+
+function check_item(item) {
+    item.itv = interval.from_input(item.itv);
+    item.id = item.id || random_string(10);
+    return item;
+}
+
+/**
+ * collection providers must provide get_all function
+ * and also implement callback interface
+ */
+function is_collection_provider(obj) {
+    if (!is_callback_api(obj)) return false;
+    if (!("get" in obj)) return false;
+    if (typeof obj.get != 'function') return false;
+    if (!("update" in obj)) return false;
+    if (typeof obj.update != 'function') return false;
+    return true;
+}
+
+
+/***************************************************************
+    COLLECTION PROVIDER
+***************************************************************/
+
+/**
+ * local collection provider
+ * 
+ * 
+ * changes = {
+ *   remove=[],
+ *   insert=[],
+ *   reset=false 
+ * }
+ * 
+*/
+
+class CollectionProvider {
+
+    constructor(options={}) {
+        addState$1(this);
+        this._map = new Map();
+        // initialize
+        let {insert} = options;
+        if (insert != undefined) {
+            this._update({insert, reset:true});
+        }
+    }
+
+    /**
+     * Local stateproviders decouple update request from
+     * update processing, and returns Promise.
+     */
+    update (changes) {
+        return Promise.resolve()
+        .then(() => {
+            let diffs;
+            if (changes != undefined) {
+                diffs = this._update(changes);
+                this.notify_callbacks(diffs);
+            }
+            return diffs;
+        });
+    }
+
+    _update(changes) {
+        const diff_map = new Map();
+        let {
+            insert=[],
+            remove=[],
+            reset=false
+        } = changes;
+
+
+        if (reset) {
+            for (const [id, item] of this._map.entries()) {
+                diff_map.set(id, {id, new:undefined, old:item});
+            }
+            // clear all items
+            this._map = new Map();
+        } else {
+            // remove items by id
+            for (const id of remove) {
+                let item = this._map.get(id);
+                if (item != undefined) {
+                    diff_map.set(item.id, {
+                        id:item.id, new:undefined, old:item
+                    });
+                    this._map.delete(id);
+                }
+            }
+        }
+        // insert items
+        for (let item of insert) {
+            item = check_item(item);
+            const diff = diff_map.get(item.id);
+            const old = (diff != undefined) ? diff.old : this._map.get(item.id);
+            diff_map.set(item.id, {id:item.id, new:item, old});
+            this._map.set(item.id, item);
+        }
+        return [...diff_map.values()];
+    }
+
+    get() {
+        return [...this._map.values()];
+    };
+}
+addMethods$1(CollectionProvider.prototype);
+
+/**
+ * variable providers must have a value property
+ * and also implement callback interface
+ */
+function is_variable_provider(obj) {
+    if (!is_callback_api(obj)) return false;
+    if (!("get" in obj)) return false;
+    if (typeof obj.get != 'function') return false;
+    if (!("set" in obj)) return false;
+    if (typeof obj.set != 'function') return false;
+    return true;
+}
+
+
+/***************************************************************
+    VARIABLE PROVIDER
+***************************************************************/
+
+/**
+ * VariableProvider stores a list of items.
+ */
+
+class VariableProvider {
+
+    constructor(options={}) {
+        addState$1(this);
+        this._items = [];
+
+        // initialize
+        const {value} = options;
+        if (value != undefined) {
+            this._items = [{
+                id: random_string(10),
+                itv: [null, null, true, true], 
+                type: "static",
+                data: value
+            }];
+        }
+    }
+
+    set (items) {
+        return Promise.resolve()
+            .then(() => {
+                this._items = items;
+                this.notify_callbacks();
+            });
+    }
+
+    get () {
+        return this._items;
+    }
+}
+addMethods$1(VariableProvider.prototype);
+
 /************************************************
  * SOURCE PROPERTY (SRCPROP)
  ************************************************/
@@ -1223,11 +2106,11 @@ eventifyPrototype(EventVariable.prototype);
 const NAME = "srcprop";
 const PREFIX = `__${NAME}`;
 
-function addToInstance (object) {
+function addState (object) {
     object[`${PREFIX}`] = new Map();
 }
 
-function addToPrototype (_prototype) {
+function addMethods (object) {
 
     function register(propName, options={}) {
         let {mutable=true} = options;
@@ -1269,7 +2152,7 @@ function addToPrototype (_prototype) {
         // unsubscribe from entities
         if (state.handles.length > 0) {
             for (const [idx, e] of Object.entries(entities)) {
-                if (implements_callback(e)) {
+                if (is_callback_api(e)) {
                     e.remove_callback(state.handles[idx]);
                 }
             }    
@@ -1286,7 +2169,7 @@ function addToPrototype (_prototype) {
                 this[`${NAME}_onchange`](propName, eArg);
             }.bind(this);
             for (const e of entities) {
-                if (implements_callback(e)) {
+                if (is_callback_api(e)) {
                     state.handles.push(e.add_callback(handler));
                 }
             }
@@ -1297,247 +2180,7 @@ function addToPrototype (_prototype) {
     const api = {};
     api[`${NAME}_register`] = register;
     api[`${PREFIX}_attach`] = attatch;
-    Object.assign(_prototype, api);
-}
-
-/********************************************************************
-BASE SEGMENT
-*********************************************************************/
-/*
-	Abstract Base Class for Segments
-
-    constructor(interval)
-
-    - interval: interval of validity of segment
-    - dynamic: true if segment is dynamic
-    - value(offset): value of segment at offset
-    - query(offset): state of segment at offset
-*/
-
-class BaseSegment {
-
-	constructor(itv) {
-		this._itv = itv;
-	}
-
-	get itv() {return this._itv;}
-
-    /** 
-     * implemented by subclass
-     * returns {value, dynamic};
-    */
-    state(offset) {
-    	throw new Error("not implemented");
-    }
-
-    /**
-     * convenience function returning the state of the segment
-     * @param {*} offset 
-     * @returns 
-     */
-    query(offset) {
-        if (interval.covers_point(this._itv, offset)) {
-            return {...this.state(offset), offset};
-        } 
-        return {value: undefined, dynamic:false, offset};
-    }
-}
-
-
-/********************************************************************
-    STATIC SEGMENT
-*********************************************************************/
-
-class StaticSegment extends BaseSegment {
-
-	constructor(itv, data) {
-        super(itv);
-		this._value = data;
-	}
-
-	state() {
-        return {value: this._value, dynamic:false}
-	}
-}
-
-
-/********************************************************************
-    MOTION SEGMENT
-*********************************************************************/
-/*
-    Implements deterministic projection based on initial conditions 
-    - motion vector describes motion under constant acceleration
-*/
-
-class MotionSegment extends BaseSegment {
-    
-    constructor(itv, data) {
-        super(itv);
-        const {
-            position:p0=0, 
-            velocity:v0=0, 
-            acceleration:a0=0, 
-            timestamp:t0=0
-        } = data;
-        // create motion transition
-        this._pos_func = function (ts) {
-            let d = ts - t0;
-            return p0 + v0*d + 0.5*a0*d*d;
-        };
-        this._vel_func = function (ts) {
-            let d = ts - t0;
-            return v0 + a0*d;
-        };
-        this._acc_func = function (ts) {
-            return a0;
-        };
-    }
-
-    state(offset) {
-        let pos = this._pos_func(offset);
-        let vel = this._vel_func(offset);
-        let acc = this._acc_func(offset);
-        return {
-            position: pos,
-            velocity: vel,
-            acceleration: acc,
-            timestamp: offset,
-            value: pos,
-            dynamic: (vel != 0 || acc != 0 )
-        }
-    }
-}
-
-
-/********************************************************************
-    TRANSITION SEGMENT
-*********************************************************************/
-
-/*
-    Supported easing functions
-    "ease-in":
-    "ease-out":
-    "ease-in-out"
-*/
-
-function easein (ts) {
-    return Math.pow(ts,2);  
-}
-function easeout (ts) {
-    return 1 - easein(1 - ts);
-}
-function easeinout (ts) {
-    if (ts < .5) {
-        return easein(2 * ts) / 2;
-    } else {
-        return (2 - easein(2 * (1 - ts))) / 2;
-    }
-}
-
-class TransitionSegment extends BaseSegment {
-
-	constructor(itv, data) {
-		super(itv);
-        let {v0, v1, easing} = data;
-        let [t0, t1] = this._itv.slice(0,2);
-
-        // create the transition function
-        this._dynamic = v1-v0 != 0;
-        this._trans = function (ts) {
-            // convert ts to [t0,t1]-space
-            // - shift from [t0,t1]-space to [0,(t1-t0)]-space
-            // - scale from [0,(t1-t0)]-space to [0,1]-space
-            ts = ts - t0;
-            ts = ts/parseFloat(t1-t0);
-            // easing functions stretches or compresses the time scale 
-            if (easing == "ease-in") {
-                ts = easein(ts);
-            } else if (easing == "ease-out") {
-                ts = easeout(ts);
-            } else if (easing == "ease-in-out") {
-                ts = easeinout(ts);
-            }
-            // linear transition from v0 to v1, for time values [0,1]
-            ts = Math.max(ts, 0);
-            ts = Math.min(ts, 1);
-            return v0 + (v1-v0)*ts;
-        };
-	}
-
-	state(offset) {
-        return {value: this._trans(offset), dynamic:this._dynamic}
-	}
-}
-
-
-
-/********************************************************************
-    INTERPOLATION SEGMENT
-*********************************************************************/
-
-/**
- * Function to create an interpolator for nearest neighbor interpolation with
- * extrapolation support.
- *
- * @param {Array} tuples - An array of [value, offset] pairs, where value is the
- * point's value and offset is the corresponding offset.
- * @returns {Function} - A function that takes an offset and returns the
- * interpolated or extrapolated value.
- */
-
-function interpolate$1(tuples) {
-
-    if (tuples.length < 1) {
-        return function interpolator () {return undefined;}
-    } else if (tuples.length == 1) {
-        return function interpolator () {return tuples[0][0];}
-    }
-
-    // Sort the tuples by their offsets
-    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
-  
-    return function interpolator(offset) {
-      // Handle extrapolation before the first point
-      if (offset <= sortedTuples[0][1]) {
-        const [value1, offset1] = sortedTuples[0];
-        const [value2, offset2] = sortedTuples[1];
-        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-      }
-      
-      // Handle extrapolation after the last point
-      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
-        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
-        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
-        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-      }
-  
-      // Find the nearest points to the left and right
-      for (let i = 0; i < sortedTuples.length - 1; i++) {
-        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
-          const [value1, offset1] = sortedTuples[i];
-          const [value2, offset2] = sortedTuples[i + 1];
-          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
-          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
-        }
-      }
-  
-      // In case the offset does not fall within any range (should be covered by the previous conditions)
-      return undefined;
-    };
-}
-  
-
-class InterpolationSegment extends BaseSegment {
-
-    constructor(itv, tuples) {
-        super(itv);
-        // setup interpolation function
-        this._trans = interpolate$1(tuples);
-    }
-
-    state(offset) {
-        return {value: this._trans(offset), dynamic:true};
-    }
+    Object.assign(object, api);
 }
 
 /*********************************************************************
@@ -1923,13 +2566,22 @@ class ItemsMap {
 }
 
 
+/**
+ * NearbyIndex
+ * 
+ * NearbyIndex for CollectionProvider or VariableProvider
+ */
+
 class NearbyIndex extends NearbyIndexBase {
 
     constructor(stateProvider) {
-        super();
+        super();		
 
-        if (!(is_stateprovider(stateProvider))) {
-            throw new Error(`must be stateprovider ${stateProvider}`);
+		if (
+			!is_collection_provider(stateProvider) &&
+			!is_variable_provider(stateProvider)
+		) {
+			throw new Error(`stateProvider must be collectionProvider or variableProvider ${stateProvider}`);
         }
         this._sp = stateProvider;
 		this._initialise();
@@ -1958,7 +2610,7 @@ class NearbyIndex extends NearbyIndexBase {
 		let remove_items = [];
 
 		if (diffs == undefined) {
-			insert_items = this.src.get_items();
+			insert_items = this.src.get();		
 			// clear all state
 			this._initialise();
 		} else {
@@ -2096,260 +2748,228 @@ class NearbyIndex extends NearbyIndexBase {
 	}
 }
 
-/************************************************
- * LAYER
- ************************************************/
+/********************************************************************
+BASE SEGMENT
+*********************************************************************/
+/*
+	Abstract Base Class for Segments
 
-/**
- * Layer is abstract base class for Layers
- * 
- * Layer interface is defined by (index, CacheClass, valueFunc)
- */
+    constructor(interval)
 
-class Layer {
+    - interval: interval of validity of segment
+    - dynamic: true if segment is dynamic
+    - value(offset): value of segment at offset
+    - query(offset): state of segment at offset
+*/
 
-    constructor(options={}) {
-        const {CacheClass=LayerCache} = options;
-        const {valueFunc, stateFunc} = options;
-        // callbacks
-        addToInstance$1(this);
-        // layer query api
-        //layerquery.addToInstance(this, CacheClass, {valueFunc, stateFunc});
-        // define change event
-        eventifyInstance(this);
-        this.eventifyDefine("change", {init:true});
+class BaseSegment {
 
-        // index
-        this._index;
-        // cache
-        this._CacheClass = CacheClass;
-        this._cache_object;
-        this._cache_objects = [];
+	constructor(itv) {
+		this._itv = itv;
+	}
 
-        // query options
-        this._queryOptions = {valueFunc, stateFunc};
-    }
+	get itv() {return this._itv;}
 
-    // index
-    get index () {return this._index}
-    set index (index) {this._index = index;}
-
-    // queryOptions
-    get queryOptions () {
-        return this._queryOptions;
-    }
-
-    // cache
-    get cache () {
-        if (this._cache_object == undefined) {
-            this._cache_object = new this._CacheClass(this);
-        }
-        return this._cache_object;
-    }
-
-    getCache () {
-        const cache = new this._CacheClass(this);
-        this._cache_objects.push(cache);
-        return cache;
-    }
-
-    clearCaches() {
-        for (const cache of this._cache_objects){
-            cache.clear();
-        }
-    }
-
-    query(offset) {
-        return this.cache.query(offset);
-    }
-
-    regions (options) {
-        return this.index.regions(options);
-    }
-
-    /*
-        Sample Layer by timeline offset increments
-        return list of tuples [value, offset]
-        options
-        - start
-        - stop
-        - step
+    /** 
+     * implemented by subclass
+     * returns {value, dynamic};
     */
-    sample(options={}) {
-        let {start=-Infinity, stop=Infinity, step=1} = options;
-        if (start > stop) {
-            throw new Error ("stop must be larger than start", start, stop)
-        }
-        start = [start, 0];
-        stop = [stop, 0];
-        start = endpoint.max(this.index.first(), start);
-        stop = endpoint.min(this.index.last(), stop);
-        const cache = this.getCache();
-        return range(start[0], stop[0], step, {include_end:true})
-            .map((offset) => {
-                return [cache.query(offset).value, offset];
-            });
+    state(offset) {
+    	throw new Error("not implemented");
     }
-}
-addToPrototype$1(Layer.prototype);
-eventifyPrototype(Layer.prototype);
-
-
-/************************************************
- * LAYER CACHE
- ************************************************/
-
-/**
- * This implements a Cache to be used with Layer objects
- * Query results are obtained from the cache objects in the
- * layer index and cached only if they describe a static value. 
- */
-
-class LayerCache {
-
-    constructor(layer) {
-        this._layer = layer;
-        // cached nearby state
-        this._nearby;
-        // cached result
-        this._state;
-    }
-
-    get src() {return this._layer};
 
     /**
-     * query cache
+     * convenience function returning the state of the segment
+     * @param {*} offset 
+     * @returns 
      */
     query(offset) {
-        const need_nearby = (
-            this._nearby == undefined ||
-            !interval.covers_point(this._nearby.itv, offset)
-        );
-        if (
-            !need_nearby && 
-            this._state != undefined &&
-            !this._state.dynamic
-        ) {
-            // cache hit
-            return {...this._state, offset};
-        }
-        // cache miss
-        if (need_nearby) {
-            this._nearby = this._layer.index.nearby(offset);
-        }
-        // perform queries
-        const states = this._nearby.center.map((cache) => {
-            return cache.query(offset);
-        });
-        const state = toState(this._nearby.center, states, offset, this._layer.queryOptions);
-        // cache state only if not dynamic
-        this._state = (state.dynamic) ? undefined : state;
-        return state    
-    }
-
-    clear() {
-        this._nearby = undefined;
-        this._state = undefined;
+        if (interval.covers_point(this._itv, offset)) {
+            return {...this.state(offset), offset};
+        } 
+        return {value: undefined, dynamic:false, offset};
     }
 }
 
-
-
-/*********************************************************************
-    INPUT LAYER
+/********************************************************************
+    STATIC SEGMENT
 *********************************************************************/
 
-/**
- * Layer with a StateProvider as src
- */
+class StaticSegment extends BaseSegment {
 
-class InputLayer extends Layer {
+	constructor(itv, data) {
+        super(itv);
+		this._value = data;
+	}
 
-    constructor(options={}) {
-        const {src, valueFunc, stateFunc} = options;
-        super({CacheClass:InputLayerCache, valueFunc, stateFunc});
-        // setup src propterty
-        addToInstance(this);
-        this.srcprop_register("src");
-        // initialize
-        this.src = src;
+	state() {
+        return {value: this._value, dynamic:false}
+	}
+}
+
+
+/********************************************************************
+    MOTION SEGMENT
+*********************************************************************/
+
+class MotionSegment extends BaseSegment {
+    
+    constructor(itv, data) {
+        super(itv);
+        const {
+            position:p0=0, 
+            velocity:v0=0, 
+            acceleration:a0=0, 
+            timestamp:t0=0
+        } = data;
+        this._vector = [p0,v0,a0,t0];
     }
 
-    srcprop_check(propName, src) {
-        if (propName == "src") {
-            if (!(is_stateprovider(src))) {
-                throw new Error(`"src" must be state provider ${src}`);
-            }
-            return src;    
+    state(offset) {
+        const [p,v,a,t] = motion_utils.calculate(this._vector, offset);
+        return {
+            // position: p,
+            // velocity: v,
+            // acceleration: a,
+            // timestamp: t,
+            value: p,
+            dynamic: (v != 0 || a != 0 )
         }
     }
-
-    srcprop_onchange(propName, eArg) {
-        if (propName == "src") {
-            if (this.index == undefined || eArg == "reset") {
-                this.index = new NearbyIndex(this.src);
-            } 
-            if (eArg != "reset") {
-                this.index.refresh(eArg);
-            }
-            this.clearCaches();
-            this.notify_callbacks();
-            this.eventifyTrigger("change");
-        }        
-    }
 }
-addToPrototype(InputLayer.prototype);
 
 
-
-/*********************************************************************
-    INPUT LAYER CACHE
+/********************************************************************
+    TRANSITION SEGMENT
 *********************************************************************/
 
 /*
-    Layer with a StateProvider uses a specific cache implementation.    
-
-    The cache will instantiate segments corresponding to
-    items in the index. 
+    Supported easing functions
+    "ease-in":
+    "ease-out":
+    "ease-in-out"
 */
 
-class InputLayerCache {
-    constructor(layer) {
-        // layer
-        this._layer = layer;
-        // cached nearby object
-        this._nearby = undefined;
-        // cached segment
-        this._segment = undefined;
-    }
-
-    get src() {return this._layer};
-    get segment() {return this._segment};
-
-    query(offset) {
-        const cache_miss = (
-            this._nearby == undefined ||
-            !interval.covers_point(this._nearby.itv, offset)
-        );
-        if (cache_miss) {
-            this._nearby = this._layer.index.nearby(offset);
-            let {itv, center} = this._nearby;
-            this._segments = center.map((item) => {
-                return load_segment(itv, item);
-            });
-        }
-        // query segments
-        const states = this._segments.map((seg) => {
-            return seg.query(offset);
-        });
-        return toState(this._segments, states, offset, this._layer.queryOptions)
-    }
-
-    clear() {
-        this._nearby = undefined;
-        this._segment = undefined;
+function easein (ts) {
+    return Math.pow(ts,2);  
+}
+function easeout (ts) {
+    return 1 - easein(1 - ts);
+}
+function easeinout (ts) {
+    if (ts < .5) {
+        return easein(2 * ts) / 2;
+    } else {
+        return (2 - easein(2 * (1 - ts))) / 2;
     }
 }
+
+class TransitionSegment extends BaseSegment {
+
+	constructor(itv, data) {
+		super(itv);
+        let {v0, v1, easing} = data;
+        let [t0, t1] = this._itv.slice(0,2);
+
+        // create the transition function
+        this._dynamic = v1-v0 != 0;
+        this._trans = function (ts) {
+            // convert ts to [t0,t1]-space
+            // - shift from [t0,t1]-space to [0,(t1-t0)]-space
+            // - scale from [0,(t1-t0)]-space to [0,1]-space
+            ts = ts - t0;
+            ts = ts/parseFloat(t1-t0);
+            // easing functions stretches or compresses the time scale 
+            if (easing == "ease-in") {
+                ts = easein(ts);
+            } else if (easing == "ease-out") {
+                ts = easeout(ts);
+            } else if (easing == "ease-in-out") {
+                ts = easeinout(ts);
+            }
+            // linear transition from v0 to v1, for time values [0,1]
+            ts = Math.max(ts, 0);
+            ts = Math.min(ts, 1);
+            return v0 + (v1-v0)*ts;
+        };
+	}
+
+	state(offset) {
+        return {value: this._trans(offset), dynamic:this._dynamic}
+	}
+}
+
+
+
+/********************************************************************
+    INTERPOLATION SEGMENT
+*********************************************************************/
+
+/**
+ * Function to create an interpolator for nearest neighbor interpolation with
+ * extrapolation support.
+ *
+ * @param {Array} tuples - An array of [value, offset] pairs, where value is the
+ * point's value and offset is the corresponding offset.
+ * @returns {Function} - A function that takes an offset and returns the
+ * interpolated or extrapolated value.
+ */
+
+function interpolate(tuples) {
+
+    if (tuples.length < 1) {
+        return function interpolator () {return undefined;}
+    } else if (tuples.length == 1) {
+        return function interpolator () {return tuples[0][0];}
+    }
+
+    // Sort the tuples by their offsets
+    const sortedTuples = [...tuples].sort((a, b) => a[1] - b[1]);
+  
+    return function interpolator(offset) {
+      // Handle extrapolation before the first point
+      if (offset <= sortedTuples[0][1]) {
+        const [value1, offset1] = sortedTuples[0];
+        const [value2, offset2] = sortedTuples[1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+      
+      // Handle extrapolation after the last point
+      if (offset >= sortedTuples[sortedTuples.length - 1][1]) {
+        const [value1, offset1] = sortedTuples[sortedTuples.length - 2];
+        const [value2, offset2] = sortedTuples[sortedTuples.length - 1];
+        return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+      }
+  
+      // Find the nearest points to the left and right
+      for (let i = 0; i < sortedTuples.length - 1; i++) {
+        if (offset >= sortedTuples[i][1] && offset <= sortedTuples[i + 1][1]) {
+          const [value1, offset1] = sortedTuples[i];
+          const [value2, offset2] = sortedTuples[i + 1];
+          // Linear interpolation formula: y = y1 + ( (x - x1) * (y2 - y1) / (x2 - x1) )
+          return value1 + ((offset - offset1) * (value2 - value1) / (offset2 - offset1));
+        }
+      }
+  
+      // In case the offset does not fall within any range (should be covered by the previous conditions)
+      return undefined;
+    };
+}
+  
+
+class InterpolationSegment extends BaseSegment {
+
+    constructor(itv, tuples) {
+        super(itv);
+        // setup interpolation function
+        this._trans = interpolate(tuples);
+    }
+
+    state(offset) {
+        return {value: this._trans(offset), dynamic:true};
+    }
+}
+
 
 /*********************************************************************
     LOAD SEGMENT
@@ -2370,10 +2990,870 @@ function load_segment(itv, item) {
     }
 }
 
+/*********************************************************************
+    ITEMS LAYER
+*********************************************************************/
+
+/**
+ * Items Layer has a stateProvider (either collectionProvider or variableProvider)
+ * as src property.
+ */
+
+function is_items_layer (obj) {
+    if (obj == undefined) return false;
+    // is layer
+    if (!(obj instanceof Layer)) return false;
+    // has src property
+    const desc = Object.getOwnPropertyDescriptor(obj, "src");
+    if (!!(desc?.get && desc?.set) == false) return false;
+    return true;
+}
+
+function items_layer(options={}) {
+
+    const {src, ...opts} = options;
+    const layer = new Layer({CacheClass:ItemsLayerCache, ...opts});
+
+    // setup src property
+    addState(layer);
+    addMethods(layer);
+
+    layer.srcprop_register("src");
+    layer.srcprop_check = function (propName, src) {
+        if (propName == "src") {
+            if (!(is_collection_provider(src)) && !(is_variable_provider(src))) {
+                throw new Error(`"src" must collectionProvider or variableProvider ${src}`);
+            }
+            return src;    
+        }
+    };
+    layer.srcprop_onchange = function (propName, eArg) {
+        if (propName == "src") {
+            if (eArg == "reset") {
+                if (is_collection_provider(layer.src)) {
+                    layer.index = new NearbyIndex(layer.src);
+                } else if (is_variable_provider(layer.src)) {
+                    layer.index = new NearbyIndex(layer.src);
+                }
+            } 
+            if (layer.index != undefined) {
+                if (is_collection_provider(layer.src)) {
+                    layer.index.refresh(eArg);
+                } else if (is_variable_provider(layer.src)) {
+                    layer.index.refresh();
+                }
+                layer.onchange();
+            }
+        }        
+    };
+
+
+    /**
+     * convenience method for getting items valid at offset
+     * only items layer supports this method
+     */
+    layer.get_items = function get_items(offset) {
+        return [...layer.index.nearby(offset).center];
+    };
+
+    /******************************************************************
+     * LAYER UPDATE API
+     * ***************************************************************/
+    layer.update = function update(changes) {
+        return layer_update(layer, changes);
+    };
+    layer.append = function append(items, offset) {
+        return layer_append(layer, items, offset);
+    };
+
+    // initialise
+    layer.src = src;
+
+    return layer;
+}
+
+
+/*********************************************************************
+    ITEMS LAYER CACHE
+*********************************************************************/
+
+/*
+    Layers with a CollectionProvider or a VariableProvider as src 
+    use a specific cache implementation, as objects in the 
+    index are assumed to be items from the provider, not layer objects. 
+    Thus, queries are not resolved directly on the items in the index, but
+    rather from corresponding segment objects, instantiated from items.
+
+    Caching here applies to nearby state and segment objects.
+*/
+
+class ItemsLayerCache {
+    constructor(layer) {
+        // layer
+        this._layer = layer;
+        // cached nearby object
+        this._nearby = undefined;
+        // cached segment
+        this._segment = undefined;
+    }
+
+    get src() {return this._layer};
+    get segment() {return this._segment};
+
+    query(offset) {
+        const need_index_lookup = (
+            this._nearby == undefined ||
+            !interval.covers_endpoint(this._nearby.itv, offset)
+        );
+        if (need_index_lookup) {
+            // cache miss
+            this._nearby = this._layer.index.nearby(offset);
+            let {itv, center} = this._nearby;
+            this._segments = center.map((item) => {
+                return load_segment(itv, item);
+            });
+        }
+        // perform queries
+        const states = this._segments.map((seg) => {
+            return seg.query(offset);
+        });
+        // calculate single result state
+        return toState$1(this._segments, states, offset, this._layer.options)
+    }
+
+    clear() {
+        this._nearby = undefined;
+        this._segment = undefined;
+    }
+}
+
+
+
+
+/*********************************************************************
+    LAYER UPDATE
+*********************************************************************/
+
+/*
+    Items Layer forwards update to stateProvider
+*/
+function layer_update(layer, changes={}) {
+    if (is_collection_provider(layer.src)) {
+        return layer.src.update(changes);
+    } else if (is_variable_provider(layer.src)) {     
+        let {
+            insert=[],
+            remove=[],
+            reset=false
+        } = changes;
+        if (reset) {
+            return layer.src.set(insert);
+        } else {
+            const map = new Map(layer.src.get()
+                .map((item) => [item.id, item]));
+            // remove
+            remove.forEach((id) => map.delete(id));
+            // insert
+            insert.forEach((item) => map.set(item.id, item));
+            // set
+            const items = Array.from(map.values());
+            return layer.src.set(items);
+        }
+    }
+}
+    
+
+/*********************************************************************
+    LAYER APPEND
+*********************************************************************/
+
+/**
+ * append items to layer at offset
+ * 
+ * append implies that pre-existing items beyond offset,
+ * will either be removed or truncated, so that the layer
+ * is empty after offset.
+ * 
+ * items will only be inserted after offset, so any new
+ * item before offset will be truncated or dropped.
+ * 
+ * new items will only be be applied for t >= offset
+ * old items will be kept for t < offset
+ * 
+ * 
+ * TODO - not safe for repeting state
+ * 
+ */
+function layer_append(layer, items, offset) {
+    const ep = endpoint.from_input(offset);
+    
+    // console.log("all items", items.length);
+
+    // truncate or remove new items before offset
+    const insert_items = items
+        .filter((item) => {
+            // keep only items with itv.high >= offset
+            const highEp = endpoint.from_interval(item.itv)[1];
+            return endpoint.ge(highEp, ep);
+        })
+        .map((item) => {
+            // truncate item overlapping offset itv.low=offset
+            if (interval.covers_endpoint(item.itv, ep)) {
+                const new_item = {...item};
+                new_item.itv = [offset, item.itv[1], true, item.itv[3]];
+                return new_item;
+            }
+            return item;
+        });
+    
+    // console.log("insert", insert_items.length);
+
+    // truncate pre-existing items overlapping offset
+    const modify_items = layer.index.nearby(offset).center.map((item) => {
+        const new_item = {...item};
+        new_item.itv = [item.itv[0], offset, item.itv[2], false];
+        return new_item;
+    });
+    
+    // console.log("modify", modify_items.length);
+
+    //remove pre-existing items where itv.low > offset
+    const remove = layer.src.get()
+        .filter((item) => {
+            const lowEp = endpoint.from_interval(item.itv)[0];
+            return endpoint.gt(lowEp, ep);
+        })
+        .map((item) => {
+            return item.id;
+        });
+
+    // console.log("remove", remove.length);
+
+    // layer update
+    const insert = [...modify_items, ...insert_items];
+    return layer_update(layer, {remove, insert, reset:false})
+}
+
+/**
+ * Clock cursor is a thin wrapper around a clockProvider,
+ * so that it can be consumed as a cursor.
+ * 
+ * The ctrl property of any Cursor is required to be a Cursor or undefined,
+ * so in the case of a clock cursor, which is the starting point,
+ * the ctrl property is always set to undefined.
+ * 
+ * Additionally, clock cursor.src is also undefined.
+ * 
+ * Cursor transformation of a clock cursor will result in a new clock cursor.
+ *  
+ * Idenfifying a cursor as a clock cursor or not is important for playback
+ * logic in cursor implemmentation.
+ */
+
+function is_clock_cursor(obj) {
+    return obj instanceof Cursor && obj.ctrl == undefined && obj.src == undefined; 
+}
+
+function clock_cursor(src) {
+
+    if (!is_clock_provider(src)) {
+        throw new Error(`src must be clockProvider ${src}`);
+    }
+    const cursor = new Cursor();
+    cursor.query = function (local_ts) {
+        const clock_ts = src.now(local_ts);
+        return {value:clock_ts, dynamic:true, offset:local_ts};
+    };
+    return cursor;
+}
+
+const check_range = motion_utils.check_range;
+
+/*****************************************************
+ * VARIABLE CURSOR
+ *****************************************************/
+
+function variable_cursor(ctrl, src) {
+
+    const cursor = new Cursor();
+
+    // cache for src
+    let src_cache;
+    // timeout
+    let tid;
+
+    // setup src property
+    addState(cursor);
+    addMethods(cursor);
+    cursor.srcprop_register("ctrl");
+    cursor.srcprop_register("src");
+
+    cursor.srcprop_check = function (propName, obj) {
+
+        if (propName == "ctrl") {
+            if (!is_clock_cursor(obj)) {
+                throw new Error(`ctrl must be a clock cursor ${obj}`);
+            }
+            return obj;
+        }
+        if (propName == "src") {
+            if (!is_items_layer(obj)) {
+                throw new Error(`src must be an item layer ${obj}`);
+            }
+            return obj;
+        }
+    };
+    cursor.srcprop_onchange = function (propName, eArg) {
+        if (cursor.src == undefined || cursor.ctrl == undefined) {
+            return;
+        }
+        if (propName == "src") {
+            if (eArg == "reset") {
+                src_cache = cursor.src.createCache();
+            } else {
+                src_cache.clear();                
+            }
+        }
+        detect_future_event();
+        cursor.onchange();
+    };
+
+    /**
+     * cursor.ctrl (clock) defines an active region of cursor.src (layer)
+     * at some point in the future, the cursor.ctrl will leave this region.
+     * in that moment, cursor should reevaluate its state - so we need to 
+     * detect this event by timeout  
+     */
+
+    function detect_future_event() {
+        if (tid) {tid.cancel();}
+        // ctrl 
+        const ts = cursor.ctrl.value;
+        // nearby from src
+        const nearby = cursor.src.index.nearby(ts);
+        const region_high = nearby.itv[1] || Infinity;        
+
+        if (region_high == Infinity) {
+            // no future leave event
+            return;
+        }
+        const delta_ms = (region_high - ts) * 1000;
+        tid = set_timeout(() => {
+            cursor.onchange();
+        }, delta_ms);
+    }
+
+    cursor.query = function query(local_ts) {
+        const offset = cursor.ctrl.query(local_ts).value;
+        return src_cache.query(offset);
+    };
+    
+    /**
+     * UPDATE API for Variable Cursor
+     */    
+    cursor.set = function set(value) {
+        return set_value(cursor, value);
+    };
+    cursor.motion = function motion(vector) {
+        return set_motion(cursor, vector);
+    };
+    cursor.transition = function transition({target, duration, easing}) {
+        return set_transition(cursor, target, duration, easing);
+    };
+    cursor.interpolate = function interpolate ({tuples, duration}) {
+        return set_interpolation(cursor, tuples, duration);
+    };
+    
+    // initialize
+    cursor.ctrl = ctrl;
+    cursor.src = src;
+    return cursor;
+}
+
+
+/******************************************************************
+ * CURSOR UPDATE API
+ * ***************************************************************/
+
+/**
+ * set value of cursor
+ */
+
+function set_value(cursor, value) {
+    const items = [{
+        id: random_string(10),
+        itv: [null, null, true, true],
+        type: "static",
+        data: value                 
+    }];
+    return cursor.src.update({insert:items, reset:true});
+}
+
+/**
+ * set motion state
+ *  
+ * motion only makes sense if variable cursor is restricted to number values,
+ * which in turn implies that the cursor.src (Items Layer) should be
+ * restricted to number values. 
+ * If non-number values occur - we simply replace with 0.
+ * Also, items layer should have a single item in nearby center.
+ * 
+ * if position is omitted in vector - current position will be assumed
+ * if timestamp is omittted in vector - current timestamp will be assumed
+ * if velocity and acceleration are ommitted in vector 
+ * - these will be set to zero.
+ */
+
+function set_motion(cursor, vector={}) {
+    // get the current state of the cursor
+    let {value:p0, offset:t0} = cursor.query();
+    // ensure that p0 is number type
+    if (typeof p0 !== 'number' || !isFinite(p0)) {
+        p0 = 0;
+    }
+    // fetch new values from vector
+    const {
+        position:p1=p0,
+        velocity:v1=0,
+        acceleration:a1=0,
+        timestamp:t1=t0,
+        range=[null, null]
+    } = vector;
+    check_range(range);
+    check_number("position", p1);
+    check_number("velocity", v1);
+    check_number("acceleration", a1);
+    check_number("timestamp", t1);
+
+    const items = [];
+
+    /**
+     * if pos range is bounded low or high or both,
+     * this potentially corresponds to multiple time ranges [[t0, t1]] 
+     * where the motion position is legal  
+     * low <= p <= high 
+     */
+    const ctr = motion_utils.calculate_time_ranges;
+    const time_ranges = ctr([p1,v1,a1,t1], range);
+    // pick a time range which contains t1
+    const ts = cursor.ctrl.value;
+
+    const time_range = time_ranges.find((tr) => {
+        const low = tr[0] ?? -Infinity;
+        const high = tr[1] ?? Infinity;
+        return low <= ts && ts <= high;
+    });
+    if (time_range != undefined) {
+        const [low, high] = time_range;
+        items.push({
+            id: random_string(10),
+            itv: [low, high, true, true],
+            type: "motion",
+            data: {position:p1, velocity:v1, acceleration:a1, timestamp:t1}
+        });
+        // add left if needed
+        if (low != null) {
+            items.push({
+                id: random_string(10),
+                itv: [null, low, true, false],
+                type: "static",
+                data: range[0]
+            });
+        }
+        // add right if needed
+        if (high != null) {
+            items.push({
+                id: random_string(10),
+                itv: [high, null, false, true],
+                type: "static",
+                data: range[1]
+            });
+        }
+    } else {
+        /* 
+            no time_range found
+            
+            p1 is outside the pos_range
+            if p1 is less than low, then use low
+            if p1 is greater than high, then use high
+        */
+        const val = (p1 < range[0]) ? range[0] : range[1];
+        items.push({
+            id: random_string(10),
+            itv: [null, null, true, true],
+            type: "static",
+            data: val
+        });
+    }
+    return cursor.src.update({insert:items, reset:true});
+}
+
+/**
+ * set transition - to target position using in <duration> seconds.
+ */
+
+function set_transition(cursor, target, duration, easing) {
+    const {value:v0, offset:t0} = cursor.query();
+    const v1 = target;
+    const t1 = t0 + duration;
+    check_number("position", v0);
+    check_number("position", v1);
+    check_number("position", t0);
+    check_number("position", t1);
+    let items = [
+        {
+            id: random_string(10),
+            itv: [null, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            id: random_string(10),
+            itv: [t0, t1, true, true],
+            type: "transition",
+            data: {v0, v1, t0, t1, easing}
+        },
+        {
+            id: random_string(10),
+            itv: [t1, null, false, true],
+            type: "static",
+            data: v1
+        }
+    ];
+    return cursor.src.update({insert:items, reset:true});
+}
+
+/**
+ * set interpolation
+ * 
+ * assumes timestamps are in range [0,1]
+ * scale timestamps to duration and offset by t0
+ * assuming interpolation starts at t0
+ */
+
+function set_interpolation(cursor, tuples, duration) {
+    const now = cursor.ctrl.value;
+    tuples = tuples.map(([v,t]) => {
+        check_number("ts", t);
+        check_number("val", v);
+        return [v, now + t*duration];
+    });
+    const [v0, t0] = tuples[0];
+    const [v1, t1] = tuples[tuples.length-1];
+    const items = [
+        {
+            itv: [-Infinity, t0, true, false],
+            type: "static",
+            data: v0
+        },
+        {
+            itv: [t0, t1, true, false],
+            type: "interpolation",
+            data: tuples
+        },
+        {
+            itv: [t1, Infinity, true, true],
+            type: "static",
+            data: v1
+        }
+    ];
+    return cursor.src.update({insert:items, reset:true});
+}
+
+
+/**
+ * TODO: support alternative update for state recording.
+ * This effectively means that recording is a 
+ * bultin feature of the variable cursor. Could be enabled by option.
+ * To calcultate the new state, need to truncate existing state
+ * and append new items. Index support for the provider would be needed,
+ * so that we can clear all state in interval [ts, null], 
+ * and then append new items to the same interval. Would also need to
+ * forward a ts from each of the update methods.
+ * 
+ * Check out some similar code from State Trajectory 
+ * 
+ */
+
+/*****************************************************
+ * PLAYBACK CURSOR
+ *****************************************************/
+
+function playback_cursor(ctrl, src) {
+
+    const cursor = new Cursor();
+
+    // src cache
+    let src_cache;
+    // timeout
+    let tid;
+    // polling
+    let pid;
+
+    // setup src property
+    addState(cursor);
+    addMethods(cursor);
+    cursor.srcprop_register("ctrl");
+    cursor.srcprop_register("src");
+
+    /**
+     * src property initialization check
+     */
+    cursor.srcprop_check = function (propName, obj) {
+        if (propName == "ctrl") {
+            if (obj instanceof Cursor) {
+                return obj
+            } else {
+                throw new Error(`ctrl must be clockProvider or Cursor ${obj}`);
+            }
+        }
+        if (propName == "src") {
+            if (obj instanceof Layer) {
+                return obj;
+            } else {
+                throw new Error(`src must be Layer ${obj}`);
+            }
+        }
+    };
+
+    /**
+     * handle src property change
+     */
+    cursor.srcprop_onchange = function (propName, eArg) {
+        if (cursor.src == undefined || cursor.ctrl == undefined) {
+            return;
+        }
+        if (propName == "src") {
+            if (eArg == "reset") {
+                src_cache = cursor.src.createCache();
+            } else {
+                src_cache.clear();                
+            }
+        }
+        cursor_onchange();
+    };
+
+    /**
+     * main cursor change handler
+     */
+    function cursor_onchange() {
+        cursor.onchange();
+        detect_future_event();
+    }
+
+    /**
+     * cursor.ctrl (cursor/clock) defines an active region of cursor.src (layer)
+     * at some point in the future, the cursor.ctrl will leave this region.
+     * in that moment, cursor should reevaluate its state - so we need to 
+     * detect this event, ideally by timeout, alternatively by polling.  
+     */
+    function detect_future_event() {
+        if (tid) { tid.cancel(); }
+        if (pid) { clearInterval(pid); }
+
+        // current state of cursor.ctrl 
+        const ctrl_state = get_cursor_ctrl_state(cursor);
+        // current (position, time) of cursor.ctrl
+        const current_pos = ctrl_state.value;
+        const current_ts = ctrl_state.offset;
+
+        // no future event if the ctrl is static
+        if (!ctrl_state.dynamic) {
+            // will never leave region
+            return;
+        }
+
+        // current region of cursor.src
+        const src_nearby = cursor.src.index.nearby(current_pos);
+
+        const region_low = src_nearby.itv[0] ?? -Infinity;
+        const region_high = src_nearby.itv[1] ?? Infinity;
+
+        // no future leave event if the region covers the entire timeline 
+        if (region_low == -Infinity && region_high == Infinity) {
+            // will never leave region
+            return;
+        }
+
+        if (is_clock_cursor(cursor.ctrl)) {
+            /* 
+                cursor.ctrl is a clock provider
+
+                possible timeout associated with leaving region
+                through region_high - as clock is increasing.
+            */
+           const target_pos = region_high;
+            const delta_ms = (target_pos - current_pos) * 1000;
+            tid = set_timeout(() => {
+                cursor_onchange();
+            }, delta_ms);
+            // leave event scheduled
+            return;
+        } 
+        
+        if (
+            is_clock_cursor(cursor.ctrl.ctrl) && 
+            is_items_layer(cursor.ctrl.src)
+        ) {
+            /* 
+                cursor.ctrl is a cursor with a clock provider
+
+                possible timeout associated with leaving region
+                through region_low or region_high.
+
+                However, this can only be predicted if cursor.ctrl
+                implements a deterministic function of time.
+
+                This can be the case if cursor.ctr.src is an items layer,
+                and a single active item describes either a motion or a transition (with linear easing).                
+            */
+            const active_items = cursor.ctrl.src.get_items(current_ts);
+            let target_pos;
+
+            if (active_items.length == 1) {
+                const active_item = active_items[0];
+                if (active_item.type == "motion") {
+                    const {velocity, acceleration} = active_item.data;
+                    // TODO calculate timeout with acceleration too
+                    if (acceleration == 0.0) {
+                        // figure out which region boundary we hit first
+                        if (velocity > 0) {
+                            target_pos = region_high;
+                        } else {
+                            target_pos = region_low;
+                        }
+                        const delta_ms = (target_pos - current_pos) * 1000;
+                        tid = set_timeout(() => {
+                            cursor_onchange();
+                        }, delta_ms);
+                        // leave-event scheduled
+                        return;
+                    }
+                } else if (active_item.type == "transition") {
+                    const {v0, v1, t0, t1, easing="linear"} = active_item.data;
+                    if (easing == "linear") {
+                        // linear transtion
+                        let velocity = (v1-v0)/(t1-t0);
+                        if (velocity > 0) {
+                            target_pos = Math.min(region_high, v1);
+                        }
+                        else {
+                            target_pos = Math.max(region_low, v1);
+                        }
+                        const delta_ms = (target_pos - current_pos) * 1000;
+                        tid = set_timeout(() => {
+                            cursor_onchange();
+                        }, delta_ms);
+                        // leave-event scheduled
+                        return;
+                    }
+                }
+            }
+        }
+
+        /**
+         * detection of leave events falls back on polling
+         */
+        start_polling(src_nearby.itv);
+    }
+
+    /**
+     * start polling
+     */
+    function start_polling(itv) {
+        pid = setInterval(() => {
+            handle_polling(itv);
+        }, 100);
+    }
+
+    /**
+     * handle polling
+     */
+    function handle_polling(itv) {
+        let offset = cursor.ctrl.value;
+        if (!interval.covers_endpoint(itv, offset)) {
+            cursor_onchange();
+        }
+    }
+
+
+    /**
+     * main query function - resolving query
+     * from cache object associated with cursor.src
+     */
+
+    cursor.query = function query(local_ts) {
+        const offset = get_cursor_ctrl_state(cursor, local_ts).value; 
+        return src_cache.query(offset);
+    };
+    
+    // initialize
+    cursor.ctrl = ctrl;
+    cursor.src = src;
+    return cursor;
+}
+
+/**
+ * This wraps a cursor so that it can be used as a layer.
+ */
+
+function layer_from_cursor(src) {
+
+    if (!(src instanceof Cursor)) {
+        throw new Error(`src must be a Cursor ${src}`);
+    }
+ 
+    const layer = new Layer();
+    layer.index = new CursorIndex(src);
+    
+    // subscribe
+    src.add_callback((eArg) => {
+        layer.onchange(eArg);
+    });
+
+    // initialise
+    layer.src = src;
+    return layer;
+} 
+
+
+/**
+ * Create a NearbyIndex for the Cursor.
+ * 
+ * The cursor value is independent of timeline offset, 
+ * which is to say that it has the same value for all 
+ * timeline offsets.
+ * 
+ * In order for the default LayerCache to work, an
+ * object with a .query(offset) method is needed in 
+ * nearby.center. Since cursors support this method
+ * (ignoring the offset), we can use the cursor directly.
+ */
+
+class CursorIndex extends NearbyIndexBase {
+
+    constructor(cursor) {
+        super();
+        this._cursor = cursor;
+    }
+
+    nearby(offset) {
+        // cursor index is defined for entire timeline
+        return {
+            itv: [null, null, true, true],
+            center: [this._cursor],
+            left: endpoint.NEG_INF,
+            prev: endpoint.NEG_INF,
+            right: endpoint.POS_INF,
+            next: endpoint.POS_INF,
+        }
+    }
+}
+
 /**
  * Convenience merge options
  */
-const merge_options = {
+const MERGE_OPTIONS = {
     sum: {
         valueFunc: function (info) {
             // returns the sum of values of active layers
@@ -2396,7 +3876,6 @@ const merge_options = {
     }
 };
 
-
 /**
  * 
  * This implements a merge operation for layers.
@@ -2404,29 +3883,21 @@ const merge_options = {
  * 
  */
 
-function merge (sources, options={}) {
-    const {type=""} = options;
+function merge_layer (sources, options={}) {
+    let {type="", ...opts} = options;
 
-    if (type in merge_options) {
-        return new MergeLayer(sources, merge_options[type])
-    } else {
-        return new MergeLayer(sources, options);
+    // type specifies predefined options for Layer
+    if (type in MERGE_OPTIONS) {
+        opts = MERGE_OPTIONS[type];
     }
-}
+    const layer = new Layer(opts);    
 
+    // setup sources property
+    addState(layer);
+    addMethods(layer);
+    layer.srcprop_register("sources");
 
-class MergeLayer extends Layer {
-
-    constructor(sources, options) {
-        super(options);
-
-        // setup sources property
-        addToInstance(this);
-        this.srcprop_register("sources", {mutable:false});
-        this.sources = sources;
-    }
-
-    srcprop_check(propName, sources) {
+    layer.srcprop_check = function(propName, sources) {
         if (propName == "sources") {
             // check that sources is array of layers
             if (!Array.isArray(sources)) {
@@ -2438,37 +3909,34 @@ class MergeLayer extends Layer {
             }
         }
         return sources;
-    }
+    };
 
-    srcprop_onchange(propName, eArg) {
+    layer.srcprop_onchange = function(propName, eArg) {
         if (propName == "sources") {
-            if (this.index == undefined || eArg == "reset") {
-                this.index = new MergeIndex(this.sources);
+            if (eArg == "reset") {
+                layer.index = new NearbyIndexMerge(layer.sources);
             } 
-            this.clearCaches();
-            this.notify_callbacks();
-            this.eventifyTrigger("change");
+            layer.onchange();
         }
-    }
+    };
+
+    // initialise
+    layer.sources = sources;
+
+    return layer
 }
-addToPrototype(MergeLayer.prototype);
 
 
 
 /**
- * Merging indexes from multiple sources into a single index.
+ * Creating a merged NearbyIndex for set of Layers.
+ *  
+ * A region within the merged index will contain
+ * a list of references to (cache objects) for 
+ * the Layers which are defined in this region.
  * 
- * A source is an object with an index.
- * - layer (cursor)
- * 
- * The merged index gives a temporal structure for the
- * collection of sources, computing a list of
- * sources which are defined at a given offset
- * 
- * nearby(offset).center is a list of items
- * [{itv, src}]
- * 
- * Implementaion is stateless.
+ * Implementation is stateless.
+ * Set of layers is assumed to be static.
  */
 
 function cmp_ascending(p1, p2) {
@@ -2479,13 +3947,13 @@ function cmp_descending(p1, p2) {
     return endpoint.cmp(p2, p1)
 }
 
-class MergeIndex extends NearbyIndexBase {
+class NearbyIndexMerge extends NearbyIndexBase {
 
     constructor(sources) {
         super();
         this._sources = sources;
         this._caches = new Map(sources.map((src) => {
-            return [src, src.getCache()];
+            return [src, src.createCache()];
         }));
     }
 
@@ -2532,1020 +4000,23 @@ class MergeIndex extends NearbyIndexBase {
     }
 }
 
-function shifted(p, offset) {
-    if (p == undefined || !isFinite(p)) {
-        // p - no skew
-        return p;
-    }
-    else if (typeof p == "number") {
-        // p is number - skew
-        return p + offset;
-    } else if (Array.isArray(p) && p.length > 1) {
-        // p is endpoint - skew value
-        let [val, sign] = p;
-        return [val + offset, sign];
-    }
-}
-
-
 /*********************************************************************
-    SHIFT INDEX
+    BOOLEAN LAYER
 *********************************************************************/
 
-class ShiftIndex extends NearbyIndexBase {
+function boolean_layer(src) {
 
-    constructor (layer, skew) {
-        super();
-        this._layer = layer;
-        this._skew = skew;
-        this._cache = layer.getCache();
-
-        // skewing cache object
-        this._shifted_cache = {
-            query: function (offset) {
-                // skew query (negative) - override result offset
-                return {...this._cache.query(shifted(offset, -this._skew)), offset};
-            }.bind(this)
-        };
-    }
-
-    // skewing index.nearby
-    nearby(offset) {
-        offset = endpoint.from_input(offset);
-        // skew query (negative)
-        const nearby = this._layer.index.nearby(shifted(offset, -this._skew));
-        // skew result (positive) 
-        const itv = nearby.itv.slice();
-        itv[0] = shifted(nearby.itv[0], this._skew);
-        itv[1] = shifted(nearby.itv[1], this._skew);
-        return {
-            itv,
-            left: shifted(nearby.left, this._skew),
-            right: shifted(nearby.right, this._skew),
-            center: nearby.center.map(() => this._shifted_cache)
-        }
-    }
-}
-
-
-/*********************************************************************
-    SHIFT LAYER
-*********************************************************************/
-
-
-class ShiftLayer extends Layer {
-
-    constructor(layer, skew, options={}) {
-        super(options);
-        this._skew = skew;
-        // setup src propterty
-        addToInstance(this);
-        this.srcprop_register("src");
-        this.src = layer;
-    }
-
-    srcprop_check(propName, src) {
-        if (propName == "src") {
-            if (!(src instanceof Layer)) {
-                throw new Error(`"src" must be Layer ${src}`);
-            }
-            return src;    
-        }
-    }
-
-    srcprop_onchange(propName, eArg) {
-        if (propName == "src") {
-            if (this.index == undefined || eArg == "reset") {
-                this.index = new ShiftIndex(this.src, this._skew);
-            } 
-            this.clearCaches();
-            this.notify_callbacks();
-            this.eventifyTrigger("change");    
-        }
-    }
-}
-addToPrototype(ShiftLayer.prototype);
-
-/**
- * Skewing a Layer by an offset
- * 
- * a positive value for offset means that
- * the layer is shifted to the right on the timeline
- * 
- * 
- */
-
-function shift (layer, offset) {
-    return new ShiftLayer(layer, offset);
-}
-
-// webpage clock - performance now - seconds
-const local = {
-    now: function() {
-        return performance.now()/1000.0;
-    }
-};
-// system clock - epoch - seconds
-const epoch = {
-    now: function() {
-        return new Date()/1000.0;
-    }
-};
-
-/**
- * CLOCK gives epoch values, but is implemented
- * using performance now for better
- * time resolution and protection against system 
- * time adjustments.
- */
-
-const LOCAL_CLOCK_PROVIDER = function () {
-    const t0_local = local.now();
-    const t0_epoch = epoch.now();
-    return {
-        now: function () {
-            const t1_local = local.now();
-            return t0_epoch + (t1_local - t0_local);
-        }
-    };
-}();
-
-function is_clockprovider(obj) {
-    if (!("now" in obj)) return false;
-    if (typeof obj.now != "function") return false;
-    return true;
-}
-
-const METHODS = {assign, move, transition, interpolate};
-
-
-function cmd (target) {
-    if (!(is_stateprovider(target))) {
-        throw new Error(`target.src must be stateprovider ${target}`);
-    }
-    let entries = Object.entries(METHODS)
-        .map(([name, method]) => {
-            return [
-                name,
-                function(...args) { 
-                    let items = method.call(this, ...args);
-                    return target.update({insert:items, reset:true});  
-                }
-            ]
-        });
-    return Object.fromEntries(entries);
-}
-
-function assign(value) {
-    if (value == undefined) {
-        return [];
-    } else {
-        let item = {
-            itv: [-Infinity, Infinity, true, true],
-            type: "static",
-            data: value                 
-        };
-        return [item];
-    }
-}
-
-function move(vector) {
-    let item = {
-        itv: [-Infinity, Infinity, true, true],
-        type: "motion",
-        data: vector  
-    };
-    return [item];
-}
-
-function transition(v0, v1, t0, t1, easing) {
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            data: v0
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "transition",
-            data: {v0, v1, t0, t1, easing}
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            data: v1
-        }
-    ];
-    return items;
-}
-
-function interpolate(tuples) {
-    let [v0, t0] = tuples[0];
-    let [v1, t1] = tuples[tuples.length-1];
-
-    let items = [
-        {
-            itv: [-Infinity, t0, true, false],
-            type: "static",
-            data: v0
-        },
-        {
-            itv: [t0, t1, true, false],
-            type: "interpolation",
-            data: tuples
-        },
-        {
-            itv: [t1, Infinity, true, true],
-            type: "static",
-            data: v1
-        }
-    ];    
-    return items;
-}
-
-/*
-    Timeout Monitor
-
-    Timeout Monitor is similar to setInterval, in the sense that 
-    it allows callbacks to be fired periodically 
-    with a given delay (in millis).  
+    const layer = new Layer();
+    layer.index = new NearbyIndexBoolean(src.index);
     
-    Timeout Monitor is made to sample the state 
-    of a dynamic object, periodically. For this reason, each callback is 
-    bound to a monitored object, which we here call a variable. 
-    On each invocation, a callback will provide a freshly sampled 
-    value from the variable.
-
-    This value is assumed to be available by querying the variable. 
-
-        v.query() -> {value, dynamic, offset, ts}
-
-    In addition, the variable object may switch back and 
-    forth between dynamic and static behavior. The Timeout Monitor
-    turns polling off when the variable is no longer dynamic, 
-    and resumes polling when the object becomes dynamic.
-
-    State changes are expected to be signalled through a <change> event.
-
-        sub = v.on("change", callback)
-        v.off(sub)
-
-    Callbacks are invoked on every <change> event, as well
-    as periodically when the object is in <dynamic> state.
-
-        callback({value, dynamic, offset, ts})
-
-    Furthermore, in order to support consistent rendering of
-    state changes from many dynamic variables, it is important that
-    callbacks are invoked at the same time as much as possible, so
-    that changes that occur near in time can be part of the same
-    screen refresh. 
-
-    For this reason, the TimeoutMonitor groups callbacks in time
-    and invokes callbacks at at fixed maximum rate (20Hz/50ms).
-    This implies that polling callbacks will fall on a shared 
-    polling frequency.
-
-    At the same time, callbacks may have individual frequencies that
-    are much lower rate than the maximum rate. The implementation
-    does not rely on a fixed 50ms timeout frequency, but is timeout based,
-    thus there is no processing or timeout between callbacks, even
-    if all callbacks have low rates.
-
-    It is safe to define multiple callabacks for a single variable, each
-    callback with a different polling frequency.
-
-    options
-        <rate> - default 50: specify minimum frequency in ms
-
-*/
-
-
-const RATE_MS = 50;
-
-
-/*********************************************************************
-    TIMEOUT MONITOR
-*********************************************************************/
-
-/*
-    Base class for Timeout Monitor and Framerate Monitor
-*/
-
-class TimeoutMonitor {
-
-    constructor(options={}) {
-
-        this._options = Object.assign({rate: RATE_MS}, options);
-        if (this._options.rate < RATE_MS) {
-            throw new Error(`illegal rate ${rate}, minimum rate is ${RATE_MS}`);
-        }
-        /*
-            map
-            handle -> {callback, variable, delay}
-            - variable: target for sampling
-            - callback: function(value)
-            - delay: between samples (when variable is dynamic)
-        */
-        this._set = new Set();
-        /*
-            variable map
-            variable -> {sub, polling, handles:[]}
-            - sub associated with variable
-            - polling: true if variable needs polling
-            - handles: list of handles associated with variable
-        */
-        this._variable_map = new Map();
-        // variable change handler
-        this.__onvariablechange = this._onvariablechange.bind(this);
-    }
-
-    bind(variable, callback, delay, options={}) {
-        // register binding
-        let handle = {callback, variable, delay};
-        this._set.add(handle);
-        // register variable
-        if (!this._variable_map.has(variable)) {
-            let sub = variable.on("change", this.__onvariablechange);
-            let item = {sub, polling:false, handles: [handle]};
-            this._variable_map.set(variable, item);
-            //this._reevaluate_polling(variable);
-        } else {
-            this._variable_map.get(variable).handles.push(handle);
-        }
-        return handle;
-    }
-
-    release(handle) {
-        // cleanup
-        let removed = this._set.delete(handle);
-        if (!removed) return;
-        handle.tid = undefined;
-        // cleanup variable map
-        let variable = handle.variable;
-        let {sub, handles} = this._variable_map.get(variable);
-        let idx = handles.indexOf(handle);
-        if (idx > -1) {
-            handles.splice(idx, 1);
-        }
-        if (handles.length == 0) {
-            // variable has no handles
-            // cleanup variable map
-            this._variable_map.delete(variable);
-            variable.off(sub);
-        }
-    }
-
-    /*
-        variable emits a change event
-    */
-    _onvariablechange (eArg, eInfo) {
-        let variable = eInfo.src;
-        // direct callback - could use eArg here
-        let {handles} = this._variable_map.get(variable);
-        let state = eArg;
-        // reevaluate polling
-        this._reevaluate_polling(variable, state);
-        // callbacks
-        for (let handle of handles) {
-            handle.callback(state);
-        }
-    }
-
-    /*
-        start or stop polling if needed
-    */
-    _reevaluate_polling(variable, state) {
-        let item = this._variable_map.get(variable);
-        let {polling:was_polling} = item;
-        state = state || variable.query();
-        let should_be_polling = state.dynamic;
-        if (!was_polling && should_be_polling) {
-            item.polling = true;
-            this._set_timeouts(variable);
-        } else if (was_polling && !should_be_polling) {
-            item.polling = false;
-            this._clear_timeouts(variable);
-        }
-    }
-
-    /*
-        set timeout for all callbacks associated with variable
-    */
-    _set_timeouts(variable) {
-        let {handles} = this._variable_map.get(variable);
-        for (let handle of handles) {
-            this._set_timeout(handle);
-        }
-    }
-
-    _set_timeout(handle) {
-        let delta = this._calculate_delta(handle.delay);
-        let handler = function () {
-            this._handle_timeout(handle);
-        }.bind(this);
-        handle.tid = setTimeout(handler, delta);
-    }
-
-    /*
-        adjust delay so that if falls on
-        the main tick rate
-    */
-    _calculate_delta(delay) {
-        let rate = this._options.rate;
-        let now = Math.round(performance.now());
-        let [now_n, now_r] = divmod(now, rate);
-        let [n, r] = divmod(now + delay, rate);
-        let target = Math.max(n, now_n + 1)*rate;
-        return target - performance.now();
-    }
-
-    /*
-        clear all timeouts associated with variable
-    */
-    _clear_timeouts(variable) {
-        let {handles} = this._variable_map.get(variable);
-        for (let handle of handles) {
-            if (handle.tid != undefined) {
-                clearTimeout(handle.tid);
-                handle.tid = undefined;
-            }
-        }
-    }
-
-    /*
-        handle timeout
-    */
-    _handle_timeout(handle) {
-        // drop if handle tid has been cleared
-        if (handle.tid == undefined) return;
-        handle.tid = undefined;
-        // callback
-        let {variable} = handle;
-        let state = variable.query();
-        // reschedule timeouts for callbacks
-        if (state.dynamic) {
-            this._set_timeout(handle);
-        } else {
-            /*
-                make sure polling state is also false
-                this would only occur if the variable
-                went from reporting dynamic true to dynamic false,
-                without emmitting a change event - thus
-                violating the assumption. This preserves
-                internal integrity i the monitor.
-            */
-            let item = this._variable_map.get(variable);
-            item.polling = false;
-        }
-        //
-        handle.callback(state);
-    }
-}
-
-
-
-/*********************************************************************
-    FRAMERATE MONITOR
-*********************************************************************/
-
-
-class FramerateMonitor extends TimeoutMonitor {
-
-    constructor(options={}) {
-        super(options);
-        this._handle;
-    }
-
-    /*
-        timeouts are obsolete
-    */
-    _set_timeouts(variable) {}
-    _set_timeout(handle) {}
-    _calculate_delta(delay) {}
-    _clear_timeouts(variable) {}
-    _handle_timeout(handle) {}
-
-    _onvariablechange (eArg, eInfo) {
-        super._onvariablechange(eArg, eInfo);
-        // kick off callback loop driven by request animationframe
-        this._callback();
-    }
-
-    _callback() {
-        // callback to all variables which require polling
-        let variables = [...this._variable_map.entries()]
-            .filter(([variable, item]) => item.polling)
-            .map(([variable, item]) => variable);
-        if (variables.length > 0) {
-            // callback
-            for (let variable of variables) {
-                let {handles} = this._variable_map.get(variable);
-                let res = variable.query();
-                for (let handle of handles) {
-                    handle.callback(res);
-                }
-            }
-            /* 
-                request next callback as long as at least one variable 
-                is requiring polling
-            */
-            this._handle = requestAnimationFrame(this._callback.bind(this));
-        }
-    }
-}
-
-
-/*********************************************************************
-    BIND RELEASE
-*********************************************************************/
-
-const monitor = new TimeoutMonitor();
-const framerate_monitor = new FramerateMonitor();
-
-function bind(variable, callback, delay, options={}) {
-    let handle;
-    if (Boolean(parseFloat(delay))) {
-        handle = monitor.bind(variable, callback, delay, options);
-        return ["timeout", handle];
-    } else {
-        handle = framerate_monitor.bind(variable, callback, 0, options);
-        return ["framerate", handle];
-    }
-}
-function release(handle) {
-    let [type, _handle] = handle;
-    if (type == "timeout") {
-        return monitor.release(_handle);
-    } else if (type == "framerate") {
-        return framerate_monitor.release(_handle);
-    }
-}
-
-/**
- * Cursor emulates Layer interface.
- * Part of this is to prove an index for the timeline. 
- * However, when considered as a layer, the cursor value is 
- * independent of timeline offset, which is to say that
- * it has the same value for all timeline offsets.
- * 
- * Unlike other Layers, the Cursor do not actually
- * use this index to resolve queries. It is only needed
- * for some generic Layer functionnality, like sampling,
- * which uses index.first() and index.last().
- */
-
-class CursorIndex extends NearbyIndexBase {
-
-    constructor(cursor) {
-        super();
-        this._cache = cursor.getCache();
-    }
-
-    nearby(offset) {
-        // cursor index is defined for entire timeline
-        return {
-            itv: [-Infinity, Infinity, true, true],
-            center: [this._cache],
-            left: [-Infinity, 0],
-            prev: [-Infinity, 0],
-            right: [Infinity, 0],
-            next: [Infinity, 0],
-        }
-    }
-}
-
-/**
- * 
- * Cursor cache implements the query operation for 
- * the Cursor, ignoring the given offset, replacing it 
- * with an offset from the ctrl instead. 
- * The layer cache is used to resolve the query 
- */
-
-class CursorCache {
-    constructor(cursor) {
-        this._cursor = cursor;
-        this._cache = this._cursor.src.getCache();
-    }
-
-    query() {
-        const offset = this._cursor._get_ctrl_state().value; 
-        return this._cache.query(offset);
-    }
-
-    get segment() {
-        return this._cache.segment;
-    }
-
-    clear() {
-        this._cache.clear();
-    }
-}
-
-
-/************************************************
- * CURSOR
- ************************************************/
-
-/**
- * 
- * Cursor glides along a layer and exposes the current layer
- * value at any time
- * - has mutable ctrl (localClockProvider or Cursor)
- * - has mutable src (layer)
- * - methods for assign, move, transition, interpolation
- */
-
-class Cursor extends Layer {
-
-    constructor (options={}) {
-        super({CacheClass:CursorCache});
-
-        // setup src properties
-        addToInstance(this);
-        this.srcprop_register("src");
-        this.srcprop_register("ctrl");
-
-        // timeout
-        this._tid;
-        // polling
-        this._pid;
-
-        // initialise ctrl, src
-        let {src, ctrl} = options;
-        this.ctrl = ctrl || LOCAL_CLOCK_PROVIDER;
-        this.src = src;
-    }
-
-    /**********************************************************
-     * SRCPROP: CTRL and SRC
-     **********************************************************/
-
-    srcprop_check(propName, obj) {
-        if (propName == "ctrl") {
-            if (!(is_clockprovider(obj) || obj instanceof Cursor)) {
-                throw new Error(`"ctrl" must be clockProvider or Cursor ${obj}`)
-            }
-        } else if (propName == "src") {
-            if (!(obj instanceof Layer)) {
-                throw new Error(`"src" must be Layer ${obj}`);
-            }
-        }
-        return obj;
-    }
-
-    srcprop_onchange(propName, eArg) {
-        this.__handle_change(propName, eArg);
-    }
-
-    /**********************************************************
-     * CALLBACK
-     **********************************************************/
-
-    __handle_change(origin, eArg) {
-        clearTimeout(this._tid);
-        clearInterval(this._pid);
-        if (this.src && this.ctrl) {
-            if (this.index == undefined || eArg == "reset") {
-                // NOT used for cursor query 
-                this.index = new CursorIndex(this);
-            }
-            this.clearCaches();
-            this.notify_callbacks();
-            // trigger change event for cursor
-            this.eventifyTrigger("change", this.query());
-            // detect future change event - if needed
-            this.__detect_future_change();
-        }
-    }
-
-    /**
-     * DETECT FUTURE CHANGE
-     * 
-     * PROBLEM:
-     * 
-     * During playback (cursor.ctrl is dynamic), there is a need to 
-     * detect the passing from one segment interval of src
-     * to the next - ideally at precisely the correct time
-     * 
-     * nearby.itv (derived from cursor.src) gives the 
-     * interval (i) we are currently in, i.e., 
-     * containing the current offset (value of cursor.ctrl), 
-     * and (ii) where nearby.center stays constant
-     * 
-     * The event that needs to be detected is therefore the
-     * moment when we leave this interval, through either
-     * the low or high interval endpoint
-     * 
-     * GOAL:
-     * 
-     * At this moment, we simply need to reevaluate the state (query) and
-     * emit a change event to notify observers. 
-     * 
-     * APPROACHES:
-     * 
-     * Approach [0] 
-     * The trivial solution is to do nothing, in which case
-     * observers will simply find out themselves according to their 
-     * own poll frequency. This is suboptimal, particularly for low frequency 
-     * observers. If there is at least one high-frequency poller, 
-     * this would trigger trigger the state change, causing all
-     * observers to be notified. The problem though, is if no observers
-     * are actively polling, but only depending on change events.
-     * 
-     * Approach [1] 
-     * In cases where the ctrl is deterministic, a timeout
-     * can be calculated. This is trivial if ctrl is a ClockProvider, and
-     * it is fairly easy if the ctrl is Cursor representing motion
-     * or linear transition. However, calculations can become more
-     * complex if motion supports acceleration, or if transitions
-     * are set up with non-linear easing.
-     *   
-     * Note, however, that these calculations assume that the cursor.ctrl is 
-     * a ClockProvider, or that cursor.ctrl.ctrl is a ClockProider. 
-     * In principle, though, there could be a recursive chain of cursors,
-     * (cursor.ctrl.ctrl....ctrl) of some length, where only the last is a 
-     * ClockProvider. In order to do deterministic calculations in the general
-     * case, all cursors in the chain would have to be limited to 
-     * deterministic linear transformations.
-     * 
-     * Approch [2] 
-     * It might also be possible to sample future values of 
-     * cursor.ctrl to see if the values violate the nearby.itv at some point. 
-     * This would essentially be treating ctrl as a layer and sampling 
-     * future values. This approch would work for all types, 
-     * but there is no knowing how far into the future one 
-     * would have to seek. However, again - as in [1] the ability to sample future values
-     * is predicated on cursor.ctrl being a ClockProvider. Also, there 
-     * is no way of knowing how long into the future sampling would be necessary.
-     * 
-     * Approach [3] 
-     * In the general case, the only way to reliabley detect the event is through repeated
-     * polling. Approach [3] is simply the idea that this polling is performed
-     * internally by the cursor itself, as a way of securing its own consistent
-     * state, and ensuring that observer get change events in a timely manner, event
-     * if they do low-frequency polling, or do not do polling at all. 
-     * 
-     * SOLUTION:
-     * As there is no perfect solution in the general case, we opportunistically
-     * use approach [1] when this is possible. If not, we are falling back on 
-     * approach [3]
-     * 
-     * CONDITIONS when NO event detection is needed (NOOP)
-     * (i) cursor.ctrl is not dynamic
-     * or
-     * (ii) nearby.itv stretches into infinity in both directions
-     * 
-     * CONDITIONS when approach [1] can be used
-     * 
-     * (i) if ctrl is a ClockProvider && nearby.itv.high < Infinity
-     * or
-     * (ii) ctrl.ctrl is a ClockProvider
-     *      (a) ctrl.nearby.center has exactly 1 item
-     *      &&
-     *      (b) ctrl.nearby.center[0].type == ("motion") || ("transition" && easing=="linear")
-     *      &&
-     *      (c) ctrl.nearby.center[0].data.velocity != 0.0
-     *      && 
-     *      (d) future intersecton point with cache.nearby.itv 
-     *          is not -Infinity or Infinity
-     * 
-     * Though it seems complex, conditions for [1] should be met for common cases involving
-     * playback. Also, use of transition etc might be rare.
-     * 
-     */
-
-    __detect_future_change() {
-
-        // ctrl 
-        const ctrl_vector = this._get_ctrl_state();
-        const {value:current_pos, offset:current_ts} = ctrl_vector;
-
-        // ctrl must be dynamic
-        if (!ctrl_vector.dynamic) {
-            // no future event to detect
-            return;
-        }
-
-        // get nearby from src - use value from ctrl
-        const src_nearby = this.src.index.nearby(current_pos);
-        let [low, high] = src_nearby.itv.slice(0,2);        
-        if (low == null) {
-            low = -Infinity;
-        }
-        if (high == null) {
-            high = Infinity;
-        }
-
-        // approach [1]
-        if (is_clockprovider(this.ctrl)) {
-            if (isFinite(high)) {
-                this.__set_timeout(high, current_pos, 1.0, current_ts);
-                return;
-            }
-            // no future event to detect
-            return;
-        }
-        if (is_clockprovider(this.ctrl.ctrl)) {
-            /** 
-             * this.ctrl is a cursor
-             * 
-             * has many possible behaviors
-             * this.ctrl has an index use this to figure out which
-             * behaviour is current.
-             * 
-            */
-            if (!isFinite(low) && !isFinite(high)) {
-                // no future event to detect
-                return;
-            }
-            // use the same offset that was used in the ctrl.query
-            // assuming that this.ctrl.src is InputLayer with segments
-            const ctrl_src_nearby = this.ctrl.src.index.nearby(current_ts);
-
-            if (ctrl_src_nearby.center.length == 1) {
-                const seg = ctrl_src_nearby.center[0];
-                if (seg.type == "motion") {
-                    const {velocity, acceleration=0.0} = seg.data;
-                    if (acceleration == 0.0) {
-                        // figure out which boundary we hit first
-                        let target_pos = (velocity > 0) ? high : low;
-                        if (isFinite(target_pos)) {
-                            this.__set_timeout(target_pos, current_pos, velocity, current_ts);
-                            return;                           
-                        } 
-                        // no future event to detect
-                        return;
-                    }
-                    // acceleration - possible event to detect
-                } else if (seg.type == "transition") {
-                    const {v0:p0, v1:p1, t0, t1, easing="linear"} = seg.data;
-                    if (easing == "linear") {
-                        // linear transtion
-                        let velocity = (p1-p0)/(t1-t0);
-                        // figure out which boundary we hit first
-                        const target_pos = (velocity > 0) ? Math.min(high, p1) : Math.max(low, p1);
-                        this.__set_timeout(target_pos, current_pos, 
-                            velocity, current_ts);
-                        //
-                        return;
-                    }
-                    // other easing - possible event to detect
-                }
-                // other type (interpolation) - possible event to detect
-            }
-            // more than one segment - possible event to detect
-        }
-
-        // possible event to detect - approach [3]
-        this.__set_polling(src_nearby.itv);
-    }
-
-    /**
-     * set timeout
-     * - protects against too early callbacks by rescheduling
-     * timeout if neccessary.
-     * - adds a millisecond to original timeout to avoid
-     * frequent rescheduling 
-     */
-
-    __set_timeout(target_pos, current_pos, velocity, current_ts) {
-        const delta_sec = (target_pos - current_pos) / velocity;
-        const target_ts = current_ts + delta_sec;
-        this._tid = setTimeout(() => {
-            this.__handle_timeout(target_ts);
-        }, delta_sec*1000 + 1);
-    }
-
-    __handle_timeout(target_ts) {
-        const ts = this._get_ctrl_state().offset;
-        const remaining_sec = target_ts - ts; 
-        if (remaining_sec <= 0) {
-            // done
-            this.__handle_change("timeout");
-        } else {
-            // reschedule timeout
-            this._tid = setTimeout(() => {
-                this.__handle_timeout(target_ts);
-            }, remaining_sec*1000);
-        }
-    }
-
-    /**
-     * set polling
-     */
-
-    __set_polling(itv) {
-        this._pid = setInterval(() => {
-            this.__handle_poll(itv);
-        }, 100);
-    }
-
-    __handle_poll(itv) {
-        let offset = this.ctrl.query().value;
-        if (!interval.covers_point(itv, offset)) {
-            this.__handle_change("timeout");
-        }
-    }
-
-    /**********************************************************
-     * QUERY API
-     **********************************************************/
-
-    _get_ctrl_state () {
-        if (is_clockprovider(this.ctrl)) {
-            let ts = this.ctrl.now();
-            return {value:ts, dynamic:true, offset:ts};
-        } else {
-            let state = this.ctrl.query();
-            // protect against non-float values
-            if (typeof state.value !== 'number') {
-                throw new Error(`warning: ctrl state must be number ${state.value}`);
-            }
-            return state;
-        }
-    }
-
-    get value () {return this.query().value};
-    
-    /*
-        Eventify: immediate events
-    */
-    eventifyInitEventArgs(name) {
-        if (name == "change") {
-            return [this.query()];
-        }
-    }
-    
-    /**********************************************************
-     * BIND RELEASE (convenience)
-     **********************************************************/
-
-    bind(callback, delay, options={}) {
-        return bind(this, callback, delay, options);
-    }
-    release(handle) {
-        return release(handle);
-    }
-
-    /**********************************************************
-     * UPDATE API
-     **********************************************************/
-
-    assign(value) {
-        return cmd(this.src.src).assign(value);
-    }
-    move ({position, velocity}) {
-        let {value, offset:timestamp} = this.query();
-        if (typeof value !== 'number') {
-            throw new Error(`warning: cursor state must be number ${value}`);
-        }
-        position = (position != undefined) ? position : value;
-        velocity = (velocity != undefined) ? velocity: 0;
-        return cmd(this.src.src).move({position, velocity, timestamp});
-    }
-    transition ({target, duration, easing}) {
-        let {value:v0, offset:t0} = this.query();
-        if (typeof v0 !== 'number') {
-            throw new Error(`warning: cursor state must be number ${v0}`);
-        }
-        return cmd(this.src.src).transition(v0, target, t0, t0 + duration, easing);
-    }
-    interpolate ({tuples, duration}) {
-        let t0 = this.query().offset;
-        // assuming timstamps are in range [0,1]
-        // scale timestamps to duration
-        tuples = tuples.map(([v,t]) => {
-            return [v, t0 + t*duration];
-        });
-        return cmd(this.src.src).interpolate(tuples);
-    }
-
-}
-addToPrototype(Cursor.prototype);
-addToPrototype(Cursor.prototype);
-
-class BooleanLayer extends Layer {
-
-    constructor(layer) {
-        super();
-        this.index = new BooleanIndex(layer.index);
-    
-        // subscribe
-        const handler = this._onchange.bind(this);
-        layer.add_callback(handler);
-    }
-
-    _onchange(eArg) {
-        this.clearCaches();
-        this.notify_callbacks();
-        this.eventifyTrigger("change");
-    }
-}
-
-function boolean(layer) {
-    return new BooleanLayer(layer);
+    // subscribe
+    src.add_callback((eArg) => {
+        layer.onchange(eArg);
+    });
+
+    // initialise
+    layer.src = src;
+    return layer;
 } 
 
 
@@ -3569,7 +4040,7 @@ function queryObject (value) {
     }
 }
 
-class BooleanIndex extends NearbyIndexBase {
+class NearbyIndexBoolean extends NearbyIndexBase {
 
     constructor(index, options={}) {
         super();
@@ -3623,43 +4094,28 @@ class BooleanIndex extends NearbyIndexBase {
     }
 }
 
-class LogicalMergeLayer extends Layer {
+function logical_merge_layer(sources, options={}) {
 
-    constructor(sources, options={}) {
-        super();
-
-        const {expr} = options;
-
-        let condition;
-        if (expr) {
-            condition = (center) => {
-                return expr.eval(center);
-            };    
-        }
-                    
-        // subscribe to callbacks from sources
-        const handler = this._onchange.bind(this);
-        for (let src of sources) {
-            src.add_callback(handler);
-        }
-
-        // index
-        let index = new MergeIndex(sources);
-        this._index = new BooleanIndex(index, {condition});
+    const {expr} = options;
+    let condition;
+    if (expr) {
+        condition = (center) => {
+            return expr.eval(center);
+        };    
     }
 
-    get index () {return this._index};
+    const layer = new Layer();
+    const index = new NearbyIndexMerge(sources);
+    layer.index = new NearbyIndexBoolean(index, {condition});
 
-    _onchange(eArg) {
-        this.clearCaches();
-        this.notify_callbacks();
-        this.eventifyTrigger("change");
-    }
-}
+    // subscribe to callbacks from sources
+    sources.map((src) => {
+        return src.add_callback(layer.onchange);
+    });
+    
+    layer.sources = sources;
 
-
-function logical_merge(sources, options) {
-    return new LogicalMergeLayer(sources, options);
+    return layer;
 }
 
 
@@ -3711,29 +4167,453 @@ logical_expr.not = function not(expr) {
     }
 };
 
+/**
+ * affine transform 1D by shift and scale factor
+ */
+
+function transform(p, {shift=0, scale=1}) {
+    if (p == undefined || !isFinite(p)) {
+        // p - noop
+        return p;
+    }
+    else if (typeof p == "number") {
+        // p is number - transform
+        return (p*scale) + shift;
+    } else if (Array.isArray(p) && p.length > 1) {
+        // p is endpoint - transform value
+        let [val, bracket] = p;
+        return endpoint.from_input([(val*scale)+shift, bracket]);
+    }
+}
+
+function reverse(p, {shift=0, scale=1}) {
+    if (p == undefined || !isFinite(p)) {
+        // p - noop
+        return p;
+    }
+    else if (typeof p == "number") {
+        // p is number - transform
+        return (p-shift)/scale;
+    } else if (Array.isArray(p) && p.length > 1) {
+        // p is endpoint - transform value
+        let [val, bracket] = p;
+        return endpoint.from_input([((val-shift)/scale), bracket]);
+    }
+}
+
+
 /*********************************************************************
-    LAYER FACTORY
+    NEARBY INDEX - AFFINE TIMELINE TRANSFORM
+*********************************************************************/
+
+class NearbyIndexATT extends NearbyIndexBase {
+
+    constructor (layer, options={}) {
+        super();
+        this._layer = layer;
+        this._cache = layer.createCache();
+        this._options = options;
+        
+        // transform cache
+        this._transform_cache = {
+            query: function (offset) {
+                // reverse transform query
+                const state = this._cache.query(reverse(offset, this._options));
+                // keep original offset (instead of reversing result)
+                return {...state, offset};
+            }.bind(this)
+        };
+    }
+
+    nearby(offset) {
+        offset = endpoint.from_input(offset);
+        // reverse transform query offset
+        const nearby = this._layer.index.nearby(reverse(offset, this._options));
+        // transform query result 
+        const itv = nearby.itv.slice();
+        itv[0] = transform(nearby.itv[0], this._options);
+        itv[1] = transform(nearby.itv[1], this._options);
+        return {
+            itv,
+            left: transform(nearby.left, this._options),
+            right: transform(nearby.right, this._options),
+            center: nearby.center.map(() => this._transform_cache)
+        }
+    }
+}
+
+
+/*********************************************************************
+    TIMELINE TRANSFORM LAYER
+*********************************************************************/
+
+/**
+ * Shifting and scaling the timeline of a layer
+ * 
+ * options:
+ * - shift: a value of 2 effectively means that layer contents 
+ *   are shifted to the right on the timeline, by 2 units
+ * - scale: a value of 2 means that the layer is stretched
+ *   by a factor of 2
+ */
+
+function timeline_transform (src, options={}) {
+
+    const layer = new Layer();
+
+    // setup src property
+    addState(layer);
+    addMethods(layer);
+    layer.srcprop_register("src");
+        
+    layer.srcprop_check = function(propName, src) {
+        if (propName == "src") {
+            if (!(src instanceof Layer)) {
+                throw new Error(`"src" must be Layer ${src}`);
+            }
+            return src;    
+        }
+    };
+
+    layer.srcprop_onchange = function(propName, eArg) {
+        if (propName == "src") {
+            if (eArg == "reset") {
+                this.index = new NearbyIndexATT(this.src, options);
+            } 
+            layer.onchange();
+        }
+    };
+
+    // initialise
+    layer.src = src;
+    
+    return layer;
+}
+
+function toState(state, options={}) {
+    const {valueFunc, stateFunc} = options;
+    if (valueFunc != undefined) {
+        state.value = valueFunc(state.value);
+        return state;
+    } else if (stateFunc != undefined) {
+        return stateFunc(state);
+    } else {
+        return state;
+    }
+}
+
+/**
+ * Cursor Transform
+ * Create a new Cursor which is a transformation of the src Cursor
+ */
+function cursor_transform(src, options={}) {
+
+    if (!(src instanceof Cursor)) {
+        throw new Error(`src must be a Cursor ${src}`);
+    }
+
+    const cursor = new Cursor();
+
+    // implement query
+    cursor.query = function query() {
+        const state = src.query();
+        return toState(state, options);
+    };
+
+    // adopt the ctrl of the src-cursor
+    if (!is_clock_cursor(src)) {
+        cursor.ctrl = src.ctrl;
+        // add callbacks
+        cursor.ctrl.add_callback(() => {cursor.onchange();});
+    }
+
+    /* 
+        Current definition of Cursor src property is that it is a layer or undefined.
+        This leaves cursor transform options.
+        1) wrap src cursor as a layer,
+        2) let src property be undefined
+        3) adopt the src property of the src cursor as its own src
+
+        We go for 3)
+    */
+
+    // adopt the src of the src-cursor as src
+    if (!is_clock_cursor(src)) {
+        cursor.src = src.src;
+    }
+
+    // callbacks from src-cursor
+    src.add_callback(() => {cursor.onchange();});
+    return cursor;
+}
+
+
+/**
+ * Layer Transform
+ * Create a new Layer which is a transformation of the src Layer
+ */
+
+function wrappedValueFunc(valueFunc) {
+    return function ({sources, states, offset}) {
+        return valueFunc(states[0].value);
+    }
+}
+
+function wrappedStateFunc(stateFunc) {
+    return function ({sources, states, offset}) {
+        return stateFunc(states[0]);
+    }
+}
+
+function layer_transform(src, options={}) {
+
+    if (!(src instanceof Layer)) {
+        throw new Error(`src must be a Layer ${src}`);
+    }
+
+    const ops = {};
+    ops.valueFunc = wrappedValueFunc(options.valueFunc);
+    ops.stateFunc = wrappedStateFunc(options.stateFunc);
+
+    const layer = new Layer(ops);
+    layer.index = new NearbyIndexSrc(src);
+    layer.src = src;
+    layer.src.add_callback((eArg) => {layer.onchange(eArg);});
+    return layer;
+}
+
+function record_layer(ctrl, src, dst) {
+
+    // ctrl must be clock cursor or media cursor
+    if (
+        !is_clock_cursor(ctrl) &&
+        !is_clock_cursor(ctrl.ctrl)
+    ){
+        throw new Error(`ctrl or ctrl.ctrl must be a clock cursor ${ctrl}`);
+    }    
+
+    // src must be cursor with a segments layer as src
+    if (!(src instanceof Cursor)) {
+        throw new Error(`src must be a cursor ${src}`);
+    }
+    if (!is_items_layer(src.src)) {
+        throw new Error(`cursor src must be a segment layer ${src.src}`);
+    }
+
+    // dst must be segments layer
+    if (!is_items_layer(dst)) {
+        throw new Error(`dst must be a segment layer ${dst}`);
+    }
+
+    /**
+     * record stateProvider of cursor (src)
+     */
+    src.src.src.add_callback(on_src_change);
+
+    function on_src_change () {
+        // record timestamp
+        const ts = ctrl.value;
+        // get current items from stateProvider
+        const items = src.src.src.get();
+        // append items to dst
+        dst.append(items, ts);
+    }
+
+    /**
+     * TODO 
+     * - clock should be used as a record clock, implying that
+     *   items should be recoded according to this clock?
+     * - this implies sensitivity to a difference between 
+     *   cursor clock and record clock 
+     */
+
+
+    return dst;
+}
+
+/*
+    State Provider Viewer
+*/
+
+function item2string(item, options) {
+    // txt
+    const id_txt = item.id;
+    const type_txt = item.type;
+    let itv_txt = "";
+    if (item.itv != undefined) {
+        const [low, high, lowInclude, highInclude] = item.itv;
+        const low_txt = (low == null) ? "null" : low.toFixed(2);
+        const high_txt = (high == null) ? "null" : high.toFixed(2);
+        itv_txt = `[${low_txt},${high_txt},${lowInclude},${highInclude}]`; 
+    }
+    let data_txt = JSON.stringify(item.data);
+
+    // html
+    let id_html = `<span class="item-id">${id_txt}</span>`;
+    let itv_html = `<span class="item-itv">${itv_txt}</span>`;
+    let type_html = `<span class="item-type">${type_txt}</span>`;
+    let data_html = `<span class="item-data">${data_txt}</span>`;
+    
+    // delete Button
+    const {delete_allowed=false} = options;
+    if (delete_allowed) {
+        return `
+        <div>
+            <button id="delete">X</button>
+            ${id_html}: ${type_html} ${itv_html} ${data_html}
+        </div>`;
+    } else {
+        return `
+        <div>
+            ${id_html}: ${type_html} ${itv_html} ${data_html}
+        </div>`;        
+    }
+}
+
+
+class StateProviderViewer {
+
+    constructor(stateProvider, elem, options={}) {
+        this._sp = stateProvider;
+        this._elem = elem;
+        this._handle = this._sp.add_callback(this._onchange.bind(this)); 
+
+        // options
+        let defaults = {
+            toString:item2string
+        };
+        this._options = {...defaults, ...options};
+
+        /*
+            Support delete
+        */
+        if (this._options.delete_allowed) {
+            // listen for click events on root element
+            elem.addEventListener("click", (e) => {
+                // catch click event from delete button
+                const deleteBtn = e.target.closest("#delete");
+                if (deleteBtn) {
+                    const listItem = deleteBtn.closest(".list-item");
+                    if (listItem) {
+                        this._sp.update({remove:[listItem.id]});
+                        e.stopPropagation();
+                    }
+                }
+            });
+        }
+
+        /*
+            render initial state
+        */ 
+        this._onchange();
+    }
+
+    _onchange() {
+        const items = this._sp.get();
+
+        // sort by low endpoint
+        items.sort((item_a, item_b) => {
+            let lowEp_a = endpoint.from_interval(item_a.itv)[0];
+            let lowEp_b = endpoint.from_interval(item_b.itv)[0];
+            return endpoint.cmp(lowEp_a, lowEp_b);
+        });
+
+        // clear
+        this._elem.replaceChildren();
+        // rebuild
+        const {toString} = this._options;
+        for (let item of items) {
+            // add
+            let node = this._elem.querySelector(`#${item.id}`);
+            if (node == null) {
+                node = document.createElement("div");
+                node.setAttribute("id", item.id);
+                node.classList.add("list-item");
+                this._elem.appendChild(node);
+            }
+            node.innerHTML = toString(item, this._options);
+        }
+    }
+}
+
+// classes
+
+function viewer(stateProvider, elem, options={}) {
+    // create a new viewer
+    return new StateProviderViewer(stateProvider, elem, options);
+}
+
+/*********************************************************************
+    LAYER FACTORIES
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, ...opts} = options;
+    let {src, insert, value, ...opts} = options;
     if (src instanceof Layer) {
         return src;
-    } 
-    if (src == undefined) {
-        src = new LocalStateProvider(opts);
     }
-    return new InputLayer({src, ...opts}); 
+    if (src == undefined) {
+        if (value != undefined) {
+            src = new VariableProvider({value});
+        } else {
+            src = new CollectionProvider({insert});
+        }
+    }
+    return items_layer({src, ...opts}); 
 }
+
+function record (options={}) {
+    let {ctrl, src, dst, ...ops} = options;
+    ctrl = cursor(ctrl);
+    src = cursor(src);
+    dst = layer({dst:src, ...ops});
+    record_layer(ctrl, src, dst);
+    return dst;
+}
+
 
 /*********************************************************************
     CURSOR FACTORIES
 *********************************************************************/
 
-function cursor(options={}) {
-    const {ctrl, ...opts} = options;
-    const src = layer(opts);    
-    return new Cursor({ctrl, src});
+
+function cursor (src=LOCAL_CLOCK_PROVIDER) {
+    if (src instanceof Cursor) {
+        return src;
+    }
+    if (is_clock_cursor(src)) {
+        return src;
+    }
+    if (is_clock_provider(src)) {
+        return clock_cursor(src);
+    }
+    throw new Error(`src must be cursor, clockProvider or undefined ${src}`);
 }
 
-export { boolean, cmd, cursor, layer, logical_expr, logical_merge, merge, cursor as playback, shift, cursor as variable };
+function clock (src) {
+    return cursor(src);
+}
+
+function variable(options={}) {
+    let {ctrl, ...opts} = options;
+    ctrl = cursor(ctrl);
+    const src = layer(opts);
+    return variable_cursor(ctrl, src);
+}
+
+function playback(options={}) {
+    let {ctrl, ...opts} = options;
+    ctrl = cursor(ctrl);
+    const src = layer(opts);
+    return playback_cursor(ctrl, src);
+}
+
+function skew (src, offset) {
+    src = cursor(src);
+    function valueFunc(value) {
+        return value + offset;
+    } 
+    return cursor_transform(src, {valueFunc});
+}
+
+export { Cursor, Layer, NearbyIndexBase, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, record, skew, timeline_transform, variable, viewer };
