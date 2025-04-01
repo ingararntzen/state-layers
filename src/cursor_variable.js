@@ -39,7 +39,7 @@ const check_range = motion_utils.check_range;
  */
 
 
-export function variable_cursor(clock, src) {
+export function variable_cursor(ctrl, src) {
 
     const cursor = new Cursor();
 
@@ -51,16 +51,16 @@ export function variable_cursor(clock, src) {
     // setup src property
     srcprop.addState(cursor);
     srcprop.addMethods(cursor);
-    cursor.srcprop_register("clock");
+    cursor.srcprop_register("ctrl");
     cursor.srcprop_register("src");
 
     cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
-        if (propName == "clock") {
+        if (propName == "ctrl") {
             if (is_clock_provider(obj)) {
                 obj = clock_cursor(obj);
             }
             if (!is_clock_cursor(obj)) {
-                throw new Error(`"clock" property must be a clock cursor ${obj}`);
+                throw new Error(`"ctrl" property must be a clock cursor ${obj}`);
             }
             return obj;
         }
@@ -75,7 +75,7 @@ export function variable_cursor(clock, src) {
         }
     }
     cursor.srcprop_onchange = function (propName, eArg) {
-        if (cursor.src == undefined || cursor.clock == undefined) {
+        if (cursor.src == undefined || cursor.ctrl == undefined) {
             return;
         }
         if (propName == "src") {
@@ -85,23 +85,22 @@ export function variable_cursor(clock, src) {
                 src_cache.clear();                
             }
         }
-        // clock may change if clockProvider is reset - but
+        // ctrl may change if clockProvider is reset - but
         // this does not require any particular changes to the src cache        
         detect_future_event();
         cursor.onchange();
     }
 
     /**
-     * cursor.clock defines an active region of cursor.src (layer)
-     * at some point in the future, the cursor.clock will leave this region.
+     * cursor.ctrl defines an active region of cursor.src (layer)
+     * at some point in the future, the cursor.ctrl will leave this region.
      * in that moment, cursor should reevaluate its state - so we need to 
      * detect this event by timeout  
      */
 
     function detect_future_event() {
         if (tid) {tid.cancel();}
-        // clock 
-        const ts = cursor.clock.value;
+        const ts = cursor.ctrl.value;
         // nearby from src
         const nearby = cursor.src.index.nearby(ts);
         const region_high = nearby.itv[1] || Infinity;        
@@ -117,7 +116,7 @@ export function variable_cursor(clock, src) {
     }
 
     cursor.query = function query(local_ts) {
-        const offset = cursor.clock.query(local_ts).value;
+        const offset = cursor.ctrl.query(local_ts).value;
         return src_cache.query(offset);
     }
     
@@ -138,7 +137,7 @@ export function variable_cursor(clock, src) {
     }
     
     // initialize
-    cursor.clock = clock;
+    cursor.ctrl = ctrl;
     cursor.src = src;
     return cursor;
 }
@@ -209,7 +208,7 @@ function set_motion(cursor, vector={}) {
     const ctr = motion_utils.calculate_time_ranges;
     const time_ranges = ctr([p1,v1,a1,t1], range);
     // pick a time range which contains t1
-    const ts = cursor.clock.value;
+    const ts = cursor.ctrl.value;
 
     const time_range = time_ranges.find((tr) => {
         const low = tr[0] ?? -Infinity;
@@ -305,7 +304,7 @@ function set_transition(cursor, target, duration, easing) {
  */
 
 function set_interpolation(cursor, tuples, duration) {
-    const now = cursor.clock.value;
+    const now = cursor.ctrl.value;
     tuples = tuples.map(([v,t]) => {
         check_number("ts", t);
         check_number("val", v);
