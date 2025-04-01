@@ -22,17 +22,15 @@
 
         import * as sl from './libs/layers.es.js';
         import * as ss from './libs/sharedstate.es.js';
-
         // online variable
         const client = new ss.SharedStateClient("ws://0.0.0.0:9000");
-        client.connect();
-
         const online_offset = client.acquire_variable("/motion/items/vars", "offset");
-        sl.render_provider(online_offset, "#online-offset");
+        // local variable
+        const offset = sl.variable({src:online_offset, clock:client.clock});
+        sl.render_cursor(offset, "#offset", {delay:50, htmlFunc, novalue:0});
 
-        // variable
-        const offset = sl.variable({src:online_offset});
-        sl.render_cursor(offset, "#offset", {htmlFunc, novalue:0});
+        // render state provider
+        sl.render_provider(online_offset, "#online-offset");
 
         // button controls
         document.querySelector("#valueBtn").onclick = () => {
@@ -61,7 +59,6 @@
             ];
             offset.interpolate({tuples, duration:4});
         }
-
 </script>
 </head>
 <body>

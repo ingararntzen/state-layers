@@ -27,7 +27,7 @@
         // playout clock
         const playout_clock = sl.skew(live_clock, -2);
         // src variable
-        const variable = sl.variable({ctrl:live_clock, value:0});
+        const variable = sl.variable({clock:live_clock, value:0});
         // dst layer
         const layer = sl.record({src:variable, value:0});
         // playout variable

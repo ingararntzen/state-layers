@@ -14,8 +14,8 @@
         }
 
         import * as sl from './libs/layers.es.js';
-        const mc = sl.variable({value:0});
-        sl.render_cursor(mc, "#offset", {htmlFunc});
+        const mc = sl.variable();
+        sl.render_cursor(mc, "#offset", {htmlFunc, novalue:0});
         document.querySelector("#resetBtn").onclick = () => {
             mc.motion({position:0});
         }

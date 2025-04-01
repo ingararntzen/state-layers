@@ -85,9 +85,9 @@ function clock (src) {
 }
 
 function variable(options={}) {
-    let {ctrl, ...opts} = options;
+    let {clock, ...opts} = options;
     const src = layer(opts);
-    return variable_cursor(ctrl, src);
+    return variable_cursor(clock, src);
 }
 
 function playback(options={}) {

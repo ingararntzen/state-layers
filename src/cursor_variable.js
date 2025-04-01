@@ -14,20 +14,32 @@ const check_range = motion_utils.check_range;
  *****************************************************/
 
 /**
- * src is a layer or a stateProvider
- * ctrl is a clockCursor or a clockProvider
+ * "src" is a layer or a stateProvider
+ * "clock" is a clockCursor or a clockProvider
  * 
- * clockProvider is wrapped as clockCursor
- * to ensure that "ctrl" property of cursors is always a cursor
+ * - clockProvider is wrapped as clockCursor
+ * to ensure that "clock" property of cursors is always a cursor
  * 
- * stateProvider is wrapped as itemsLayer
+ * if no "clock" is provided - local clockProvider is used
+ * 
+ * - stateProvider is wrapped as itemsLayer
  * to ensure that "src" property of cursors is always a layer
- * additionally, this ensures that variable cursor can easily
+ * this also ensures that variable cursor can easily
  * support live recording, which depends on the nearbyindex of the layer.
  * 
  */
 
-export function variable_cursor(ctrl, src) {
+/**
+ * TODO - media control is a special case of variable cursors
+ * where src layer is number type and defined on the entire
+ * timeline. And protected agoinst other types of state
+ * Could perhaps make a special type of layer for this,
+ * and then make a special type of control cursor with
+ * the appropriate restriction on the src layer.
+ */
+
+
+export function variable_cursor(clock, src) {
 
     const cursor = new Cursor();
 
@@ -39,16 +51,16 @@ export function variable_cursor(ctrl, src) {
     // setup src property
     srcprop.addState(cursor);
     srcprop.addMethods(cursor);
-    cursor.srcprop_register("ctrl");
+    cursor.srcprop_register("clock");
     cursor.srcprop_register("src");
 
     cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
-        if (propName == "ctrl") {
+        if (propName == "clock") {
             if (is_clock_provider(obj)) {
                 obj = clock_cursor(obj);
             }
             if (!is_clock_cursor(obj)) {
-                throw new Error(`ctrl must be a clock cursor ${obj}`);
+                throw new Error(`"clock" property must be a clock cursor ${obj}`);
             }
             return obj;
         }
@@ -57,13 +69,13 @@ export function variable_cursor(ctrl, src) {
                 obj = items_layer({src:obj});
             }
             if (!is_items_layer(obj)) {
-                throw new Error(`src must be an item layer ${obj}`);
+                throw new Error(`"src" property must be an item layer ${obj}`);
             }
             return obj;
         }
     }
     cursor.srcprop_onchange = function (propName, eArg) {
-        if (cursor.src == undefined || cursor.ctrl == undefined) {
+        if (cursor.src == undefined || cursor.clock == undefined) {
             return;
         }
         if (propName == "src") {
@@ -73,21 +85,23 @@ export function variable_cursor(ctrl, src) {
                 src_cache.clear();                
             }
         }
+        // clock may change if clockProvider is reset - but
+        // this does not require any particular changes to the src cache        
         detect_future_event();
         cursor.onchange();
     }
 
     /**
-     * cursor.ctrl (clock) defines an active region of cursor.src (layer)
-     * at some point in the future, the cursor.ctrl will leave this region.
+     * cursor.clock defines an active region of cursor.src (layer)
+     * at some point in the future, the cursor.clock will leave this region.
      * in that moment, cursor should reevaluate its state - so we need to 
      * detect this event by timeout  
      */
 
     function detect_future_event() {
         if (tid) {tid.cancel();}
-        // ctrl 
-        const ts = cursor.ctrl.value;
+        // clock 
+        const ts = cursor.clock.value;
         // nearby from src
         const nearby = cursor.src.index.nearby(ts);
         const region_high = nearby.itv[1] || Infinity;        
@@ -103,7 +117,7 @@ export function variable_cursor(ctrl, src) {
     }
 
     cursor.query = function query(local_ts) {
-        const offset = cursor.ctrl.query(local_ts).value;
+        const offset = cursor.clock.query(local_ts).value;
         return src_cache.query(offset);
     }
     
@@ -124,7 +138,7 @@ export function variable_cursor(ctrl, src) {
     }
     
     // initialize
-    cursor.ctrl = ctrl;
+    cursor.clock = clock;
     cursor.src = src;
     return cursor;
 }
@@ -195,7 +209,7 @@ function set_motion(cursor, vector={}) {
     const ctr = motion_utils.calculate_time_ranges;
     const time_ranges = ctr([p1,v1,a1,t1], range);
     // pick a time range which contains t1
-    const ts = cursor.ctrl.value;
+    const ts = cursor.clock.value;
 
     const time_range = time_ranges.find((tr) => {
         const low = tr[0] ?? -Infinity;
@@ -291,7 +305,7 @@ function set_transition(cursor, target, duration, easing) {
  */
 
 function set_interpolation(cursor, tuples, duration) {
-    const now = cursor.ctrl.value;
+    const now = cursor.clock.value;
     tuples = tuples.map(([v,t]) => {
         check_number("ts", t);
         check_number("val", v);
