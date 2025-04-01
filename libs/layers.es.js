@@ -1,5 +1,3 @@
-
-(function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
 /*
     
     INTERVAL ENDPOINTS
@@ -2062,7 +2060,6 @@ class VariableProvider {
     constructor(options={}) {
         addState$1(this);
         this._items = [];
-
         // initialize
         const {value} = options;
         if (value != undefined) {
@@ -2610,7 +2607,7 @@ class NearbyIndex extends NearbyIndexBase {
 		let remove_items = [];
 
 		if (diffs == undefined) {
-			insert_items = this.src.get();		
+			insert_items = this.src.get() || [];
 			// clear all state
 			this._initialise();
 		} else {
@@ -2630,7 +2627,6 @@ class NearbyIndex extends NearbyIndexBase {
 			where they were registered (LOW, ACTIVE, HIGH) 
 		*/
 		for (const item of remove_items) {			
-			this._endpoints.lookup(item.itv);
 			for (const ep of this._endpoints.lookup(item.itv)) {
 				// TODO: check if this is correct
 				const became_empty = this._itemsmap.unregister(ep, item);
@@ -3088,13 +3084,16 @@ function items_layer(options={}) {
 */
 
 class ItemsLayerCache {
-    constructor(layer) {
+    constructor(layer, options={}) {
         // layer
         this._layer = layer;
         // cached nearby object
         this._nearby = undefined;
         // cached segment
         this._segment = undefined;
+        // default value
+        this._options = options;
+
     }
 
     get src() {return this._layer};
@@ -3118,7 +3117,7 @@ class ItemsLayerCache {
             return seg.query(offset);
         });
         // calculate single result state
-        return toState$1(this._segments, states, offset, this._layer.options)
+        return toState$1(this._segments, states, offset, this._layer.options);
     }
 
     clear() {
@@ -3133,6 +3132,14 @@ class ItemsLayerCache {
 /*********************************************************************
     LAYER UPDATE
 *********************************************************************/
+
+/**
+ * NOTE - layer update is essentially about stateProvider update.
+ * so these methods could (for the most part) be moved to the provider.
+ * However, update_append benefits from using the index of the layer,
+ * so we keep it here for now. 
+ */
+
 
 /*
     Items Layer forwards update to stateProvider
@@ -3149,7 +3156,7 @@ function layer_update(layer, changes={}) {
         if (reset) {
             return layer.src.set(insert);
         } else {
-            const map = new Map(layer.src.get()
+            const map = new Map((layer.src.get() || [])
                 .map((item) => [item.id, item]));
             // remove
             remove.forEach((id) => map.delete(id));
@@ -3254,8 +3261,7 @@ function is_clock_cursor(obj) {
     return obj instanceof Cursor && obj.ctrl == undefined && obj.src == undefined; 
 }
 
-function clock_cursor(src) {
-
+function clock_cursor(src=LOCAL_CLOCK_PROVIDER) {
     if (!is_clock_provider(src)) {
         throw new Error(`src must be clockProvider ${src}`);
     }
@@ -3273,6 +3279,32 @@ const check_range = motion_utils.check_range;
  * VARIABLE CURSOR
  *****************************************************/
 
+/**
+ * "src" is a layer or a stateProvider
+ * "clock" is a clockCursor or a clockProvider
+ * 
+ * - clockProvider is wrapped as clockCursor
+ * to ensure that "clock" property of cursors is always a cursor
+ * 
+ * if no "clock" is provided - local clockProvider is used
+ * 
+ * - stateProvider is wrapped as itemsLayer
+ * to ensure that "src" property of cursors is always a layer
+ * this also ensures that variable cursor can easily
+ * support live recording, which depends on the nearbyindex of the layer.
+ * 
+ */
+
+/**
+ * TODO - media control is a special case of variable cursors
+ * where src layer is number type and defined on the entire
+ * timeline. And protected agoinst other types of state
+ * Could perhaps make a special type of layer for this,
+ * and then make a special type of control cursor with
+ * the appropriate restriction on the src layer.
+ */
+
+
 function variable_cursor(ctrl, src) {
 
     const cursor = new Cursor();
@@ -3288,17 +3320,22 @@ function variable_cursor(ctrl, src) {
     cursor.srcprop_register("ctrl");
     cursor.srcprop_register("src");
 
-    cursor.srcprop_check = function (propName, obj) {
-
+    cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
         if (propName == "ctrl") {
+            if (is_clock_provider(obj)) {
+                obj = clock_cursor(obj);
+            }
             if (!is_clock_cursor(obj)) {
-                throw new Error(`ctrl must be a clock cursor ${obj}`);
+                throw new Error(`"ctrl" property must be a clock cursor ${obj}`);
             }
             return obj;
         }
         if (propName == "src") {
+            if (is_collection_provider(obj) || is_variable_provider(obj)) {
+                obj = items_layer({src:obj});
+            }
             if (!is_items_layer(obj)) {
-                throw new Error(`src must be an item layer ${obj}`);
+                throw new Error(`"src" property must be an item layer ${obj}`);
             }
             return obj;
         }
@@ -3314,12 +3351,14 @@ function variable_cursor(ctrl, src) {
                 src_cache.clear();                
             }
         }
+        // ctrl may change if clockProvider is reset - but
+        // this does not require any particular changes to the src cache        
         detect_future_event();
         cursor.onchange();
     };
 
     /**
-     * cursor.ctrl (clock) defines an active region of cursor.src (layer)
+     * cursor.ctrl defines an active region of cursor.src (layer)
      * at some point in the future, the cursor.ctrl will leave this region.
      * in that moment, cursor should reevaluate its state - so we need to 
      * detect this event by timeout  
@@ -3327,7 +3366,6 @@ function variable_cursor(ctrl, src) {
 
     function detect_future_event() {
         if (tid) {tid.cancel();}
-        // ctrl 
         const ts = cursor.ctrl.value;
         // nearby from src
         const nearby = cursor.src.index.nearby(ts);
@@ -3542,16 +3580,19 @@ function set_interpolation(cursor, tuples, duration) {
     const [v1, t1] = tuples[tuples.length-1];
     const items = [
         {
+            id: random_string(10),
             itv: [-Infinity, t0, true, false],
             type: "static",
             data: v0
         },
         {
+            id: random_string(10),
             itv: [t0, t1, true, false],
             type: "interpolation",
             data: tuples
         },
         {
+            id: random_string(10),
             itv: [t1, Infinity, true, true],
             type: "static",
             data: v1
@@ -3560,24 +3601,20 @@ function set_interpolation(cursor, tuples, duration) {
     return cursor.src.update({insert:items, reset:true});
 }
 
-
-/**
- * TODO: support alternative update for state recording.
- * This effectively means that recording is a 
- * bultin feature of the variable cursor. Could be enabled by option.
- * To calcultate the new state, need to truncate existing state
- * and append new items. Index support for the provider would be needed,
- * so that we can clear all state in interval [ts, null], 
- * and then append new items to the same interval. Would also need to
- * forward a ts from each of the update methods.
- * 
- * Check out some similar code from State Trajectory 
- * 
- */
-
 /*****************************************************
  * PLAYBACK CURSOR
  *****************************************************/
+
+/**
+ * src is a layer or a stateProvider
+ * ctrl is a cursor or a clockProvider
+ * 
+ * clockProvider is wrapped as clockCursor
+ * to ensure that "ctrl" property of cursors is always a cursor
+ * 
+ * stateProvider is wrapped as itemsLayer
+ * to ensure that "src" property of cursors is always a layer
+ */
 
 function playback_cursor(ctrl, src) {
 
@@ -3599,8 +3636,11 @@ function playback_cursor(ctrl, src) {
     /**
      * src property initialization check
      */
-    cursor.srcprop_check = function (propName, obj) {
+    cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
         if (propName == "ctrl") {
+            if (is_clock_provider(obj)) {
+                obj = clock_cursor(obj);
+            }
             if (obj instanceof Cursor) {
                 return obj
             } else {
@@ -3608,6 +3648,9 @@ function playback_cursor(ctrl, src) {
             }
         }
         if (propName == "src") {
+            if (is_collection_provider(obj) || is_variable_provider(obj)) {
+                obj = items_layer({src:obj});
+            }
             if (obj instanceof Layer) {
                 return obj;
             } else {
@@ -4382,8 +4425,11 @@ function layer_transform(src, options={}) {
     return layer;
 }
 
-function record_layer(ctrl, src, dst) {
+function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
 
+    if (is_clock_provider(ctrl)) {
+        ctrl = clock_cursor(ctrl);
+    }
     // ctrl must be clock cursor or media cursor
     if (
         !is_clock_cursor(ctrl) &&
@@ -4509,7 +4555,7 @@ class StateProviderViewer {
     }
 
     _onchange() {
-        const items = this._sp.get();
+        const items = this._sp.get() || [];
 
         // sort by low endpoint
         items.sort((item_a, item_b) => {
@@ -4538,10 +4584,27 @@ class StateProviderViewer {
 
 // classes
 
-function viewer(stateProvider, elem, options={}) {
-    // create a new viewer
-    return new StateProviderViewer(stateProvider, elem, options);
+function render_provider(stateProvider, selector, options={}) {
+    const elems = document.querySelector(selector);
+    return new StateProviderViewer(stateProvider, elems, options);
 }
+
+function render_cursor (cursor, selector, options={}) {
+    const {delay=200, htmlFunc, novalue} = options;
+    const elems = document.querySelector(selector);
+    function render(state) {
+        if (state.value == undefined && novalue != undefined) {
+            state.value = novalue;
+        }
+        if (htmlFunc != undefined) {
+            elems.innerHTML = htmlFunc(state, elems);
+        } else {
+            elems.innerHTML = (state.value != undefined) ? `${state.value}` : "";
+        }
+    }
+    return cursor.bind(render, delay);
+}
+
 
 /*********************************************************************
     LAYER FACTORIES
@@ -4563,57 +4626,37 @@ function layer(options={}) {
 }
 
 function record (options={}) {
-    let {ctrl, src, dst, ...ops} = options;
-    ctrl = cursor(ctrl);
-    src = cursor(src);
+    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst, ...ops} = options;
     dst = layer({dst:src, ...ops});
     record_layer(ctrl, src, dst);
     return dst;
 }
 
-
 /*********************************************************************
     CURSOR FACTORIES
 *********************************************************************/
 
-
-function cursor (src=LOCAL_CLOCK_PROVIDER) {
-    if (src instanceof Cursor) {
-        return src;
-    }
-    if (is_clock_cursor(src)) {
-        return src;
-    }
-    if (is_clock_provider(src)) {
-        return clock_cursor(src);
-    }
-    throw new Error(`src must be cursor, clockProvider or undefined ${src}`);
-}
-
 function clock (src) {
-    return cursor(src);
+    return clock_cursor(src);
 }
 
 function variable(options={}) {
-    let {ctrl, ...opts} = options;
-    ctrl = cursor(ctrl);
+    let {clock, ...opts} = options;
     const src = layer(opts);
-    return variable_cursor(ctrl, src);
+    return variable_cursor(clock, src);
 }
 
 function playback(options={}) {
     let {ctrl, ...opts} = options;
-    ctrl = cursor(ctrl);
     const src = layer(opts);
     return playback_cursor(ctrl, src);
 }
 
 function skew (src, offset) {
-    src = cursor(src);
     function valueFunc(value) {
         return value + offset;
     } 
     return cursor_transform(src, {valueFunc});
 }
 
-export { Cursor, Layer, NearbyIndexBase, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, record, skew, timeline_transform, variable, viewer };
+export { Cursor, Layer, NearbyIndexBase, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, record, render_cursor, render_provider, skew, timeline_transform, variable };
