@@ -209,14 +209,10 @@ function layer_update(layer, changes={}) {
  * old items will be kept for t < offset
  * 
  * 
- * TODO - not safe for repeting state
- * 
  */
 function layer_append(layer, items, offset) {
     const ep = endpoint.from_input(offset);
     
-    // console.log("all items", items.length);
-
     // truncate or remove new items before offset
     const insert_items = items
         .filter((item) => {
@@ -234,7 +230,7 @@ function layer_append(layer, items, offset) {
             return item;
         });
     
-    // console.log("insert", insert_items.length);
+    // console.log("insert", insert_items);
 
     // truncate pre-existing items overlapping offset
     const modify_items = layer.index.nearby(offset).center.map((item) => {
@@ -243,9 +239,9 @@ function layer_append(layer, items, offset) {
         return new_item;
     });
     
-    // console.log("modify", modify_items.length);
+    // console.log("modify", modify_items);
 
-    //remove pre-existing items where itv.low > offset
+    // remove pre-existing future - items covering itv.low > offset
     const remove = layer.src.get()
         .filter((item) => {
             const lowEp = endpoint.from_interval(item.itv)[0];
@@ -255,7 +251,7 @@ function layer_append(layer, items, offset) {
             return item.id;
         });
 
-    // console.log("remove", remove.length);
+    // console.log("remove", remove);
 
     // layer update
     const insert = [...modify_items, ...insert_items];

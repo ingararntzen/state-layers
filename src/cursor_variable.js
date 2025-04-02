@@ -152,12 +152,15 @@ export function variable_cursor(ctrl, src) {
  */
 
 function set_value(cursor, value) {
-    const items = [{
-        id: random_string(10),
-        itv: [null, null, true, true],
-        type: "static",
-        data: value                 
-    }];
+    let items = [];
+    if (value != undefined) {
+        items = [{
+            id: random_string(10),
+            itv: [null, null, true, true],
+            type: "static",
+            data: value                 
+        }];
+    }
     return cursor.src.update({insert:items, reset:true});
 }
 

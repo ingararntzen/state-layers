@@ -34,19 +34,19 @@ function render_provider(stateProvider, selector, options={}) {
 }
 
 function render_cursor (cursor, selector, options={}) {
-    const {delay=200, htmlFunc, novalue} = options;
+    const {delay=200, render, novalue} = options;
     const elems = document.querySelector(selector);
-    function render(state) {
+    function _render(state) {
         if (state.value == undefined && novalue != undefined) {
             state.value = novalue;
         }
-        if (htmlFunc != undefined) {
-            elems.innerHTML = htmlFunc(state, elems);
+        if (render != undefined) {
+            render(state, elems);
         } else {
-            elems.innerHTML = (state.value != undefined) ? `${state.value}` : "";
+            elems.textContent = (state.value != undefined) ? `${state.value}` : "";
         }
     }
-    return cursor.bind(render, delay);
+    return cursor.bind(_render, delay);
 }
 
 

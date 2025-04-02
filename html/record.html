@@ -10,96 +10,198 @@
         .item-type {color: purple;}
         .item-data {color: blue;}
         .cursor {color: red; font-weight: bold;}
+        .smallbox {
+            display: inline-block;
+            height: 15px;
+            width: 15px;
+            border: 1px solid black;
+        }
+        .bigbox {
+            display: inline-block;
+            height: 55px;
+            width: 55px;
+            border: 1px solid black;
+        }
     </style>
     <script type="module">
 
-        function getRandomInt(max) {
-          return Math.floor(Math.random() * max);
+        function renderNumber({value}, elem) {
+            elem.textContent = (typeof value == 'number') ? value.toFixed(2) : "NaN";
         }
-        function htmlFunc({value}) {
-            return (value != undefined) ? `${value.toFixed(2)}` : "";
+        function renderColor({value}, elem) {
+            elem.style.backgroundColor = value;
         }
+        function renderOffset({offset}, elem) {
+            elem.textContent = offset.toFixed(2);
+        }
+
 
         import * as sl from './libs/layers.es.js';
 
-        // live clock
-        const live_clock = sl.clock();
-        // playout clock
-        const playout_clock = sl.skew(live_clock, -2);
-        // src variable
-        const variable = sl.variable({ctrl:live_clock, value:0});
-        // dst layer
-        const layer = sl.record({src:variable, value:0});
-        // playout variable
-        const playout_variable = sl.playback({ctrl:playout_clock, src:layer});
+        // record src cursor
+        const record_src = sl.variable();
+        // record ctrl cursor
+        const record_ctrl = sl.variable({value:0});
+        // record dst layer
+        const record_dst = sl.record({src:record_src, ctrl:record_ctrl});
+        // playback ctrl cursor
+        const playback_ctrl = sl.variable({value:0});
+        // playback 
+        const playback_color = sl.playback({ctrl:playback_ctrl, src:record_dst})
 
-        sl.render_cursor(variable, "#variable", {htmlFunc});
-        sl.render_cursor(playout_variable, "#playout-variable", {htmlFunc});
-        
-        document.querySelector("#valueBtn").onclick = () => {
-            variable.set(getRandomInt(10))
-        }
-        document.querySelector("#resetBtn").onclick = () => {
-            variable.set(0);
-        }
-        document.querySelector("#playBtn").onclick = () => {
-            variable.motion({velocity:1, range:[-10, 10]});
-        }
-        document.querySelector("#pauseBtn").onclick = () => {
-            variable.motion({velocity:0});
-        }
-        document.querySelector("#transBtn").onclick = () => {
-            variable.transition({target:4, duration:4});
-        }
-        document.querySelector("#interpolateBtn").onclick = () => {
-            const tuples = [
-                [4.0, 0.0],
-                [4.8, 0.2],
-                [5.2, 0.4],
-                [5.3, 0.6],
-                [4.7, 0.8],
-                [4.2, 1.0]
-            ];
-            variable.interpolate({tuples, duration:4});
-        }
 
-        // playout state
-        const viewer = sl.render_provider(layer.src, "#playout-state");
+        /**
+         * RECORD SRC (COLOR)
+         * */
+        function set_color(variable, color) {
+            const _color = variable.get();
+            variable.set((color != _color) ? color : undefined);
+        }
+        document.querySelector("#record-src-blackBtn").onclick = () => {
+            set_color(record_src, "black");
+        }
+        document.querySelector("#record-src-redBtn").onclick = () => {
+            set_color(record_src, "red");
+        }
+        document.querySelector("#record-src-greenBtn").onclick = () => {
+            set_color(record_src, "green");
+        }
+        document.querySelector("#record-src-purpleBtn").onclick = () => {
+            set_color(record_src, "purple");
+        }
+        document.querySelector("#record-src-grayBtn").onclick = () => {
+            set_color(record_src, "gray");
+        }
+        document.querySelector("#record-src-blueBtn").onclick = () => {
+            set_color(record_src, "blue");
+        }
+        document.querySelector("#record-src-pinkBtn").onclick = () => {
+            set_color(record_src, "pink");
+        }
+        sl.render_cursor(record_src, "#record-src-text", {render:renderOffset});
+        const record_src_box = document.querySelector("#record-src-box");
+        record_src.on("change", function({value}) {
+            record_src_box.style.backgroundColor = (value != undefined) ? value : "";
+        });
+
+
+        /**
+         * RECORD CONTROLS
+         * */        
+        document.querySelector("#record-ctrl-startBtn").onclick = () => {
+            record_ctrl.motion({velocity:1});
+        }
+        document.querySelector("#record-ctrl-stopBtn").onclick = () => {
+            record_ctrl.motion({velocity:0});
+        }
+        document.querySelector("#record-ctrl-rewindBtn").onclick = () => {
+            record_ctrl.set(0);
+        }
+        document.querySelector("#record-ctrl-backBtn").onclick = () => {
+            record_ctrl.set(record_ctrl.get() - 5);
+        }
+        document.querySelector("#record-ctrl-aheadBtn").onclick = () => {
+            record_ctrl.set(record_ctrl.get() + 5);
+        }
+        sl.render_cursor(record_ctrl, "#record-ctrl-text", {render:renderNumber});
+        const record_ctrl_box = document.querySelector("#record-ctrl-box");
+        record_ctrl.on("change", function({dynamic}) {
+            record_ctrl_box.style.backgroundColor = (dynamic) ? "red" : "";
+        });
+
+
+        /**
+         * PLAYBACK CONTROLS
+         * */        
+        document.querySelector("#playback-ctrl-startBtn").onclick = () => {
+            playback_ctrl.motion({velocity:1});
+        }
+        document.querySelector("#playback-ctrl-stopBtn").onclick = () => {
+            playback_ctrl.motion({velocity:0});
+        }
+        document.querySelector("#playback-ctrl-rewindBtn").onclick = () => {
+            playback_ctrl.set(0);
+        }
+        document.querySelector("#playback-ctrl-backBtn").onclick = () => {
+            playback_ctrl.set(playback_ctrl.get() - 5);
+        }
+        document.querySelector("#playback-ctrl-aheadBtn").onclick = () => {
+            playback_ctrl.set(playback_ctrl.get() + 5);
+        }
+        sl.render_cursor(playback_ctrl, "#playback-ctrl-text", {render:renderNumber});
+        const playback_ctrl_box = document.querySelector("#playback-ctrl-box");
+        playback_color.on("change", function({value}) {
+            playback_ctrl_box.style.backgroundColor = (value != undefined) ? value : "";
+        });
+
+
+        // recorded state
+        sl.render_provider(record_dst.src, "#record-state");
 
 </script>
 </head>
 <body>
     <h1>Hello, Record!</h1>
 
+    <!-- RECORD SRC COLORS-->
+    <h3>SRC </h3>
+    <p>
+        <div class="smallbox" id="record-src-box"></div>
+        <span id="record-src-text"></span>
+    </p>
+    <p>
+        <button id="record-src-blackBtn">Black</button>
+        <button id="record-src-redBtn">Red</button>
+        <button id="record-src-greenBtn">Green</button>
+        <button id="record-src-purpleBtn">Purple</button>
+        <button id="record-src-grayBtn">Gray</button>
+        <button id="record-src-blueBtn">Blue</button>
+        <button id="record-src-pinkBtn">Pink</button>
+    </p>
+
+    <!-- RECORD CTRL -->
+    <h3>RECORD CTRL </h3>
     <p>
         <div>
-            <span>Live Variable: </span>
-            <span class="cursor" id="variable"></span>
+            <span class="smallbox" id="record-ctrl-box"></span>
+            <span id="record-ctrl-text"></span>
+        </div>
+    </p>
+    <p>
+        <button id="record-ctrl-startBtn">Record</button>
+        <button id="record-ctrl-stopBtn">Stop</button>
+        <button id="record-ctrl-rewindBtn">Rewind</button>
+        <button id="record-ctrl-backBtn">-5</button>
+        <button id="record-ctrl-aheadBtn">+5</button>
+    </p>
+
+
+    <!-- PLAYBACK CTRL -->
+    <h3>PLAYBACK</h3>
+    <p>
+        <div class="smallbox" id="playback-ctrl-box"></div>
+        <span id="playback-ctrl-text"></span>
+    </p>
+    <h3>PLAYBACK CTRL</h3>
+    <p>
+        <button id="playback-ctrl-startBtn">Play</button>
+        <button id="playback-ctrl-stopBtn">Pause</button>
+        <button id="playback-ctrl-rewindBtn">Rewind</button>
+        <button id="playback-ctrl-backBtn">-5</button>
+        <button id="playback-ctrl-aheadBtn">+5</button>
+    </p>
+    
+
+    <!-- RECORD DST -->
+    <h3>RECORDED STATE </h3>
+    <p>
+        <div>
+            <span id="record-state"></span>
         </div>
     </p>
 
-    <p>
-        <button id="valueBtn">SetValue</button>
-        <button id="resetBtn">Reset</button>
-        <button id="playBtn">Play</button>
-        <button id="pauseBtn">Pause</button>
-        <button id="transBtn">Transition</button>
-        <button id="interpolateBtn">Interpolate</button>
-    </p>
 
-    <p>
-        <div>
-            <span>Timeshifted Playback </span>
-            <span class="cursor" id="playout-variable"></span>
-        </div>
-    </p>
 
-    <p>
-        <div>
-            <span>Recorded State </span>
-            <span id="playout-state"></span>
-        </div>
-    </p>
 
 
 </body>
