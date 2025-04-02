@@ -21,6 +21,29 @@ export function check_number(name, obj) {
         throw new Error(`${name} must be finite number ${obj}`);
     }
 }
+
+/**
+ * convenience function to render a cursor 
+ */
+export function render_cursor (cursor, selector, options={}) {
+    const {delay=200, render, novalue} = options;
+    const elems = document.querySelector(selector);
+    function _render(state) {
+        if (state.value == undefined && novalue != undefined) {
+            state.value = novalue;
+        }
+        if (render != undefined) {
+            render(state, elems);
+        } else {
+            elems.textContent = (state.value != undefined) ? `${state.value}` : "";
+        }
+    }
+    return cursor.bind(_render, delay);
+}
+
+
+
+
 /*
     similar to range function in python
 */

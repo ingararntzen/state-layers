@@ -5,7 +5,7 @@ import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "../provider_clock.js";
 import { local_clock } from "../util/common.js";
 
 /**
- * record cursor into layer
+ * recorder for cursor into layer
  * 
  *   MAIN IDEA
  * - record the current value of a cursor (src) into a layer (dst)
@@ -53,8 +53,7 @@ import { local_clock } from "../util/common.js";
  */
 
 
-
-export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
+export function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
 
     // check - ctrl 
     if (is_clock_provider(ctrl)) {
@@ -89,6 +88,31 @@ export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
     if (src_stateProvider === dst_stateProvider) {
         throw new Error(`src and dst can not have the same stateProvider`);
     }
+
+
+    /**
+     * turn this around?
+     * have start and stop recording
+     * methods direct the control?
+     * 
+     * recording with live clock requires
+     * start and stop methods
+     * 
+     * what about a media clock ?
+     * should be a media clock that can only move forward
+     * it actually makes sense to be in record mode even if mediaclock is paused
+     * because recording only happens on state change
+     * paused means you overwrite on the same spot
+     * skipping back while in record mode - should that trigger write current
+     * state longer back
+     * 
+     * skipping always exit record mode
+     * record mode always starts
+     * media control may be controlled externally
+     * 
+     * split between a live and a media clock recorder?
+     * 
+     */
 
 
 
@@ -166,13 +190,11 @@ export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
         // re-encode items in dst timeframe, if needed
         const offset = dst_offset - src_offset;
         if (offset != 0) {
-            console.log("timeshift");
             const dst_items = src_items.map((item) => {
                 return timeshift_item(item, offset);
             });
             dst.append(dst_items, dst_offset);
         } else {
-            console.log("no timeshift");
             dst.append(src_items, src_offset);
         }        
     }
@@ -181,7 +203,7 @@ export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
     src_stateProvider.add_callback(on_src_change);
     ctrl.add_callback(on_ctrl_change);
     on_ctrl_change();
-    return dst;
+    return {};
 }
 
 
@@ -192,6 +214,9 @@ function timeshift_item (item, offset) {
     item = {...item};
     item.itv[0] = (item.itv[0] != null) ? item.itv[0] + offset : null;
     item.itv[1] = (item.itv[1] != null) ? item.itv[1] + offset : null;
+    // TODO - perhaps change implementation of motion and transition segment
+    // to use timestamps relative to the start of the segment,
+    // similar to interpolation?
     if (item.type == "motion") {
         item.data.timestamp = item.data.timestamp + offset;
     } else if (item.type == "transition") {

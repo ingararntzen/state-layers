@@ -104,3 +104,9 @@ export class StateProviderViewer {
         }
     }
 }
+
+
+export function render_provider(stateProvider, selector, options={}) {
+    const elems = document.querySelector(selector);
+    return new StateProviderViewer(stateProvider, elems, options);
+}

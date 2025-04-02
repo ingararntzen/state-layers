@@ -21,33 +21,12 @@ import { boolean_layer } from "./ops/boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
 import { timeline_transform } from "./ops/timeline_transform.js";
 import { cursor_transform, layer_transform } from "./ops/transform.js";
-import { record_layer } from "./ops/record.js";
+import { layer_recorder } from "./ops/recorder.js";
 
 
 // util
-import { local_clock } from "./util/common.js";
-import { StateProviderViewer } from "./util/provider_viewer.js";
-
-function render_provider(stateProvider, selector, options={}) {
-    const elems = document.querySelector(selector);
-    return new StateProviderViewer(stateProvider, elems, options);
-}
-
-function render_cursor (cursor, selector, options={}) {
-    const {delay=200, render, novalue} = options;
-    const elems = document.querySelector(selector);
-    function _render(state) {
-        if (state.value == undefined && novalue != undefined) {
-            state.value = novalue;
-        }
-        if (render != undefined) {
-            render(state, elems);
-        } else {
-            elems.textContent = (state.value != undefined) ? `${state.value}` : "";
-        }
-    }
-    return cursor.bind(_render, delay);
-}
+import { local_clock, render_cursor } from "./util/common.js";
+import { render_provider } from "./util/provider_viewer.js";
 
 
 /*********************************************************************
@@ -69,11 +48,9 @@ function layer(options={}) {
     return items_layer({src, ...opts}); 
 }
 
-function record (options={}) {
-    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst, ...ops} = options;
-    dst = layer({dst:src, ...ops});
-    record_layer(ctrl, src, dst);
-    return dst;
+function recorder (options={}) {
+    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst} = options;
+    return layer_recorder(ctrl, src, dst);
 }
 
 /*********************************************************************
@@ -122,7 +99,7 @@ export {
     layer_transform,
     cursor_transform,
     timeline_transform,
-    record,
+    recorder,
     skew,
     render_provider,
     render_cursor,

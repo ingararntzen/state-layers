@@ -43,7 +43,11 @@
         // record ctrl cursor
         const record_ctrl = sl.variable({value:0});
         // record dst layer
-        const record_dst = sl.record({src:live_src, ctrl:record_ctrl});
+        const record_dst = sl.layer();
+        // recorder
+        const recorder = sl.recorder({
+            src:live_src, ctrl:record_ctrl, dst:record_dst
+        });
         // playback ctrl cursor
         const playback_ctrl = sl.variable({value:0});
         // playback 
@@ -141,7 +145,7 @@
 </script>
 </head>
 <body>
-    <h1>Hello, Record!</h1>
+    <h1>Hello, Recorder!</h1>
 
     <!-- LIVE SRC COLORS-->
     <h3>SRC </h3>

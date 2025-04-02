@@ -46,7 +46,10 @@
         // record ctrl
         const record_clock = sl.clock();
         // record dst layer
-        const record_layer = sl.record({src:src_live, ctrl:record_clock});
+        const record_layer = sl.layer();
+        const recorder = sl.recorder({
+            src:src_live, ctrl:record_clock, dst:record_layer
+        });
         // playback ctrl
         const playback_clock = sl.skew(record_clock, -2);
         // playback 

@@ -39,7 +39,7 @@ const check_range = motion_utils.check_range;
  */
 
 
-export function variable_cursor(ctrl, src) {
+export function variable_cursor(ctrl, src, options={}) {
 
     const cursor = new Cursor();
 
@@ -137,6 +137,7 @@ export function variable_cursor(ctrl, src) {
     }
     
     // initialize
+    cursor.options = options;
     cursor.ctrl = ctrl;
     cursor.src = src;
     return cursor;
@@ -161,7 +162,7 @@ function set_value(cursor, value) {
             data: value                 
         }];
     }
-    return cursor.src.update({insert:items, reset:true});
+    return cursor_update (cursor, items);
 }
 
 /**
@@ -260,7 +261,7 @@ function set_motion(cursor, vector={}) {
             data: val
         });
     }
-    return cursor.src.update({insert:items, reset:true});
+    return cursor_update (cursor, items);
 }
 
 /**
@@ -295,7 +296,7 @@ function set_transition(cursor, target, duration, easing) {
             data: v1
         }
     ]
-    return cursor.src.update({insert:items, reset:true});
+    return cursor_update (cursor, items);
 }
 
 /**
@@ -335,5 +336,15 @@ function set_interpolation(cursor, tuples, duration) {
             data: v1
         }
     ]
-    return cursor.src.update({insert:items, reset:true});
+    return cursor_update (cursor, items);
+}
+
+
+function cursor_update(cursor, items) {
+    const {record=false} = cursor.options;
+    if (record) {
+        return cursor.src.append(items, cursor.ctrl.value);
+    } else {
+        return cursor.src.update({insert:items, reset:true});
+    }
 }
