@@ -90,6 +90,8 @@ export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
         throw new Error(`src and dst can not have the same stateProvider`);
     }
 
+
+
     // internal state
     let is_recording = false;
 
@@ -133,10 +135,12 @@ export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
      * record
      */
     function start_recording() {
+        console.log("start recording")
         record();
     }
 
     function stop_recording() {
+        console.log("stop recording")
         // close last item
         const ts = local_clock.now();
         const dst_offset = ctrl.query(ts).value;
@@ -153,23 +157,30 @@ export function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
     }
 
     function record() {
+        console.log("record")
         const ts = local_clock.now();
         const src_offset = src.query(ts).offset;
         const dst_offset = ctrl.query(ts).value;
         // get current src items
         let src_items = src_stateProvider.get();
-        // re-encode items in dst timeframe
+        // re-encode items in dst timeframe, if needed
         const offset = dst_offset - src_offset;
-        const dst_items = src_items.map((item) => {
-            return timeshift_item(item, offset);
-        });
-        dst.append(dst_items, dst_offset);
+        if (offset != 0) {
+            console.log("timeshift");
+            const dst_items = src_items.map((item) => {
+                return timeshift_item(item, offset);
+            });
+            dst.append(dst_items, dst_offset);
+        } else {
+            console.log("no timeshift");
+            dst.append(src_items, src_offset);
+        }        
     }
 
     // register callbacks
     src_stateProvider.add_callback(on_src_change);
     ctrl.add_callback(on_ctrl_change);
-
+    on_ctrl_change();
     return dst;
 }
 

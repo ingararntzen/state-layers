@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Document</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .item-id {color:red;}
+        .item-itv {color: green;}
+        .item-type {color: purple;}
+        .item-data {color: blue;}
+        .cursor {color: red; font-weight: bold;}
+        .smallbox {
+            display: inline-block;
+            height: 15px;
+            width: 15px;
+            border: 1px solid black;
+        }
+        .bigbox {
+            display: inline-block;
+            height: 55px;
+            width: 55px;
+            border: 1px solid black;
+        }
+    </style>
+    <script type="module">
+
+        function getRandomInt(max) {
+          return Math.floor(Math.random() * max);
+        }
+        function renderNumber({value}, elem) {
+            elem.textContent = (typeof value == 'number') ? value.toFixed(2) : "NaN";
+        }
+        function renderColor({value}, elem) {
+            elem.style.backgroundColor = value;
+        }
+        function renderOffset({offset}, elem) {
+            elem.textContent = offset.toFixed(2);
+        }
+
+
+        import * as sl from './libs/layers.es.js';
+
+        // live variable
+        const src_live = sl.variable();
+        // record ctrl
+        const record_clock = sl.clock();
+        // record dst layer
+        const record_layer = sl.record({src:src_live, ctrl:record_clock});
+        // playback ctrl
+        const playback_clock = sl.skew(record_clock, -2);
+        // playback 
+        const playback = sl.playback({ctrl:playback_clock, src:record_layer})
+
+        /**
+         * LIVE SRC
+         * */
+
+        // variable
+        sl.render_cursor(src_live, "#live-text", {render:renderNumber, novalue:0});
+
+        // button controls
+        document.querySelector("#live-valueBtn").onclick = () => {
+            src_live.set(getRandomInt(10))
+        }
+        document.querySelector("#live-resetBtn").onclick = () => {
+            src_live.set(0);
+        }
+        document.querySelector("#live-playBtn").onclick = () => {
+            src_live.motion({velocity:1, range:[-10, 10]});
+        }
+        document.querySelector("#live-pauseBtn").onclick = () => {
+            src_live.motion({velocity:0});
+        }
+        document.querySelector("#live-transBtn").onclick = () => {
+            src_live.transition({target:4, duration:4});
+        }
+        document.querySelector("#live-interpolateBtn").onclick = () => {
+            const tuples = [
+                [4.0, 0.0],
+                [4.8, 0.2],
+                [5.2, 0.4],
+                [5.3, 0.6],
+                [4.7, 0.8],
+                [4.2, 1.0]
+            ];
+            src_live.interpolate({tuples, duration:4});
+        }
+
+        /**
+         * RECORD CONTROLS
+         * */        
+        sl.render_cursor(record_clock, "#record-ctrl-text", {render:renderNumber});
+
+        /**
+         * PLAYBACK CONTROLS
+         * */        
+        sl.render_cursor(playback_clock, "#playback-ctrl-text", {render:renderNumber});
+
+        /**
+         * PLAYBACK
+         * */        
+        sl.render_cursor(playback, "#playback-text", {render:renderNumber, novalue:0});
+
+        // recorded state
+        sl.render_provider(record_layer.src, "#record-state");
+
+</script>
+</head>
+<body>
+    <h1>Hello, TIMESHIFT!</h1>
+
+    <!-- LIVE SRC -->
+    <h3>LIVE </h3>
+    <p>
+        <span id="live-text"></span>
+    </p>
+    <p>
+        <button id="live-valueBtn">SetValue</button>
+        <button id="live-resetBtn">Reset</button>
+        <button id="live-playBtn">Play</button>
+        <button id="live-pauseBtn">Pause</button>
+        <button id="live-transBtn">Transition</button>
+        <button id="live-interpolateBtn">Interpolate</button>
+    </p>
+
+    <!-- RECORD CTRL -->
+    <h3>RECORD CTRL </h3>
+    <p>
+        <span id="record-ctrl-text"></span>
+    </p>
+
+
+    <!-- PLAYBACK CTRL -->
+    <h3>PLAYBACK CTRL</h3>
+    <p>
+        <span id="playback-ctrl-text"></span>
+    </p>
+
+    <!-- PLAYBACK CTRL -->
+    <h3>PLAYBACK</h3>
+    <p>
+        <span id="playback-text"></span>
+    </p>
+    
+    <!-- RECORD DST -->
+    <h3>RECORDED STATE </h3>
+    <p>
+        <div>
+            <span id="record-state"></span>
+        </div>
+    </p>
+
+
+
+
+
+</body>
+</html>

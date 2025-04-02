@@ -38,12 +38,12 @@
 
         import * as sl from './libs/layers.es.js';
 
-        // record src cursor
-        const record_src = sl.variable();
+        // live src (color)
+        const live_src = sl.variable();
         // record ctrl cursor
         const record_ctrl = sl.variable({value:0});
         // record dst layer
-        const record_dst = sl.record({src:record_src, ctrl:record_ctrl});
+        const record_dst = sl.record({src:live_src, ctrl:record_ctrl});
         // playback ctrl cursor
         const playback_ctrl = sl.variable({value:0});
         // playback 
@@ -57,31 +57,31 @@
             const _color = variable.get();
             variable.set((color != _color) ? color : undefined);
         }
-        document.querySelector("#record-src-blackBtn").onclick = () => {
-            set_color(record_src, "black");
+        document.querySelector("#live-src-blackBtn").onclick = () => {
+            set_color(live_src, "black");
         }
-        document.querySelector("#record-src-redBtn").onclick = () => {
-            set_color(record_src, "red");
+        document.querySelector("#live-src-redBtn").onclick = () => {
+            set_color(live_src, "red");
         }
-        document.querySelector("#record-src-greenBtn").onclick = () => {
-            set_color(record_src, "green");
+        document.querySelector("#live-src-greenBtn").onclick = () => {
+            set_color(live_src, "green");
         }
-        document.querySelector("#record-src-purpleBtn").onclick = () => {
-            set_color(record_src, "purple");
+        document.querySelector("#live-src-purpleBtn").onclick = () => {
+            set_color(live_src, "purple");
         }
-        document.querySelector("#record-src-grayBtn").onclick = () => {
-            set_color(record_src, "gray");
+        document.querySelector("#live-src-grayBtn").onclick = () => {
+            set_color(live_src, "gray");
         }
-        document.querySelector("#record-src-blueBtn").onclick = () => {
-            set_color(record_src, "blue");
+        document.querySelector("#live-src-blueBtn").onclick = () => {
+            set_color(live_src, "blue");
         }
-        document.querySelector("#record-src-pinkBtn").onclick = () => {
-            set_color(record_src, "pink");
+        document.querySelector("#live-src-pinkBtn").onclick = () => {
+            set_color(live_src, "pink");
         }
-        sl.render_cursor(record_src, "#record-src-text", {render:renderOffset});
-        const record_src_box = document.querySelector("#record-src-box");
-        record_src.on("change", function({value}) {
-            record_src_box.style.backgroundColor = (value != undefined) ? value : "";
+        sl.render_cursor(live_src, "#live-src-text", {render:renderOffset});
+        const live_src_box = document.querySelector("#live-src-box");
+        live_src.on("change", function({value}) {
+            live_src_box.style.backgroundColor = (value != undefined) ? value : "";
         });
 
 
@@ -143,20 +143,20 @@
 <body>
     <h1>Hello, Record!</h1>
 
-    <!-- RECORD SRC COLORS-->
+    <!-- LIVE SRC COLORS-->
     <h3>SRC </h3>
     <p>
-        <div class="smallbox" id="record-src-box"></div>
-        <span id="record-src-text"></span>
+        <div class="smallbox" id="live-src-box"></div>
+        <span id="live-src-text"></span>
     </p>
     <p>
-        <button id="record-src-blackBtn">Black</button>
-        <button id="record-src-redBtn">Red</button>
-        <button id="record-src-greenBtn">Green</button>
-        <button id="record-src-purpleBtn">Purple</button>
-        <button id="record-src-grayBtn">Gray</button>
-        <button id="record-src-blueBtn">Blue</button>
-        <button id="record-src-pinkBtn">Pink</button>
+        <button id="live-src-blackBtn">Black</button>
+        <button id="live-src-redBtn">Red</button>
+        <button id="live-src-greenBtn">Green</button>
+        <button id="live-src-purpleBtn">Purple</button>
+        <button id="live-src-grayBtn">Gray</button>
+        <button id="live-src-blueBtn">Blue</button>
+        <button id="live-src-pinkBtn">Pink</button>
     </p>
 
     <!-- RECORD CTRL -->
