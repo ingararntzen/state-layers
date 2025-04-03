@@ -12,16 +12,17 @@
 
         import * as sl from './libs/layers.es.js';
 
-        function htmlFunc({value}) {
-            return `${value.toFixed(2)}`;
+        function renderNumber({value}, elem) {
+            elem.textContent = (typeof value == 'number') ? value.toFixed(2) : "NaN";
         }
+
 
         // cursors
         const clock = sl.clock();
         const skew_clock = sl.skew(clock, -2);
 
-        sl.render_cursor(clock, "#clock", {delay:100, htmlFunc});
-        sl.render_cursor(skew_clock, "#skew-clock", {delay:100, htmlFunc});
+        sl.render_cursor(clock, "#clock", {delay:100, render:renderNumber});
+        sl.render_cursor(skew_clock, "#skew-clock", {delay:100, render:renderNumber});
 
 </script>
 </head>

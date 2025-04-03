@@ -6,6 +6,7 @@ import { is_clock_cursor, clock_cursor } from "./cursor_clock.js";
 import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
 import { is_collection_provider } from "./provider_collection.js";
 import { is_variable_provider } from "./provider_variable.js";
+import { load_segment } from "./util/segments.js";
 
 const check_range = motion_utils.check_range;
 
@@ -159,7 +160,7 @@ function set_value(cursor, value) {
             id: random_string(10),
             itv: [null, null, true, true],
             type: "static",
-            data: value                 
+            data: value              
         }];
     }
     return cursor_update (cursor, items);
@@ -175,7 +176,7 @@ function set_value(cursor, value) {
  * Also, items layer should have a single item in nearby center.
  * 
  * if position is omitted in vector - current position will be assumed
- * if timestamp is omittted in vector - current timestamp will be assumed
+ * if timestamp is omitted in vector - current timestamp will be assumed
  * if velocity and acceleration are ommitted in vector 
  * - these will be set to zero.
  */
@@ -225,7 +226,7 @@ function set_motion(cursor, vector={}) {
             id: random_string(10),
             itv: [low, high, true, true],
             type: "motion",
-            data: {position:p1, velocity:v1, acceleration:a1, timestamp:t1}
+            data: [p1, v1, a1, t1]
         });
         // add left if needed
         if (low != null) {
@@ -302,9 +303,6 @@ function set_transition(cursor, target, duration, easing) {
 /**
  * set interpolation
  * 
- * assumes timestamps are in range [0,1]
- * scale timestamps to duration and offset by t0
- * assuming interpolation starts at t0
  */
 
 function set_interpolation(cursor, tuples, duration) {
@@ -312,10 +310,19 @@ function set_interpolation(cursor, tuples, duration) {
     tuples = tuples.map(([v,t]) => {
         check_number("ts", t);
         check_number("val", v);
-        return [v, now + t*duration];
+        return [v, now + t];
     })
-    const [v0, t0] = tuples[0];
-    const [v1, t1] = tuples[tuples.length-1];
+
+    // inflate segment to calculate boundary conditions
+    const seg = load_segment([null, null, true, true], {
+        type: "interpolation",
+        data: tuples
+    });
+
+    const t0 = now;
+    const t1 = t0 + duration;
+    const v0 = seg.state(t0).value;
+    const v1 = seg.state(t1).value;
     const items = [
         {
             id: random_string(10),

@@ -142,8 +142,8 @@ export function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
             const items = ctrl.src.index.nearby(ctrl_ts).center;
             if (items.length == 1)
                 if (items[0].type == "motion" ) {
-                    const {velocity, acceleration} = items[0].data;
-                    if (velocity > 0 || velocity == 0 && acceleration > 0) {
+                    const [p,v,a,t] = items[0].data;
+                    if (v > 0 || v == 0 && a > 0) {
                         is_recording = true;
                     }
             }

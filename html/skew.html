@@ -12,24 +12,19 @@
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
         }
-        function htmlFunc({value}) {
-            return `${value.toFixed(2)}`;
+        function renderNumber({value}, elem) {
+            elem.textContent = (typeof value == 'number') ? value.toFixed(2) : "NaN";
         }
-
 
         import * as sl from './libs/layers.es.js';
 
         // Variable
         const offset = sl.variable({value:0});        
-        sl.render_cursor(offset, "#offset", {htmlFunc});
+        sl.render_cursor(offset, "#offset", {render:renderNumber});
         
         // Skewed Variable
-        const skew_offset = sl.cursor_transform(offset, {
-            valueFunc: (value) => value + 2
-        });
-        sl.render_cursor(skew_offset, "#skew-offset", {htmlFunc});
-
-
+        const skew_offset = sl.skew(offset, 2);
+        sl.render_cursor(skew_offset, "#skew-offset", {render:renderNumber});
 
         document.querySelector("#valueBtn").onclick = () => {
             offset.set(getRandomInt(10))
@@ -49,11 +44,11 @@
         document.querySelector("#interpolateBtn").onclick = () => {
             const tuples = [
                 [4.0, 0.0],
-                [4.8, 0.2],
-                [5.2, 0.4],
-                [5.3, 0.6],
-                [4.7, 0.8],
-                [4.2, 1.0]
+                [4.8, 0.8],
+                [5.2, 1.6],
+                [5.3, 2.4],
+                [4.7, 3.2],
+                [4.2, 4]
             ];
             offset.interpolate({tuples, duration:4});
         }

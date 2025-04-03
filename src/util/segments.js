@@ -69,25 +69,12 @@ export class MotionSegment extends BaseSegment {
     
     constructor(itv, data) {
         super(itv);
-        const {
-            position:p0=0, 
-            velocity:v0=0, 
-            acceleration:a0=0, 
-            timestamp:t0=0
-        } = data;
-        this._vector = [p0,v0,a0,t0];
+        this._vector = data;
     }
 
     state(offset) {
         const [p,v,a,t] = motion_utils.calculate(this._vector, offset);
-        return {
-            // position: p,
-            // velocity: v,
-            // acceleration: a,
-            // timestamp: t,
-            value: p,
-            dynamic: (v != 0 || a != 0 )
-        }
+        return {value: p, dynamic: (v != 0 || a != 0 )}
     }
 }
 

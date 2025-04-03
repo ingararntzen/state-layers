@@ -9,13 +9,13 @@
     </style>
     <script type="module">
 
-        function htmlFunc({value}) {
-            return (value != undefined) ? `${value.toFixed(2)}` : "";
+        function renderNumber({value}, elem) {
+            elem.textContent = (typeof value == 'number') ? value.toFixed(2) : "NaN";
         }
 
         import * as sl from './libs/layers.es.js';
         const mc = sl.variable();
-        sl.render_cursor(mc, "#offset", {htmlFunc, novalue:0});
+        sl.render_cursor(mc, "#offset", {render:renderNumber, novalue:0});
         document.querySelector("#resetBtn").onclick = () => {
             mc.motion({position:0});
         }

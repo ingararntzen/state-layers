@@ -164,11 +164,11 @@ export function playback_cursor(ctrl, src) {
             if (active_items.length == 1) {
                 const active_item = active_items[0];
                 if (active_item.type == "motion") {
-                    const {velocity, acceleration} = active_item.data;
+                    const [p,v,a,t] = active_item.data;
                     // TODO calculate timeout with acceleration too
-                    if (acceleration == 0.0) {
+                    if (a == 0.0) {
                         // figure out which region boundary we hit first
-                        if (velocity > 0) {
+                        if (v > 0) {
                             target_pos = region_high;
                         } else {
                             target_pos = region_low;

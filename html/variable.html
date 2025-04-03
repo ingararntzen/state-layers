@@ -12,15 +12,15 @@
         function getRandomInt(max) {
           return Math.floor(Math.random() * max);
         }
-        function htmlFunc({value}) {
-            return `${value.toFixed(2)}`;
+        function renderNumber({value}, elem) {
+            elem.textContent = (typeof value == 'number') ? value.toFixed(2) : "NaN";
         }
 
         import * as sl from './libs/layers.es.js';
 
         // variable
         const offset = sl.variable();
-        sl.render_cursor(offset, "#offset", {htmlFunc, novalue:0});
+        sl.render_cursor(offset, "#offset", {render:renderNumber, novalue:0});
 
         // button controls
         document.querySelector("#valueBtn").onclick = () => {
@@ -41,14 +41,15 @@
         document.querySelector("#interpolateBtn").onclick = () => {
             const tuples = [
                 [4.0, 0.0],
-                [4.8, 0.2],
-                [5.2, 0.4],
-                [5.3, 0.6],
-                [4.7, 0.8],
-                [4.2, 1.0]
+                [4.8, 0.8],
+                [5.2, 1.6],
+                [5.3, 2.4],
+                [4.7, 3.2],
+                [4.2, 4]
             ];
             offset.interpolate({tuples, duration:4});
         }
+
 
 </script>
 </head>
