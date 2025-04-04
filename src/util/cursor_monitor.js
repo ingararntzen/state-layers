@@ -170,9 +170,12 @@ class CursorMonitor {
             this._poller.pause();
         } else {
             // find minimum delay
-            const delays = polling_cursors.map(entry => {
-                return entry.bindings.map(binding => binding.delay);
-            });
+            const delays = [];
+            for (const entry of polling_cursors) {
+                for (const binding of entry.bindings) {
+                    delays.push(binding.delay);
+                }
+            };
             const min_delay = Math.min(...delays);
             this._poller.delay = min_delay;
             this._poller.pause();
