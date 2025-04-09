@@ -1074,6 +1074,29 @@ function check_number(name, obj) {
         throw new Error(`${name} must be finite number ${obj}`);
     }
 }
+
+/**
+ * convenience function to render a cursor 
+ */
+function render_cursor (cursor, selector, options={}) {
+    const {delay=200, render, novalue} = options;
+    const elems = document.querySelector(selector);
+    function _render(state) {
+        if (state.value == undefined && novalue != undefined) {
+            state.value = novalue;
+        }
+        if (render != undefined) {
+            render(state, elems);
+        } else {
+            elems.textContent = (state.value != undefined) ? `${state.value}` : "";
+        }
+    }
+    return cursor.bind(_render, delay);
+}
+
+
+
+
 /*
     similar to range function in python
 */
@@ -1798,10 +1821,12 @@ class CursorMonitor {
             this._poller.pause();
         } else {
             // find minimum delay
-            const delays = polling_cursors.map(entry => {
-                return entry.bindings.map(binding => binding.delay);
-            });
-            const min_delay = Math.min(...delays);
+            const delays = [];
+            for (const entry of polling_cursors) {
+                for (const binding of entry.bindings) {
+                    delays.push(binding.delay);
+                }
+            }            const min_delay = Math.min(...delays);
             this._poller.delay = min_delay;
             this._poller.pause();
             this._poller.resume();
@@ -2812,25 +2837,12 @@ class MotionSegment extends BaseSegment {
     
     constructor(itv, data) {
         super(itv);
-        const {
-            position:p0=0, 
-            velocity:v0=0, 
-            acceleration:a0=0, 
-            timestamp:t0=0
-        } = data;
-        this._vector = [p0,v0,a0,t0];
+        this._vector = data;
     }
 
     state(offset) {
         const [p,v,a,t] = motion_utils.calculate(this._vector, offset);
-        return {
-            // position: p,
-            // velocity: v,
-            // acceleration: a,
-            // timestamp: t,
-            value: p,
-            dynamic: (v != 0 || a != 0 )
-        }
+        return {value: p, dynamic: (v != 0 || a != 0 )}
     }
 }
 
@@ -3188,14 +3200,10 @@ function layer_update(layer, changes={}) {
  * old items will be kept for t < offset
  * 
  * 
- * TODO - not safe for repeting state
- * 
  */
 function layer_append(layer, items, offset) {
     const ep = endpoint.from_input(offset);
     
-    // console.log("all items", items.length);
-
     // truncate or remove new items before offset
     const insert_items = items
         .filter((item) => {
@@ -3213,7 +3221,7 @@ function layer_append(layer, items, offset) {
             return item;
         });
     
-    // console.log("insert", insert_items.length);
+    // console.log("insert", insert_items);
 
     // truncate pre-existing items overlapping offset
     const modify_items = layer.index.nearby(offset).center.map((item) => {
@@ -3222,9 +3230,9 @@ function layer_append(layer, items, offset) {
         return new_item;
     });
     
-    // console.log("modify", modify_items.length);
+    // console.log("modify", modify_items);
 
-    //remove pre-existing items where itv.low > offset
+    // remove pre-existing future - items covering itv.low > offset
     const remove = layer.src.get()
         .filter((item) => {
             const lowEp = endpoint.from_interval(item.itv)[0];
@@ -3234,7 +3242,7 @@ function layer_append(layer, items, offset) {
             return item.id;
         });
 
-    // console.log("remove", remove.length);
+    // console.log("remove", remove);
 
     // layer update
     const insert = [...modify_items, ...insert_items];
@@ -3305,7 +3313,7 @@ const check_range = motion_utils.check_range;
  */
 
 
-function variable_cursor(ctrl, src) {
+function variable_cursor(ctrl, src, options={}) {
 
     const cursor = new Cursor();
 
@@ -3403,6 +3411,7 @@ function variable_cursor(ctrl, src) {
     };
     
     // initialize
+    cursor.options = options;
     cursor.ctrl = ctrl;
     cursor.src = src;
     return cursor;
@@ -3418,13 +3427,16 @@ function variable_cursor(ctrl, src) {
  */
 
 function set_value(cursor, value) {
-    const items = [{
-        id: random_string(10),
-        itv: [null, null, true, true],
-        type: "static",
-        data: value                 
-    }];
-    return cursor.src.update({insert:items, reset:true});
+    let items = [];
+    if (value != undefined) {
+        items = [{
+            id: random_string(10),
+            itv: [null, null, true, true],
+            type: "static",
+            data: value              
+        }];
+    }
+    return cursor_update (cursor, items);
 }
 
 /**
@@ -3437,7 +3449,7 @@ function set_value(cursor, value) {
  * Also, items layer should have a single item in nearby center.
  * 
  * if position is omitted in vector - current position will be assumed
- * if timestamp is omittted in vector - current timestamp will be assumed
+ * if timestamp is omitted in vector - current timestamp will be assumed
  * if velocity and acceleration are ommitted in vector 
  * - these will be set to zero.
  */
@@ -3487,7 +3499,7 @@ function set_motion(cursor, vector={}) {
             id: random_string(10),
             itv: [low, high, true, true],
             type: "motion",
-            data: {position:p1, velocity:v1, acceleration:a1, timestamp:t1}
+            data: [p1, v1, a1, t1]
         });
         // add left if needed
         if (low != null) {
@@ -3523,7 +3535,7 @@ function set_motion(cursor, vector={}) {
             data: val
         });
     }
-    return cursor.src.update({insert:items, reset:true});
+    return cursor_update (cursor, items);
 }
 
 /**
@@ -3558,15 +3570,12 @@ function set_transition(cursor, target, duration, easing) {
             data: v1
         }
     ];
-    return cursor.src.update({insert:items, reset:true});
+    return cursor_update (cursor, items);
 }
 
 /**
  * set interpolation
  * 
- * assumes timestamps are in range [0,1]
- * scale timestamps to duration and offset by t0
- * assuming interpolation starts at t0
  */
 
 function set_interpolation(cursor, tuples, duration) {
@@ -3574,10 +3583,19 @@ function set_interpolation(cursor, tuples, duration) {
     tuples = tuples.map(([v,t]) => {
         check_number("ts", t);
         check_number("val", v);
-        return [v, now + t*duration];
+        return [v, now + t];
     });
-    const [v0, t0] = tuples[0];
-    const [v1, t1] = tuples[tuples.length-1];
+
+    // inflate segment to calculate boundary conditions
+    const seg = load_segment([null, null, true, true], {
+        type: "interpolation",
+        data: tuples
+    });
+
+    const t0 = now;
+    const t1 = t0 + duration;
+    const v0 = seg.state(t0).value;
+    const v1 = seg.state(t1).value;
     const items = [
         {
             id: random_string(10),
@@ -3598,7 +3616,17 @@ function set_interpolation(cursor, tuples, duration) {
             data: v1
         }
     ];
-    return cursor.src.update({insert:items, reset:true});
+    return cursor_update (cursor, items);
+}
+
+
+function cursor_update(cursor, items) {
+    const {record=false} = cursor.options;
+    if (record) {
+        return cursor.src.append(items, cursor.ctrl.value);
+    } else {
+        return cursor.src.update({insert:items, reset:true});
+    }
 }
 
 /*****************************************************
@@ -3756,11 +3784,11 @@ function playback_cursor(ctrl, src) {
             if (active_items.length == 1) {
                 const active_item = active_items[0];
                 if (active_item.type == "motion") {
-                    const {velocity, acceleration} = active_item.data;
+                    const [p,v,a,t] = active_item.data;
                     // TODO calculate timeout with acceleration too
-                    if (acceleration == 0.0) {
+                    if (a == 0.0) {
                         // figure out which region boundary we hit first
-                        if (velocity > 0) {
+                        if (v > 0) {
                             target_pos = region_high;
                         } else {
                             target_pos = region_low;
@@ -4425,12 +4453,61 @@ function layer_transform(src, options={}) {
     return layer;
 }
 
-function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
+/**
+ * recorder for cursor into layer
+ * 
+ *   MAIN IDEA
+ * - record the current value of a cursor (src) into a layer (dst)
+ * - recording is essentially a copy operation from the
+ *   stateProvider of the cursor (src) to the stateProvider of the layer (dst).
+ * - recording does not apply to derived cursors - only cursors that
+ *   are directly connected to a stateProvider.
+ *
+ * 
+ *   TIMEFRAMES
+ * - the (src) cursor is driven by a clock (src.ctrl): <SRC_CLOCK> 
+ * - the recording to (dst) layer is driven by a clock (ctrl): <DST_CLOCK>
+ * - if SRC_CLOCK is not the same as DST_CLOCK, recorded items need to be
+ *   converted to the DST_CLOCK time frame.
+ * - for example - a common scenario would be to record a cursor with real-time
+ *   timestamps into a logical timeline starting at 0, possibly 
+ *   rewinding the DST_CLOCK to 0 multiple times in order to do new takes
+ * 
+ *   RECORDING
+ * - recording is done by appending items to the dst layer 
+ * - when the cursor state changes (entire timeline reset) 
+ * - the part of it which describes the future will overwrite the relevant
+ * - part of the the layer timeline
+ * - the delineation between past and future is determined by 
+ * - fresh timestamp <TS> from <DST_CLOCK>
+ * - if an item overlaps with <TS> it will be truncates so that only the part
+ * - that is in the future will be recorded (copied) to the layer.
+ * - in case (ctrl) is a media control - recording can only happen
+ *   when the (ctrl) is moving forward
+ * 
+ *   INPUT
+ * - (ctrl) - clock cursor or clock provider media control 
+ *   (ctrl is clock_cursor or ctrl.ctrl is clock_cursor)
+ * - (src) - cursor with a itemslayer as src 
+ *   (src.src is itemslayer)
+ * - (dst) - itemslayer
+ *
+ *   WARNING
+ * - implementation assumes (dst) layer is not the same as the (src) layer
+ * - (src) cursor can not be clock cursor (makes no sense to record a clock
+ *   - especially when you can make a new one at any time)
+ *  
+ * - if (dst) is not provided, an empty layer will be created
+ * - if (ctrl) is not provided, LOCAL_CLOCK_PROVIDER will be used
+ */
 
+
+function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
+
+    // check - ctrl 
     if (is_clock_provider(ctrl)) {
         ctrl = clock_cursor(ctrl);
     }
-    // ctrl must be clock cursor or media cursor
     if (
         !is_clock_cursor(ctrl) &&
         !is_clock_cursor(ctrl.ctrl)
@@ -4438,43 +4515,164 @@ function record_layer(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
         throw new Error(`ctrl or ctrl.ctrl must be a clock cursor ${ctrl}`);
     }    
 
-    // src must be cursor with a segments layer as src
+    // check - src
     if (!(src instanceof Cursor)) {
         throw new Error(`src must be a cursor ${src}`);
     }
+    if (is_clock_cursor(src)) {
+        throw new Error(`src can not be a clock cursor ${src}`);
+    }
     if (!is_items_layer(src.src)) {
-        throw new Error(`cursor src must be a segment layer ${src.src}`);
+        throw new Error(`cursor src must be itemslayer ${src.src}`);
     }
 
-    // dst must be segments layer
+    // check - dst
     if (!is_items_layer(dst)) {
-        throw new Error(`dst must be a segment layer ${dst}`);
+        throw new Error(`dst must be a itemslayer ${dst}`);
     }
+
+    // check - stateProviders
+    const src_stateProvider = src.src.src;
+    const dst_stateProvider = dst.src;
+    if (src_stateProvider === dst_stateProvider) {
+        throw new Error(`src and dst can not have the same stateProvider`);
+    }
+
 
     /**
-     * record stateProvider of cursor (src)
+     * turn this around?
+     * have start and stop recording
+     * methods direct the control?
+     * 
+     * recording with live clock requires
+     * start and stop methods
+     * 
+     * what about a media clock ?
+     * should be a media clock that can only move forward
+     * it actually makes sense to be in record mode even if mediaclock is paused
+     * because recording only happens on state change
+     * paused means you overwrite on the same spot
+     * skipping back while in record mode - should that trigger write current
+     * state longer back
+     * 
+     * skipping always exit record mode
+     * record mode always starts
+     * media control may be controlled externally
+     * 
+     * split between a live and a media clock recorder?
+     * 
      */
-    src.src.src.add_callback(on_src_change);
+
+
+
+    // internal state
+    let is_recording = false;
+
+    /**
+     * state change in src stateProvider
+     */
 
     function on_src_change () {
-        // record timestamp
-        const ts = ctrl.value;
-        // get current items from stateProvider
-        const items = src.src.src.get();
-        // append items to dst
-        dst.append(items, ts);
+        if (!is_recording) return;
+        record();
     }
 
     /**
-     * TODO 
-     * - clock should be used as a record clock, implying that
-     *   items should be recoded according to this clock?
-     * - this implies sensitivity to a difference between 
-     *   cursor clock and record clock 
+     * state change in ctrl
      */
+    function on_ctrl_change () {
+        // figure out if recording starts or stops
+        const was_recording = is_recording;
+        is_recording = false;
+        if (is_clock_cursor(ctrl)) {
+            is_recording = true;
+        } else if (is_clock_cursor(ctrl.ctrl)) {
+            const ctrl_ts = ctrl.ctrl.value;
+            const items = ctrl.src.index.nearby(ctrl_ts).center;
+            if (items.length == 1)
+                if (items[0].type == "motion" ) {
+                    const [p,v,a,t] = items[0].data;
+                    if (v > 0 || v == 0 && a > 0) {
+                        is_recording = true;
+                    }
+            }
+        }
+        if (!was_recording && is_recording) {
+            start_recording();
+        } else if (was_recording && !is_recording) {
+            stop_recording();
+        }
+    }
+
+    /**
+     * record
+     */
+    function start_recording() {
+        console.log("start recording");
+        record();
+    }
+
+    function stop_recording() {
+        console.log("stop recording");
+        // close last item
+        const ts = local_clock.now();
+        const dst_offset = ctrl.query(ts).value;
+        const items = dst.index.nearby(dst_offset).center;
+        const insert = items.map((item) => {
+            const new_item = {...item};
+            new_item.itv[1] = dst_offset;
+            new_item.itv[3] = false;
+            return new_item;
+        });
+        if (items.length > 0) {
+            dst.update({insert, reset:false});
+        }
+    }
+
+    function record() {
+        console.log("record");
+        const ts = local_clock.now();
+        const src_offset = src.query(ts).offset;
+        const dst_offset = ctrl.query(ts).value;
+        // get current src items
+        let src_items = src_stateProvider.get();
+        // re-encode items in dst timeframe, if needed
+        const offset = dst_offset - src_offset;
+        if (offset != 0) {
+            const dst_items = src_items.map((item) => {
+                return timeshift_item(item, offset);
+            });
+            dst.append(dst_items, dst_offset);
+        } else {
+            dst.append(src_items, src_offset);
+        }        
+    }
+
+    // register callbacks
+    src_stateProvider.add_callback(on_src_change);
+    ctrl.add_callback(on_ctrl_change);
+    on_ctrl_change();
+    return {};
+}
 
 
-    return dst;
+/**
+ * timeshift parameters of time by offset
+ */
+function timeshift_item (item, offset) {
+    item = {...item};
+    item.itv[0] = (item.itv[0] != null) ? item.itv[0] + offset : null;
+    item.itv[1] = (item.itv[1] != null) ? item.itv[1] + offset : null;
+    // TODO - perhaps change implementation of motion and transition segment
+    // to use timestamps relative to the start of the segment,
+    // similar to interpolation?
+    if (item.type == "motion") {
+        item.data.timestamp = item.data.timestamp + offset;
+    } else if (item.type == "transition") {
+        item.data.t0 = item.data.t0 + offset;
+        item.data.t1 = item.data.t1 + offset;
+    }
+    return item;
 }
 
 /*
@@ -4582,28 +4780,13 @@ class StateProviderViewer {
     }
 }
 
-// classes
 
 function render_provider(stateProvider, selector, options={}) {
     const elems = document.querySelector(selector);
     return new StateProviderViewer(stateProvider, elems, options);
 }
 
-function render_cursor (cursor, selector, options={}) {
-    const {delay=200, htmlFunc, novalue} = options;
-    const elems = document.querySelector(selector);
-    function render(state) {
-        if (state.value == undefined && novalue != undefined) {
-            state.value = novalue;
-        }
-        if (htmlFunc != undefined) {
-            elems.innerHTML = htmlFunc(state, elems);
-        } else {
-            elems.innerHTML = (state.value != undefined) ? `${state.value}` : "";
-        }
-    }
-    return cursor.bind(render, delay);
-}
+// classes
 
 
 /*********************************************************************
@@ -4625,11 +4808,9 @@ function layer(options={}) {
     return items_layer({src, ...opts}); 
 }
 
-function record (options={}) {
-    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst, ...ops} = options;
-    dst = layer({dst:src, ...ops});
-    record_layer(ctrl, src, dst);
-    return dst;
+function recorder (options={}) {
+    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst} = options;
+    return layer_recorder(ctrl, src, dst);
 }
 
 /*********************************************************************
@@ -4659,4 +4840,4 @@ function skew (src, offset) {
     return cursor_transform(src, {valueFunc});
 }
 
-export { Cursor, Layer, NearbyIndexBase, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, record, render_cursor, render_provider, skew, timeline_transform, variable };
+export { Cursor, Layer, NearbyIndexBase, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, recorder, render_cursor, render_provider, skew, timeline_transform, variable };

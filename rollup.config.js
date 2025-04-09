@@ -19,7 +19,7 @@ const isServe = process.env.SERVE == 'true';
 // target directory for build
 const target = "html/libs";
 // name of bundle
-const bundle = "layers";
+const bundle = "statelayers";
 // file extension
 const ext = isDist ? "min.js" : "js"; 
 
