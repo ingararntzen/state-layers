@@ -3,4 +3,9 @@ node_modules/
 # node package lock
 package-lock.json
 *code-workspace
+
+# ignore temporary symlinks
 html/libs/
+
+
+

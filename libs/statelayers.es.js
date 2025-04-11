@@ -4840,4 +4840,4 @@ function skew (src, offset) {
     return cursor_transform(src, {valueFunc});
 }
 
-export { Cursor, Layer, NearbyIndexBase, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, recorder, render_cursor, render_provider, skew, timeline_transform, variable };
+export { CollectionProvider, Cursor, Layer, NearbyIndexBase, VariableProvider, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, recorder, render_cursor, render_provider, skew, timeline_transform, variable };

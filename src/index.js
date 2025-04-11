@@ -86,6 +86,7 @@ function skew (src, offset) {
 *********************************************************************/
 
 export {
+    CollectionProvider, VariableProvider,
     Layer, Cursor, NearbyIndexBase,
     layer, 
     merge_layer as merge, 
