@@ -1,62 +1,56 @@
 import * as srcprop from "./util/api_srcprop.js";
 import { Layer } from "./layer_base.js";
 import { is_collection_provider } from "./provider_collection.js";
-import { is_variable_provider} from "./provider_variable.js";
+import { is_object_provider} from "./provider_object.js";
 import { NearbyIndex } from "./nearby_index.js";
 import { load_segment } from "./util/segments.js";
-import { toState } from "./util/common.js";
+import { toState, is_finite_number} from "./util/common.js";
 import { endpoint, interval } from "./util/intervals.js";
 
-/*********************************************************************
-    ITEMS LAYER
-*********************************************************************/
 
-/**
- * Items Layer has a stateProvider (either collectionProvider or variableProvider)
- * as src property.
- */
-
-export function is_items_layer (obj) {
-    if (obj == undefined) return false;
-    // is layer
-    if (!(obj instanceof Layer)) return false;
-    // has src property
-    const desc = Object.getOwnPropertyDescriptor(obj, "src");
-    if (!!(desc?.get && desc?.set) == false) return false;
-    return true;
+export function is_leaf_layer(obj) {
+    return ((obj instanceof Layer) && obj.isLeaf);
 }
 
-export function items_layer(options={}) {
+/*********************************************************************
+    LEAF LAYER
+*********************************************************************/
 
-    const {src, ...opts} = options;
-    const layer = new Layer({CacheClass:ItemsLayerCache, ...opts});
+export function leaf_layer(options={}) {
 
-    // setup src property
+    const {provider, ...opts} = options;
+    const layer = new Layer({
+        CacheClass:LeafLayerCache, 
+        ...opts,
+        isLeaf:true, // enforce leaf layer
+    });
+
+    // setup provider as property
     srcprop.addState(layer);
     srcprop.addMethods(layer);
 
-    layer.srcprop_register("src");
-    layer.srcprop_check = function (propName, src) {
-        if (propName == "src") {
-            if (!(is_collection_provider(src)) && !(is_variable_provider(src))) {
-                throw new Error(`"src" must collectionProvider or variableProvider ${src}`);
+    layer.srcprop_register("provider");
+    layer.srcprop_check = function (propName, obj) {
+        if (propName == "provider") {
+            if (!(is_collection_provider(obj)) && !(is_object_provider(obj))) {
+                throw new Error(`"obj" must collectionProvider or objectProvider ${obj}`);
             }
-            return src;    
+            return obj;    
         }
     }
     layer.srcprop_onchange = function (propName, eArg) {
-        if (propName == "src") {
+        if (propName == "provider") {
             if (eArg == "reset") {
-                if (is_collection_provider(layer.src)) {
-                    layer.index = new NearbyIndex(layer.src);
-                } else if (is_variable_provider(layer.src)) {
-                    layer.index = new NearbyIndex(layer.src);
+                if (is_collection_provider(layer.provider)) {
+                    layer.index = new NearbyIndex(layer.provider);
+                } else if (is_object_provider(layer.provider)) {
+                    layer.index = new NearbyIndex(layer.provider);
                 }
             } 
             if (layer.index != undefined) {
-                if (is_collection_provider(layer.src)) {
+                if (is_collection_provider(layer.provider)) {
                     layer.index.refresh(eArg);
-                } else if (is_variable_provider(layer.src)) {
+                } else if (is_object_provider(layer.provider)) {
                     layer.index.refresh();
                 }
                 layer.onchange();
@@ -76,36 +70,39 @@ export function items_layer(options={}) {
     /******************************************************************
      * LAYER UPDATE API
      * ***************************************************************/
-    layer.update = function update(changes) {
-        return layer_update(layer, changes);
-    }
-    layer.append = function append(items, offset) {
-        return layer_append(layer, items, offset);
-    }
 
+    if (!layer.isReadOnly) {
+        layer.update = function update(changes) {
+            return layer_update(layer, changes);
+        }
+        layer.append = function append(items, offset) {
+            return layer_append(layer, items, offset);
+        }    
+    }
+ 
     // initialise
-    layer.src = src;
+    layer.provider = provider;
 
     return layer;
 }
 
 
 /*********************************************************************
-    ITEMS LAYER CACHE
+    LEAF LAYER CACHE
 *********************************************************************/
 
 /*
-    Layers with a CollectionProvider or a VariableProvider as src 
-    use a specific cache implementation, as objects in the 
-    index are assumed to be items from the provider, not layer objects. 
-    Thus, queries are not resolved directly on the items in the index, but
+    LeafLayers have a CollectionProvider or a ObjectProvider as provider 
+    and use a specific cache implementation, as objects in the 
+    index are assumed to be items from the provider, not other layer objects. 
+    Moreover, queries are not resolved directly on the items in the index, but
     rather from corresponding segment objects, instantiated from items.
 
     Caching here applies to nearby state and segment objects.
 */
 
-class ItemsLayerCache {
-    constructor(layer, options={}) {
+class LeafLayerCache {
+    constructor(layer) {
         // layer
         this._layer = layer;
         // cached nearby object
@@ -113,7 +110,11 @@ class ItemsLayerCache {
         // cached segment
         this._segment = undefined;
         // default value
-        this._options = options;
+        this._query_options = {
+            valueFunc: this._layer.valueFunc,
+            stateFunc: this._layer.stateFunc,
+            numberOnly: this._layer.isNumberOnly,
+        };
 
     }
 
@@ -138,7 +139,7 @@ class ItemsLayerCache {
             return seg.query(offset);
         });
         // calculate single result state
-        return toState(this._segments, states, offset, this._layer.options);
+        return toState(this._segments, states, offset, this._query_options);    
     }
 
     clear() {
@@ -166,18 +167,30 @@ class ItemsLayerCache {
     Items Layer forwards update to stateProvider
 */
 function layer_update(layer, changes={}) {
-    if (is_collection_provider(layer.src)) {
-        return layer.src.update(changes);
-    } else if (is_variable_provider(layer.src)) {     
+
+    // if layer is number type - check that static items are restricted to numbers
+    // other item types are restricted to numbers by default
+    if (layer.isNumberOnly) {
+        for (let item of changes.remove) {
+            item.type ??= "static";
+            if (item.type == "static" && !is_finite_number(item.data)) {
+                throw new Error(`Layer is number only, but item ${item} is not a number`);
+            }
+        }
+    }
+
+    if (is_collection_provider(layer.provider)) {
+        return layer.provider.update(changes);
+    } else if (is_object_provider(layer.provider)) {     
         let {
             insert=[],
             remove=[],
             reset=false
         } = changes;
         if (reset) {
-            return layer.src.set(insert);
+            return layer.provider.set(insert);
         } else {
-            const map = new Map((layer.src.get() || [])
+            const map = new Map((layer.provider.get() || [])
                 .map((item) => [item.id, item]));
             // remove
             remove.forEach((id) => map.delete(id));
@@ -185,7 +198,7 @@ function layer_update(layer, changes={}) {
             insert.forEach((item) => map.set(item.id, item));
             // set
             const items = Array.from(map.values());
-            return layer.src.set(items);
+            return layer.provider.set(items);
         }
     }
 }
@@ -242,7 +255,7 @@ function layer_append(layer, items, offset) {
     // console.log("modify", modify_items);
 
     // remove pre-existing future - items covering itv.low > offset
-    const remove = layer.src.get()
+    const remove = layer.provider.get()
         .filter((item) => {
             const lowEp = endpoint.from_interval(item.itv)[0];
             return endpoint.gt(lowEp, ep);

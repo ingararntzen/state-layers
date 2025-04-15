@@ -8,10 +8,10 @@ import {
     LOCAL_CLOCK_PROVIDER
 } from "./provider_clock.js";
 import { CollectionProvider } from "./provider_collection.js";
-import { VariableProvider } from "./provider_variable.js";
+import { ObjectProvider } from "./provider_object.js";
 
 // factory functions
-import { items_layer } from "./layer_items.js";
+import { leaf_layer } from "./layer_leaf.js";
 import { clock_cursor } from "./cursor_clock.js"
 import { variable_cursor } from "./cursor_variable.js";
 import { playback_cursor } from "./cursor_playback.js";
@@ -25,7 +25,7 @@ import { layer_recorder } from "./ops/recorder.js";
 
 
 // util
-import { local_clock, render_cursor } from "./util/common.js";
+import { local_clock, render_cursor, random_string } from "./util/common.js";
 import { render_provider } from "./util/provider_viewer.js";
 
 
@@ -34,18 +34,21 @@ import { render_provider } from "./util/provider_viewer.js";
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, insert, value, ...opts} = options;
-    if (src instanceof Layer) {
-        return src;
-    }
-    if (src == undefined) {
+    let {provider, items, value, ...opts} = options;
+    if (provider == undefined) {
         if (value != undefined) {
-            src = new VariableProvider({value});
+            let item = {
+                id: random_string(10),
+                type: "static",
+                itv: [null, null, true, true],
+                data: value
+            }
+            provider = new ObjectProvider({items:[item]});
         } else {
-            src = new CollectionProvider({insert});
+            provider = new CollectionProvider({items});
         }
     }
-    return items_layer({src, ...opts}); 
+    return leaf_layer({provider, ...opts}); 
 }
 
 function recorder (options={}) {
@@ -86,7 +89,7 @@ function skew (src, offset) {
 *********************************************************************/
 
 export {
-    CollectionProvider, VariableProvider,
+    CollectionProvider, ObjectProvider,
     Layer, Cursor, NearbyIndexBase,
     layer, 
     merge_layer as merge, 

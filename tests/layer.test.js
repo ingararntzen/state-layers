@@ -10,8 +10,9 @@ describe('Test Layer', () => {
             {itv: [2, 4, true, false], data: 0.5},
             {itv: [6, 8, true, false], data: 1.0},
         ];
-        const layer = sl.layer({insert:items});
+        const layer = sl.layer({items});
         let result = layer.sample();
+        console.log(result)
 
         expect(result.length).toBe(8-2+1);
         result.forEach((tup, index) => {
@@ -56,7 +57,7 @@ describe('Test Layer', () => {
             {itv: [2, 4, true, false], data: 0.5},
             {itv: [6, 8, true, false], data: 1.0},
         ];
-        const l1 = sl.layer({insert:items});
+        const l1 = sl.layer({items});
 
         function valueFunc(value) {
             if (typeof value == "number") {
@@ -94,7 +95,7 @@ describe('Test Layer', () => {
             {id: "6", itv: [6, 7, true, false], data: 6},
             {id: "7", itv: [7, 8, true, false], data: 7},
         ]
-        const l1 = sl.layer({insert:init_items});
+        const l1 = sl.layer({items:init_items});
 
 
         const new_items = [
@@ -108,7 +109,7 @@ describe('Test Layer', () => {
 
 
         l1.append(new_items, 4.5).then(() => {            
-            const result = l1.src.get();
+            const result = l1.provider.get();
 
             expect(result[0]).toStrictEqual(init_items[0]);
             expect(result[1]).toStrictEqual(init_items[1]);
@@ -136,7 +137,7 @@ describe('Test Layer', () => {
             {id: "1", itv: [1, 2, true, false], data: 1},
             {id: "2", itv: [2, null, true, false], data: 2},
         ]
-        const l1 = sl.layer({insert:init_items});
+        const l1 = sl.layer({items:init_items});
 
 
         const new_items = [
@@ -149,7 +150,7 @@ describe('Test Layer', () => {
         // repetition of state.
 
         l1.append(new_items,1.5).then(() => {            
-            const result = l1.src.get();
+            const result = l1.provider.get();
             // expect(result[0]).toStrictEqual(new_items[0]);
             // expect(result[1]).toStrictEqual(new_items[1]);
             // expect(result[2]).toStrictEqual(new_items[2]);

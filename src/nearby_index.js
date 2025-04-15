@@ -2,7 +2,7 @@ import { endpoint } from "./util/intervals.js";
 import { NearbyIndexBase, nearby_from } from "./nearby_base.js";
 import { SortedArray } from "./util/sortedarray.js";
 import { is_collection_provider } from "./provider_collection.js";
-import { is_variable_provider } from "./provider_variable.js";
+import { is_object_provider } from "./provider_object.js";
 
 const {LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN} = endpoint.types;
 const EP_TYPES = [LOW_CLOSED, LOW_OPEN, HIGH_CLOSED, HIGH_OPEN];
@@ -144,7 +144,7 @@ export class NearbyIndex extends NearbyIndexBase {
 
 		if (
 			!is_collection_provider(stateProvider) &&
-			!is_variable_provider(stateProvider)
+			!is_object_provider(stateProvider)
 		) {
 			throw new Error(`stateProvider must be collectionProvider or variableProvider ${stateProvider}`);
         }

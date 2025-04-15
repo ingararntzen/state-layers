@@ -95,21 +95,26 @@ export const local_epoch = function local_epoch () {
  */
 
 export function toState(sources, states, offset, options={}) {
-    let {valueFunc, stateFunc} = options; 
+    let {valueFunc, stateFunc, numberOnly=false} = options; 
+    let state;
     if (valueFunc != undefined) {
         let value = valueFunc({sources, states, offset});
         let dynamic = states.map((v) => v.dymamic).some(e=>e);
-        return {value, dynamic, offset};
+        state = {value, dynamic, offset};
     } else if (stateFunc != undefined) {
-        return {...stateFunc({sources, states, offset}), offset};
+        state = {...stateFunc({sources, states, offset}), offset};
+    } else if (states.length == 0) {
+        state = {value:undefined, dynamic:false, offset}
+    } else {
+        state = {...states[0], offset}
     }
-    // no valueFunc or stateFunc
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
+    if (numberOnly && state.value != undefined) {
+        if (!is_finite_number(state.value)) {
+            console.log(`warning: not number ${state.value}`);
+            state = {value:undefined, dynamic:false, offset};
+        }
     }
-    // fallback - just use first state
-    let state = states[0];
-    return {...state, offset}; 
+    return state;
 }
 
 

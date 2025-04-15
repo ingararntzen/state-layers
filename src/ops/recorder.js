@@ -1,8 +1,8 @@
 import { Cursor } from "../cursor_base.js";
 import { is_clock_cursor, clock_cursor } from "../cursor_clock.js";
-import { is_items_layer } from "../layer_items.js";
 import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "../provider_clock.js";
 import { local_clock } from "../util/common.js";
+import { is_leaf_layer } from "../layer_leaf.js";
 
 /**
  * recorder for cursor into layer
@@ -73,12 +73,12 @@ export function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
     if (is_clock_cursor(src)) {
         throw new Error(`src can not be a clock cursor ${src}`);
     }
-    if (!is_items_layer(src.src)) {
+    if (!is_leaf_layer(src.src)) {
         throw new Error(`cursor src must be itemslayer ${src.src}`);
     }
 
     // check - dst
-    if (!is_items_layer(dst)) {
+    if (!is_leaf_layer(dst)) {
         throw new Error(`dst must be a itemslayer ${dst}`);
     }
 

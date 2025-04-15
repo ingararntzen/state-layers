@@ -45,9 +45,11 @@ export class CollectionProvider {
         callback.addState(this);
         this._map = new Map();
         // initialize
-        let {insert} = options;
-        if (insert != undefined) {
-            this._update({insert, reset:true});
+        let {items} = options;
+        if (items != undefined) {
+            for (const item of items) {
+                this._map.set(item.id, item);
+            }
         }
     }
 

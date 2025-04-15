@@ -35,10 +35,14 @@ export class Layer {
 
     constructor(options={}) {
 
-        let {CacheClass=LayerCache, ...opts} = options; 
-
-        // layer options
-        this._options = opts;
+        const {
+            CacheClass=LayerCache, 
+            isNumberOnly=false, 
+            isReadOnly=false,
+            isLeaf=false,
+            valueFunc=undefined,
+            stateFunc=undefined,
+        } = options; 
 
         // callbacks
         callback.addState(this);
@@ -53,10 +57,21 @@ export class Layer {
         this._CacheClass = CacheClass;
         this._private_cache;
         this._consumer_caches = [];
+
+        // properties
+        this._isNumberOnly = isNumberOnly;
+        this._isReadOnly = isReadOnly;
+        this._isLeaf = isLeaf;
+        this._valueFunc = valueFunc;
+        this._stateFunc = stateFunc;
     }
 
-    // layer options
-    get options () { return this._options; }
+    // properties
+    get isNumberOnly () {return this._isNumberOnly;}
+    get isReadOnly () {return this._isReadOnly;}
+    get isLeaf () {return this._isLeaf;}
+    get valueFunc () {return this._valueFunc;}
+    get stateFunc () {return this._stateFunc;}
 
     // private cache
     get cache () {
@@ -83,8 +98,6 @@ export class Layer {
             this._consumer_caches.splice(idx, 1);
         }
     }
-
-
     clearCaches() {
         for (const cache of this._consumer_caches){
             cache.clear();

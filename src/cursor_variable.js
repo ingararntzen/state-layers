@@ -1,11 +1,12 @@
 import { Cursor } from "./cursor_base.js";
-import { is_items_layer, items_layer } from "./layer_items.js";
+import { Layer } from "./layer_base.js";
+import { leaf_layer } from "./layer_leaf.js";
 import * as srcprop from "./util/api_srcprop.js";
 import { random_string, set_timeout, check_number, motion_utils } from "./util/common.js";
 import { is_clock_cursor, clock_cursor } from "./cursor_clock.js";
 import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
 import { is_collection_provider } from "./provider_collection.js";
-import { is_variable_provider } from "./provider_variable.js";
+import { is_object_provider } from "./provider_object.js";
 import { load_segment } from "./util/segments.js";
 
 const check_range = motion_utils.check_range;
@@ -66,11 +67,11 @@ export function variable_cursor(ctrl, src, options={}) {
             return obj;
         }
         if (propName == "src") {
-            if (is_collection_provider(obj) || is_variable_provider(obj)) {
-                obj = items_layer({src:obj});
+            if (is_collection_provider(obj) || is_object_provider(obj)) {
+                obj = leaf_layer({provider:obj});
             }
-            if (!is_items_layer(obj)) {
-                throw new Error(`"src" property must be an item layer ${obj}`);
+            if (!((obj instanceof Layer) && obj.isLeaf)) {
+                throw new Error(`"src" property must be a leaf layer ${obj}`);
             }
             return obj;
         }

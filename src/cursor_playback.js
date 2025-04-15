@@ -1,13 +1,13 @@
 import { Cursor, get_cursor_ctrl_state } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
-import { is_items_layer, items_layer } from "./layer_items.js";
+import { leaf_layer } from "./layer_leaf.js";
 import * as srcprop from "./util/api_srcprop.js";
 import { interval } from "./util/intervals.js";
 import { set_timeout } from "./util/common.js";
 import { is_clock_cursor, clock_cursor } from "./cursor_clock.js";
 import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
 import { is_collection_provider } from "./provider_collection.js";
-import { is_variable_provider } from "./provider_variable.js";
+import { is_object_provider } from "./provider_object.js";
 
 /*****************************************************
  * PLAYBACK CURSOR
@@ -56,8 +56,8 @@ export function playback_cursor(ctrl, src) {
             }
         }
         if (propName == "src") {
-            if (is_collection_provider(obj) || is_variable_provider(obj)) {
-                obj = items_layer({src:obj});
+            if (is_collection_provider(obj) || is_object_provider(obj)) {
+                obj = leaf_layer({provider:obj});
             }
             if (obj instanceof Layer) {
                 return obj;
