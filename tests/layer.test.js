@@ -12,8 +12,6 @@ describe('Test Layer', () => {
         ];
         const layer = sl.layer({items});
         let result = layer.sample();
-        console.log(result)
-
         expect(result.length).toBe(8-2+1);
         result.forEach((tup, index) => {
             expect(tup[1]).toBe(2 + index);
@@ -157,9 +155,5 @@ describe('Test Layer', () => {
             // console.log(result)
         });
     });
-
-
-
-
 
 });

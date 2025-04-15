@@ -118,32 +118,15 @@ export function toState(sources, states, offset, options={}) {
 }
 
 
-/**
- * check input items to local state providers
- */
-
-export function check_input(items) {
+export function check_items(items) {
     if (!Array.isArray(items)) {
         throw new Error("Input must be an array");
     }
-    // make sure that intervals are well formed
     for (const item of items) {
+        // make suer item has id
+        item.id = item.id || random_string(10);
+        // make sure item intervals are well formed
         item.itv = interval.from_input(item.itv);
-    }
-    // sort items based on interval low endpoint
-    items.sort((a, b) => {
-        let a_low = endpoint.from_interval(a.itv)[0];
-        let b_low = endpoint.from_interval(b.itv)[0];
-        return endpoint.cmp(a_low, b_low);
-    });
-    // check that item intervals are non-overlapping
-    for (let i = 1; i < items.length; i++) {
-        let prev_high = endpoint.from_interval(items[i - 1].itv)[1];
-        let curr_low = endpoint.from_interval(items[i].itv)[0];
-        // verify that prev high is less that curr low
-        if (!endpoint.lt(prev_high, curr_low)) {
-            throw new Error("Overlapping intervals found");
-        }
     }
     return items;
 }

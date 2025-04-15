@@ -25,7 +25,7 @@ import { layer_recorder } from "./ops/recorder.js";
 
 
 // util
-import { local_clock, render_cursor, random_string } from "./util/common.js";
+import { local_clock, render_cursor, check_items } from "./util/common.js";
 import { render_provider } from "./util/provider_viewer.js";
 
 
@@ -37,14 +37,13 @@ function layer(options={}) {
     let {provider, items, value, ...opts} = options;
     if (provider == undefined) {
         if (value != undefined) {
-            let item = {
-                id: random_string(10),
-                type: "static",
+            const items = check_items([{
                 itv: [null, null, true, true],
                 data: value
-            }
-            provider = new ObjectProvider({items:[item]});
-        } else {
+            }])
+            provider = new ObjectProvider({items});
+        } else if (items != undefined) {
+            items = check_items(items);
             provider = new CollectionProvider({items});
         }
     }

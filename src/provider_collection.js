@@ -1,13 +1,5 @@
-import { interval } from "./util/intervals.js";
-import { random_string} from "./util/common.js";
 import * as callback from "./util/api_callback.js";
 
-
-function check_item(item) {
-    item.itv = interval.from_input(item.itv);
-    item.id = item.id || random_string(10);
-    return item;
-}
 
 /**
  * collection providers must provide get_all function
@@ -98,7 +90,6 @@ export class CollectionProvider {
         }
         // insert items
         for (let item of insert) {
-            item = check_item(item);
             const diff = diff_map.get(item.id)
             const old = (diff != undefined) ? diff.old : this._map.get(item.id);
             diff_map.set(item.id, {id:item.id, new:item, old});
