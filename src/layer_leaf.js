@@ -28,7 +28,6 @@ export function leaf_layer(options={}) {
         ...opts,
     });
 
-
     // properties
     Object.defineProperty(layer, "isNumberOnly", {get: () => isNumberOnly});
     Object.defineProperty(layer, "isReadOnly", {get: () => isReadOnly});
