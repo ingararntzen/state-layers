@@ -37,9 +37,6 @@ export class Layer {
 
         const {
             CacheClass=LayerCache, 
-            isNumberOnly=false, 
-            isReadOnly=false,
-            isLeaf=false,
             valueFunc=undefined,
             stateFunc=undefined,
         } = options; 
@@ -59,17 +56,14 @@ export class Layer {
         this._consumer_caches = [];
 
         // properties
-        this._isNumberOnly = isNumberOnly;
-        this._isReadOnly = isReadOnly;
-        this._isLeaf = isLeaf;
         this._valueFunc = valueFunc;
         this._stateFunc = stateFunc;
     }
 
     // properties
-    get isNumberOnly () {return this._isNumberOnly;}
-    get isReadOnly () {return this._isReadOnly;}
-    get isLeaf () {return this._isLeaf;}
+    get isNumberOnly () {return false;}
+    get isReadOnly () {return true;}
+    get isLeaf () {return false;}
     get valueFunc () {return this._valueFunc;}
     get stateFunc () {return this._stateFunc;}
 

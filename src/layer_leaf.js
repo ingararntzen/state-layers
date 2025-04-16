@@ -18,17 +18,25 @@ export function is_leaf_layer(obj) {
 
 export function leaf_layer(options={}) {
 
-    const {provider, ...opts} = options;
+    const {provider,
+        isNumberOnly, 
+        isReadOnly, 
+        ...opts} = options;
+
     const layer = new Layer({
         CacheClass:LeafLayerCache, 
         ...opts,
-        isLeaf:true, // enforce leaf layer
     });
+
+
+    // properties
+    Object.defineProperty(layer, "isNumberOnly", {get: () => isNumberOnly});
+    Object.defineProperty(layer, "isReadOnly", {get: () => isReadOnly});
+    Object.defineProperty(layer, "isLeaf", {get: () => true});
 
     // setup provider as property
     srcprop.addState(layer);
     srcprop.addMethods(layer);
-
     layer.srcprop_register("provider");
     layer.srcprop_check = function (propName, obj) {
         if (propName == "provider") {

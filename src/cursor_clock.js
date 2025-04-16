@@ -1,33 +1,58 @@
 import { Cursor } from "./cursor_base.js";
 import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
+import * as srcprop from "./util/api_srcprop.js";
+
 /**
- * Clock cursor is a thin wrapper around a clockProvider,
- * so that it can be consumed as a cursor.
+ * Clock Cursor is a cursor that wraps a clock provider, which is available 
+ * on the provider property.
  * 
- * The ctrl property of any Cursor is required to be a Cursor or undefined,
- * so in the case of a clock cursor, which is the starting point,
- * the ctrl property is always set to undefined.
+ * Clock cursor does not depend on a src layer or a ctrl cursor. 
+ * Clock cursor is FixedRate Cursor (bpm 1)
+ * Clock cursor is NumberOnly
  * 
- * Additionally, clock cursor.src is also undefined.
+ * The Clock cursor generally does not invoke any callback, as it is always in dynamic state.
+ * However, a callback will be invoked if the clockprovider is changed through 
+ * assignment of the provider property.
  * 
- * Cursor transformation of a clock cursor will result in a new clock cursor.
- *  
- * Idenfifying a cursor as a clock cursor or not is important for playback
- * logic in cursor implemmentation.
  */
 
-export function is_clock_cursor(obj) {
-    return obj instanceof Cursor && obj.ctrl == undefined && obj.src == undefined; 
-}
-
-export function clock_cursor(src=LOCAL_CLOCK_PROVIDER) {
-    if (!is_clock_provider(src)) {
-        throw new Error(`src must be clockProvider ${src}`);
-    }
+export function clock({provider=LOCAL_CLOCK_PROVIDER}) {
     const cursor = new Cursor();
+
+    // properties
+    Object.defineProperty(cursor, "isNumberOnly", {get: () => true});
+    Object.defineProperty(cursor, "isReadOnly", {get: () => true});
+    Object.defineProperty(cursor, "isLeaf", {get: () => true});
+    Object.defineProperty(cursor, "isFixedRate", {get: () => true});
+
+    // query
     cursor.query = function (local_ts) {
-        const clock_ts = src.now(local_ts);
+        const clock_ts = provider.now(local_ts);
         return {value:clock_ts, dynamic:true, offset:local_ts};
     }
+
+    // setup provider as settable property
+    srcprop.addState(cursor);
+    srcprop.addMethods(cursor);
+    cursor.srcprop_register("provider");
+    cursor.srcprop_check = function (propName, obj) {
+        if (propName == "provider") {
+            if (!is_clock_provider(obj)) {
+                throw new Error(`provider must be clockProvider ${provider}`);
+            }        
+            return obj;    
+        }
+    }
+    cursor.srcprop_onchange = function (propName, eArg) {
+        if (propName == "provider") {
+            if (eArg == "reset") {
+                cursor.onchange();
+            }
+        }        
+    }
+
+    // initialise
+    cursor.rate = 1.0;
+    cursor.provider = provider;
     return cursor;
 }
