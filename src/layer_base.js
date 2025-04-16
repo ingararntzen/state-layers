@@ -200,6 +200,12 @@ export class LayerCache {
         this._nearby;
         // cached state
         this._state;
+        // query options
+        this._query_options = {
+            valueFunc: this._layer.valueFunc,
+            stateFunc: this._layer.stateFunc,
+            numberOnly: this._layer.isNumberOnly,
+        };
     }
 
     get layer() {return this._layer};
@@ -229,7 +235,7 @@ export class LayerCache {
             return cache.query(offset);
         });
         // calculate single result state
-        const state = toState(this._nearby.center, states, offset, this._layer.options);
+        const state = toState(this._nearby.center, states, offset, this._query_options);
         // cache state only if not dynamic
         this._state = (state.dynamic) ? undefined : state;
         return state    

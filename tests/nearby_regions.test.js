@@ -14,11 +14,11 @@ describe('NearbyIndex Regions', () => {
             [2, null, false, true],
         ]
 
-        const items = intervals.map(itv => {
-            return {itv};
-        })
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv};
+        });
 
-        const src = new CollectionProvider({insert:items});
+        const src = new CollectionProvider({items});
         const index = new NearbyIndex(src);
 
         let result = [...index.regions({includeEmpty:false})];
@@ -30,8 +30,6 @@ describe('NearbyIndex Regions', () => {
         });
     });
 
-
-
     test('test region iterator', () => {
 
         const intervals = [
@@ -41,11 +39,11 @@ describe('NearbyIndex Regions', () => {
             [2, null, true, true],
         ]
 
-        const items = intervals.map(itv => {
-            return {itv};
-        })
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv};
+        });
 
-        const src = new CollectionProvider({insert:items});
+        const src = new CollectionProvider({items});
         const index = new NearbyIndex(src);
 
         let regions = [...index.regions({includeEmpty:true})];
@@ -73,11 +71,11 @@ describe('NearbyIndex Regions', () => {
             [4, null, true, true],
         ]
 
-        const items = intervals.map(itv => {
-            return {itv};
-        })
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv};
+        });
 
-        const src = new CollectionProvider({insert:items});
+        const src = new CollectionProvider({items});
         const index = new NearbyIndex(src);
         const regions = [...index.regions({start:1.5, stop:5})];
 
@@ -97,11 +95,11 @@ describe('NearbyIndex Regions', () => {
             // gap
         ]
 
-        const items = intervals.map(itv => {
-            return {itv, data: "data"};
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv, data: "data"};
         });
 
-        const src = new CollectionProvider({insert:items});
+        const src = new CollectionProvider({items});
         const index = new NearbyIndex(src);
         let nearby, next, prev;
 
@@ -134,11 +132,11 @@ describe('NearbyIndex Regions', () => {
             [2, null, false, true],
         ]
 
-        const items = intervals.map(itv => {
-            return {itv, data: "data"};
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv, data: "data"};
         });
 
-        const src = new CollectionProvider({insert:items});
+        const src = new CollectionProvider({items});
         const index = new NearbyIndex(src);
         let nearby, next;
 

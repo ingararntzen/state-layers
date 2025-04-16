@@ -20,16 +20,15 @@ describe('Test Logical Layer', () => {
 
     test('Check values of Logical Layer', () => {
 
-        const l1 = sl.layer({insert:[
-            {itv: [0, 1, true, false], data: 0},
-            {itv: [1, 2, true, false], data: 1},
-            {itv: [2, 3, true, false], data: 2},
-            {itv: [3, 4, true, false], data: 3},
-            {itv: [4, 5, true, false], data: 4},
-            {itv: [5, 6, true, false], data: 5},
-            {itv: [6, 7, true, false], data: 6},
-            {itv: [7, 8, true, false], data: 7},
-
+        const l1 = sl.layer({items:[
+            {id: "1", itv: [0, 1, true, false], data: 0},
+            {id: "2", itv: [1, 2, true, false], data: 1},
+            {id: "3", itv: [2, 3, true, false], data: 2},
+            {id: "4", itv: [3, 4, true, false], data: 3},
+            {id: "5", itv: [4, 5, true, false], data: 4},
+            {id: "6", itv: [5, 6, true, false], data: 5},
+            {id: "7", itv: [6, 7, true, false], data: 6},
+            {id: "8", itv: [7, 8, true, false], data: 7},
         ]});
 
         const l2 = sl.boolean(l1);
@@ -64,11 +63,11 @@ describe('Test Logical Layer', () => {
             [7, null, true, true], // # 5
         ]
 
-        const items = intervals.map(itv => {
-            return {itv, data: "data"};
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv, data: "data"};
         });
 
-        const [sp, index] = setup({insert:items})
+        const [sp, index] = setup({items})
         const bool_index = new NearbyIndexBoolean(index);
 
         // check values

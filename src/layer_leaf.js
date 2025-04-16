@@ -109,13 +109,12 @@ class LeafLayerCache {
         this._nearby = undefined;
         // cached segment
         this._segment = undefined;
-        // default value
+        // query options
         this._query_options = {
             valueFunc: this._layer.valueFunc,
             stateFunc: this._layer.stateFunc,
             numberOnly: this._layer.isNumberOnly,
         };
-
     }
 
     get src() {return this._layer};

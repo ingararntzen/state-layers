@@ -7,14 +7,14 @@ describe('Test Logical Merge', () => {
 
     test('Check values of Logical Merge Layer', () => {
 
-        const l1 = sl.layer({insert:[
-            {itv: [0, 1, true, false], data: 0},
-            {itv: [1, 5, true, false], data: 1},
+        const l1 = sl.layer({items:[
+            {id:"a", itv: [0, 1, true, false], data: 0},
+            {id:"b", itv: [1, 5, true, false], data: 1},
         ]});
 
-        const l2 = sl.layer({insert:[
-            {itv: [3, 4, true, false], data: 3},
-            {itv: [4, 10, true, false], data: 4},    
+        const l2 = sl.layer({items:[
+            {id:"c", itv: [3, 4, true, false], data: 3},
+            {id:"d", itv: [4, 10, true, false], data: 4},    
         ]});
 
         const r = sl.logical_expr;
@@ -38,6 +38,4 @@ describe('Test Logical Merge', () => {
         expect(l3.query(10).value).toBe(false);
     });
 
-
-    
 });

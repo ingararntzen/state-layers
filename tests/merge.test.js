@@ -11,8 +11,8 @@ function runtest(intervals, expected) {
     // make layers
     const layers = intervals.map((intervals) => { 
         return sl.layer({
-            insert: intervals.map((itv) => {
-                return {itv, type: "static", data: DATA};
+            items: intervals.map((itv, idx) => {
+                return {id: `${idx}`, itv, type: "static", data: DATA};
             })
         });
     });
@@ -139,14 +139,14 @@ describe('MergeTest', () => {
             {type: "static", itv: [1, 5, true, false], value: 0.8},
             {type: "static", itv: [10, 15, true, false], value: 0.6},
         ];
-        const layer_1 = sl.layer({insert:items_1});
+        const layer_1 = sl.layer({items:items_1});
 
         // Datasource 2
         const items_2 = [
             {type: "static", itv: [2.5, 7.5, true, false], value: 0.1},
             {type: "static", itv: [12.5, 17.5, true, false], value: 0.3},
         ];
-        const layer_2 = sl.layer({insert:items_2});
+        const layer_2 = sl.layer({items:items_2});
 
         // Merge
         let layer = sl.merge([layer_1, layer_2]);
@@ -173,17 +173,17 @@ describe('MergeTest', () => {
 
         // Datasource 1
         const items_1 = [
-            {type: "static", itv: [1, 5, true, false], data:0.8},
-            {type: "static", itv: [10, 15, true, false], data:0.6},
+            {id: "a", type: "static", itv: [1, 5, true, false], data:0.8},
+            {id: "b", type: "static", itv: [10, 15, true, false], data:0.6},
         ];
-        const layer_1 = new sl.layer({insert:items_1});
+        const layer_1 = new sl.layer({items:items_1});
 
         // Datasource 2
         const items_2 = [
-            {type: "static", itv: [2.5, 7.5, true, false], data:0.1},
-            {type: "static", itv: [12.5, 17.5, true, false], data:0.3},
+            {id: "c", type: "static", itv: [2.5, 7.5, true, false], data:0.1},
+            {id: "d", type: "static", itv: [12.5, 17.5, true, false], data:0.3},
         ];
-        const layer_2 = sl.layer({insert:items_2});
+        const layer_2 = sl.layer({items:items_2});
 
         // valueFunc
         function valueFunc(info) {

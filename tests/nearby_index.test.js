@@ -59,11 +59,11 @@ describe('Test NearbyIndex', () => {
             [2, null, false, true],
         ]
 
-        const items = intervals.map(itv => {
-            return {itv};
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv};
         });
 
-        const [sp, index] = setup({insert:items});
+        const [sp, index] = setup({items});
 
         // Test -Infinity
         let nearby = index.nearby(-Infinity);
@@ -86,11 +86,12 @@ describe('Test NearbyIndex', () => {
             [2, null, false, true],
         ]
 
-        const items = intervals.map(itv => {
-            return {itv};
-        })
+        const items = intervals.map((itv, idx) => {
+            return {id: `${idx}`, itv};
+        });
 
-        const [sp, index] = setup({insert:items});
+
+        const [sp, index] = setup({items});
 
         // FIRST ITEM
 
@@ -173,7 +174,7 @@ describe('Test NearbyIndex', () => {
             itv: [null, null, true, true], 
             data: {value:1}
         }
-        const [sp, index] = setup({insert:[item_1]});
+        const [sp, index] = setup({items:[item_1]});
 
         // verify initialization
         let nearby = index.nearby(1.5);
