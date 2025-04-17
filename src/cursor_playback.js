@@ -1,75 +1,66 @@
-import { Cursor, get_cursor_ctrl_state } from "./cursor_base.js";
+import { Cursor } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
-import { leaf_layer } from "./layer_leaf.js";
 import * as srcprop from "./util/api_srcprop.js";
+import { set_timeout} from "./util/common.js";
 import { interval } from "./util/intervals.js";
-import { set_timeout } from "./util/common.js";
-import { is_clock_cursor, clock_cursor } from "./cursor_clock.js";
-import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
-import { is_collection_provider } from "./provider_collection.js";
-import { is_object_provider } from "./provider_object.js";
+
 
 /*****************************************************
  * PLAYBACK CURSOR
  *****************************************************/
 
 /**
- * src is a layer or a stateProvider
- * ctrl is a cursor or a clockProvider
+ * generic playback cursor
  * 
- * clockProvider is wrapped as clockCursor
- * to ensure that "ctrl" property of cursors is always a cursor
- * 
- * stateProvider is wrapped as itemsLayer
- * to ensure that "src" property of cursors is always a layer
+ * "src" is a layer
+ * "ctrl" is cursor (Number)
+ * returns a cursor
  */
 
-export function playback_cursor(ctrl, src) {
+export function playback_cursor(options={}) {
+
+    const {ctrl, src, isReadOnly=true} = options;
+
+    let src_cache; // cache for src layer
+    let tid; // timeout
+    let pid; // polling
 
     const cursor = new Cursor();
 
-    // src cache
-    let src_cache;
-    // timeout
-    let tid;
-    // polling
-    let pid;
+    /**********************************************************
+     * TYPE PROPERTIES
+     **********************************************************/
 
-    // setup src property
+    Object.defineProperty(cursor, "isNumberOnly", {get: () => {
+        return (cursor.src != undefined) ? cursor.src.isNumberOnly : false;
+    }});
+    Object.defineProperty(cursor, "isReadOnly", {get: () => {
+        return (cursor.src != undefined) ? (cursor.src.isReadOnly || isReadOnly) : true;
+    }});
+
+    /**********************************************************
+     * SRC AND CTRL PROPERTIES
+     **********************************************************/
+
     srcprop.addState(cursor);
     srcprop.addMethods(cursor);
     cursor.srcprop_register("ctrl");
     cursor.srcprop_register("src");
 
-    /**
-     * src property initialization check
-     */
-    cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
+    cursor.srcprop_check = function (propName, obj) {
         if (propName == "ctrl") {
-            if (is_clock_provider(obj)) {
-                obj = clock_cursor(obj);
+            if (!(obj instanceof Cursor) || obj.isNumberOnly == false) {
+                throw new Error(`"ctrl" property must be a Number cursor ${obj}`);
             }
-            if (obj instanceof Cursor) {
-                return obj
-            } else {
-                throw new Error(`ctrl must be clockProvider or Cursor ${obj}`);
-            }
+            return obj;
         }
         if (propName == "src") {
-            if (is_collection_provider(obj) || is_object_provider(obj)) {
-                obj = leaf_layer({provider:obj});
+            if (!(obj instanceof Layer)) {
+                throw new Error(`"src" property must be a layer ${obj}`);
             }
-            if (obj instanceof Layer) {
-                return obj;
-            } else {
-                throw new Error(`src must be Layer ${obj}`);
-            }
+            return obj;
         }
     }
-
-    /**
-     * handle src property change
-     */
     cursor.srcprop_onchange = function (propName, eArg) {
         if (cursor.src == undefined || cursor.ctrl == undefined) {
             return;
@@ -81,86 +72,113 @@ export function playback_cursor(ctrl, src) {
                 src_cache.clear();                
             }
         }
-        cursor_onchange();
-    }
-
-    /**
-     * main cursor change handler
-     */
-    function cursor_onchange() {
         cursor.onchange();
-        detect_future_event();
     }
 
+    cursor.query = function query(local_ts) {
+        const offset = cursor.ctrl.query(local_ts).value;
+        return src_cache.query(offset);
+    }
+
+    /**********************************************************
+     * DETECT FUTURE EVENT
+     **********************************************************/
+
     /**
-     * cursor.ctrl (cursor/clock) defines an active region of cursor.src (layer)
-     * at some point in the future, the cursor.ctrl will leave this region.
-     * in that moment, cursor should reevaluate its state - so we need to 
-     * detect this event, ideally by timeout, alternatively by polling.  
+     * fixed rate cursors never change their behavior - and
+     * consequently never has to invoke any callbacks / events
+     * 
+     * Other cursors may change behaviour at a future time.
+     * If this future change is caused by a state change - 
+     * either in (src) layer or (ctrl) cursor - events will be 
+     * triggered in response to this. 
+     * 
+     * However, cursors may also change behaviour at a future time moment
+     * in time, without any causing state change. This may happen during 
+     * playback, as the (ctrl) cursor leaves the current region 
+     * of the (src) layer and enters into the next region.
+     * 
+     * This event must be detected, ideally at the right moment, 
+     * so that the cursor can generate events, allowing observers to
+     * react to the change. If the (ctrl) cursor behaves deterministically, 
+     * this future event can be calculated ahead of time, 
+     * and detected by timeout. Otherwise, the fallback solution is to
+     * detect such future events by polling.
+     * 
+     * NOTE consumers of cursors might poll the cursor themselves, thus 
+     * causing the event to be detected that way. However, there is no 
+     * guarantee that this will happen. For example, in circumstances 
+     * where the (src) layer region is static, consumers will turn
+     * polling off, and depend on the change event from the cursor, in order 
+     * to detect the change in behavior.
+     * 
      */
-    function detect_future_event() {
-        if (tid) { tid.cancel(); }
-        if (pid) { clearInterval(pid); }
+    cursor.detect_future_event = function detect_future_event() {
+        // clear pending timeouts 
+        if (tid != undefined) { 
+            tid.cancel(); 
+        }
+        if (pid != undefined) { 
+            clearInterval(pid); 
+        }
+        // no future timeout if cursor itself is fixedRate
+        if (cursor.isFixedRate) {
+            return;
+        }
+        // all other cursors must have (src) and (ctrl)
+        if (cursor.ctrl == undefined) {
+            throw new Error("cursor.ctrl can not be undefined with isFixedRate=false");
+        }
+        if (cursor.src == undefined) {
+            throw new Error("cursor.src can not be undefined with isFixedRate=false");
+        }
 
         // current state of cursor.ctrl 
-        const ctrl_state = get_cursor_ctrl_state(cursor);
-        // current (position, time) of cursor.ctrl
-        const current_pos = ctrl_state.value;
-        const current_ts = ctrl_state.offset;
+        const {value:pos0, dynamic, offset:ts0} = cursor.ctrl.query();
 
-        // no future event if the ctrl is static
-        if (!ctrl_state.dynamic) {
-            // will never leave region
+        // no future timeout if cursor.ctrl is static
+        if (!dynamic) {
             return;
         }
 
         // current region of cursor.src
-        const src_nearby = cursor.src.index.nearby(current_pos);
+        const src_nearby = cursor.src.index.nearby(pos0);
+        const src_region_low = src_nearby.itv[0] ?? -Infinity;
+        const src_region_high = src_nearby.itv[1] ?? Infinity;
 
-        const region_low = src_nearby.itv[0] ?? -Infinity;
-        const region_high = src_nearby.itv[1] ?? Infinity;
-
-        // no future leave event if the region covers the entire timeline 
-        if (region_low == -Infinity && region_high == Infinity) {
+        // no future timeout if the region is infinite 
+        if (src_region_low == -Infinity && src_region_high == Infinity) {
             // will never leave region
             return;
         }
 
-        if (is_clock_cursor(cursor.ctrl)) {
+        // check if condition for clock timeout is met
+        if (cursor.ctrl.isFixedRate) {
             /* 
-                cursor.ctrl is a clock provider
-
-                possible timeout associated with leaving region
-                through region_high - as clock is increasing.
+                cursor.ctrl is fixed rate (clock)
+                future timeout when cursor.ctrl leaves src_region (on the right)
             */
-           const target_pos = region_high;
-            const delta_ms = (target_pos - current_pos) * 1000;
-            tid = set_timeout(() => {
-                cursor_onchange();
-            }, delta_ms);
-            // leave event scheduled
+            const vector = [pos0, cursor.ctrl.rate, 0, ts0];
+            const target = src_region_high
+            timeout(vector, target);
             return;
-        } 
-        
-        if (
-            is_clock_cursor(cursor.ctrl.ctrl) && 
-            is_items_layer(cursor.ctrl.src)
-        ) {
-            /* 
-                cursor.ctrl is a cursor with a clock provider
+        }
 
+        // check if conditions for motion timeout are met
+        // cursor.ctrl.ctrl must be fixed rate
+        // cursor.ctrl.src must be leaf (so that we can get items) 
+        if (cursor.ctrl.ctrl.isFixedRate && cursor.ctrl.src.isLeaf) {
+            /* 
                 possible timeout associated with leaving region
-                through region_low or region_high.
+                through either region_low or region_high.
 
                 However, this can only be predicted if cursor.ctrl
                 implements a deterministic function of time.
-
-                This can be the case if cursor.ctr.src is an items layer,
-                and a single active item describes either a motion or a transition (with linear easing).                
+                This can be known only if cursor.ctrl.src is a leaf layer.
+                and a single active item describes either a motion or a transition 
+                (with linear easing).                
             */
-            const active_items = cursor.ctrl.src.get_items(current_ts);
-            let target_pos;
-
+            const active_items = cursor.ctrl.src.get_items(ts0);
             if (active_items.length == 1) {
                 const active_item = active_items[0];
                 if (active_item.type == "motion") {
@@ -168,78 +186,71 @@ export function playback_cursor(ctrl, src) {
                     // TODO calculate timeout with acceleration too
                     if (a == 0.0) {
                         // figure out which region boundary we hit first
-                        if (v > 0) {
-                            target_pos = region_high;
-                        } else {
-                            target_pos = region_low;
-                        }
-                        const delta_ms = (target_pos - current_pos) * 1000;
-                        tid = set_timeout(() => {
-                            cursor_onchange();
-                        }, delta_ms);
-                        // leave-event scheduled
+                        const target = (v > 0) ? src_region_high : src_region_low;
+                        const vector = [pos0, v, 0, ts0];
+                        timeout(vector, target);
                         return;
                     }
                 } else if (active_item.type == "transition") {
                     const {v0, v1, t0, t1, easing="linear"} = active_item.data;
                     if (easing == "linear") {
-                        // linear transtion
-                        let velocity = (v1-v0)/(t1-t0);
-                        if (velocity > 0) {
-                            target_pos = Math.min(region_high, v1);
-                        }
-                        else {
-                            target_pos = Math.max(region_low, v1);
-                        }
-                        const delta_ms = (target_pos - current_pos) * 1000;
-                        tid = set_timeout(() => {
-                            cursor_onchange();
-                        }, delta_ms);
-                        // leave-event scheduled
-                        return;
+                        // linear transition
+                        const v = (v1-v0)/(t1-t0);
+                        let target = (v > 0) ? Math.min(v1, src_region_high) : Math.max(v1, src_region_low);
+                        const vector = [pos0, v, 0, ts0];
+                        timeout(vector, target);
+                        return;                           
                     }
                 }
             }
-        }
+        }            
 
         /**
          * detection of leave events falls back on polling
          */
-        start_polling(src_nearby.itv);
+        poll(src_nearby.itv);
     }
 
-    /**
-     * start polling
-     */
-    function start_polling(itv) {
+    /**********************************************************
+     * TIMEOUT / POLLING UTILS
+     **********************************************************/
+
+    /*
+        schedule timeout when target is reached  
+    */
+    function timeout(vector, target) {
+        const [p,v,a,t] = vector;
+        if (a != 0) {
+            throw new Error("timeout not yet implemented for acceleration");
+        }
+        const delta_sec = (target - p) / v;
+        tid = set_timeout(() => {
+            // event detected
+            cursor.onchange();
+        }, delta_sec * 1000.0);
+    }
+
+    // start polling
+    function poll(itv) {
         pid = setInterval(() => {
-            handle_polling(itv);
+            handle_poll(itv);
         }, 100);
     }
 
-    /**
-     * handle polling
-     */
-    function handle_polling(itv) {
-        let offset = cursor.ctrl.value;
-        if (!interval.covers_endpoint(itv, offset)) {
-            cursor_onchange();
+    // handle poll
+    function handle_poll(itv) {
+        let pos = cursor.ctrl.value;
+        if (!interval.covers_endpoint(itv, pos)) {
+            // event detected
+            cursor.onchange();
         }
     }
 
-
-    /**
-     * main query function - resolving query
-     * from cache object associated with cursor.src
-     */
-
-    cursor.query = function query(local_ts) {
-        const offset = get_cursor_ctrl_state(cursor, local_ts).value; 
-        return src_cache.query(offset);
-    }
-    
-    // initialize
+    /**********************************************************
+     * INITIALIZATION
+     **********************************************************/
     cursor.ctrl = ctrl;
     cursor.src = src;
     return cursor;
 }
+

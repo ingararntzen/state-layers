@@ -10,13 +10,20 @@ import * as srcprop from "./util/api_srcprop.js";
  * Clock cursor is FixedRate Cursor (bpm 1)
  * Clock cursor is NumberOnly
  * 
+ * Clock cursor take options {skew, scale} to transform the clock value.
+ * Scale is multiplier to the clock value, applied before the skew so that
+ * it preserves the zero point.
+ * 
  * The Clock cursor generally does not invoke any callback, as it is always in dynamic state.
  * However, a callback will be invoked if the clockprovider is changed through 
  * assignment of the provider property.
  * 
  */
 
-export function clock({provider=LOCAL_CLOCK_PROVIDER}) {
+export function clock(options={}) {
+
+    const {provider=LOCAL_CLOCK_PROVIDER, shift=0, scale=1.0} = options;
+
     const cursor = new Cursor();
 
     // properties
@@ -28,7 +35,8 @@ export function clock({provider=LOCAL_CLOCK_PROVIDER}) {
     // query
     cursor.query = function (local_ts) {
         const clock_ts = provider.now(local_ts);
-        return {value:clock_ts, dynamic:true, offset:local_ts};
+        const value = (clock_ts * scale) + shift;
+        return {value, dynamic:true, offset:local_ts};
     }
 
     // setup provider as settable property
@@ -52,7 +60,7 @@ export function clock({provider=LOCAL_CLOCK_PROVIDER}) {
     }
 
     // initialise
-    cursor.rate = 1.0;
+    cursor.rate = 1.0 * scale;
     cursor.provider = provider;
     return cursor;
 }
