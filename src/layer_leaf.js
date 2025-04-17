@@ -18,7 +18,8 @@ export function is_leaf_layer(obj) {
 
 export function leaf_layer(options={}) {
 
-    const {provider,
+    const {
+        provider,
         isNumberOnly, 
         isReadOnly, 
         ...opts} = options;

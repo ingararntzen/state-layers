@@ -20,7 +20,7 @@ import * as srcprop from "./util/api_srcprop.js";
  * 
  */
 
-export function clock(options={}) {
+export function clock_cursor(options={}) {
 
     const {provider=LOCAL_CLOCK_PROVIDER, shift=0, scale=1.0} = options;
 
