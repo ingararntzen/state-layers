@@ -21,11 +21,14 @@ export class Cursor {
         this.eventifyDefine("change", {init:true});
     }
 
-    // property defaults - overridden by cursor implementation
-    get isNumberOnly () {return false;}
-    get isReadOnly () {return true};
-    get isLeaf () {return false;}
-    get isFixedRate () {return false}
+    // restriction defaults
+    get mutable () {return false;}
+    get numeric () {return false};
+
+    // property defaults
+    get leaf () {return false;}
+    get itemsOnly () {return false;}
+    get fixedRate () {return false}
 
     /**********************************************************
      * QUERY API

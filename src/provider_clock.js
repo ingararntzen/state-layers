@@ -28,3 +28,14 @@ export const LOCAL_CLOCK_PROVIDER = function () {
     }
 }();
 
+/**
+ * Wonder if clock provider should rather be a 
+ * static vector [ts (sec), offset (unit), rate (unit/sec)]
+ * where the clock has offset at time ts, and where
+ * ts is taken from a specific clock (local clock)
+ * exposed by the statelayers framework.
+ * Example, epoch : [ts, epoch_sec_ts, 1.0]
+ * 
+ * Then nobody would need to implement a clock provider,
+ * but could just send in a vector as option.
+ */

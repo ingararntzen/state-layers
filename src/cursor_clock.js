@@ -26,11 +26,13 @@ export function clock_cursor(options={}) {
 
     const cursor = new Cursor();
 
+    // restrictions
+    Object.defineProperty(cursor, "numeric", {get: () => true});
+    Object.defineProperty(cursor, "mutable", {get: () => false});
     // properties
-    Object.defineProperty(cursor, "isNumberOnly", {get: () => true});
-    Object.defineProperty(cursor, "isReadOnly", {get: () => true});
-    Object.defineProperty(cursor, "isLeaf", {get: () => true});
-    Object.defineProperty(cursor, "isFixedRate", {get: () => true});
+    Object.defineProperty(cursor, "leaf", {get: () => true});
+    Object.defineProperty(cursor, "fixedRate", {get: () => true});
+    Object.defineProperty(cursor, "itemsOnly", {get: () => false});
 
     // query
     cursor.query = function (local_ts) {

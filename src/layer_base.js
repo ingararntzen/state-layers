@@ -60,10 +60,15 @@ export class Layer {
         this._stateFunc = stateFunc;
     }
 
-    // properties
-    get isNumberOnly () {return false;}
-    get isReadOnly () {return true;}
-    get isLeaf () {return false;}
+    // restrictions (defaults)
+    get numeric () {return false;}
+    get mutable () {return false;}
+
+    // properties (defaults)
+    get itemsOnly () {return false;}
+    get leaf () {return false;}
+
+    // query options
     get valueFunc () {return this._valueFunc;}
     get stateFunc () {return this._stateFunc;}
 

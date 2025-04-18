@@ -20,8 +20,8 @@ export function leaf_layer(options={}) {
 
     const {
         provider,
-        isNumberOnly, 
-        isReadOnly, 
+        numeric, 
+        mutable, 
         ...opts} = options;
 
     const layer = new Layer({
@@ -29,10 +29,13 @@ export function leaf_layer(options={}) {
         ...opts,
     });
 
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => numeric});
+    Object.defineProperty(layer, "mutable", {get: () => mutable});
+
     // properties
-    Object.defineProperty(layer, "isNumberOnly", {get: () => isNumberOnly});
-    Object.defineProperty(layer, "isReadOnly", {get: () => isReadOnly});
-    Object.defineProperty(layer, "isLeaf", {get: () => true});
+    Object.defineProperty(layer, "itemsOnly", {get: () => true});
+    Object.defineProperty(layer, "leaf", {get: () => true});
 
     // setup provider as property
     srcprop.addState(layer);
@@ -79,7 +82,7 @@ export function leaf_layer(options={}) {
      * LAYER UPDATE API
      * ***************************************************************/
 
-    if (!layer.isReadOnly) {
+    if (!layer.readOnly) {
         layer.update = function update(changes) {
             return layer_update(layer, changes);
         }

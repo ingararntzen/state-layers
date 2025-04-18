@@ -19,7 +19,8 @@ import { interval } from "./util/intervals.js";
 
 export function playback_cursor(options={}) {
 
-    const {ctrl, src, isReadOnly=true} = options;
+    const {ctrl, src, 
+        mutable=false} = options;
 
     let src_cache; // cache for src layer
     let tid; // timeout
@@ -31,13 +32,21 @@ export function playback_cursor(options={}) {
      * TYPE PROPERTIES
      **********************************************************/
 
-    Object.defineProperty(cursor, "isNumberOnly", {get: () => {
-        return (cursor.src != undefined) ? cursor.src.isNumberOnly : false;
+    // restrictions
+    Object.defineProperty(cursor, "numeric", {get: () => {
+        return (cursor.src != undefined) ? cursor.src.numeric : false;
     }});
-    Object.defineProperty(cursor, "isReadOnly", {get: () => {
-        return (cursor.src != undefined) ? (cursor.src.isReadOnly || isReadOnly) : true;
+    Object.defineProperty(cursor, "mutable", {get: () => {
+        return (cursor.src != undefined) ? (cursor.src.mutable && mutable) : false;
+    }});
+    // properties
+    Object.defineProperty(cursor, "leaf", {get: () => false});
+    Object.defineProperty(cursor, "fixedRate", {get: () => false});
+    Object.defineProperty(cursor, "itemsOnly", {get: () => {
+        return (cursor.src != undefined) ? cursor.src.itemsOnly : false;
     }});
 
+    
     /**********************************************************
      * SRC AND CTRL PROPERTIES
      **********************************************************/
@@ -49,8 +58,8 @@ export function playback_cursor(options={}) {
 
     cursor.srcprop_check = function (propName, obj) {
         if (propName == "ctrl") {
-            if (!(obj instanceof Cursor) || obj.isNumberOnly == false) {
-                throw new Error(`"ctrl" property must be a Number cursor ${obj}`);
+            if (!(obj instanceof Cursor) || obj.numeric == false) {
+                throw new Error(`"ctrl" property must be a numeric cursor ${obj}`);
             }
             return obj;
         }
@@ -78,6 +87,13 @@ export function playback_cursor(options={}) {
     cursor.query = function query(local_ts) {
         const offset = cursor.ctrl.query(local_ts).value;
         return src_cache.query(offset);
+    }
+
+    cursor.active_items = function get_item(local_ts) {
+        if (cursor.itemsOnly) {
+            const offset = cursor.ctrl.query(local_ts).value;
+            return cursor.src.index.nearby(offset).center;    
+        }
     }
 
     /**********************************************************
@@ -122,7 +138,7 @@ export function playback_cursor(options={}) {
             clearInterval(pid); 
         }
         // no future timeout if cursor itself is fixedRate
-        if (cursor.isFixedRate) {
+        if (cursor.fixedRate) {
             return;
         }
         // all other cursors must have (src) and (ctrl)
@@ -153,7 +169,7 @@ export function playback_cursor(options={}) {
         }
 
         // check if condition for clock timeout is met
-        if (cursor.ctrl.isFixedRate) {
+        if (cursor.ctrl.fixedRate) {
             /* 
                 cursor.ctrl is fixed rate (clock)
                 future timeout when cursor.ctrl leaves src_region (on the right)
@@ -166,8 +182,8 @@ export function playback_cursor(options={}) {
 
         // check if conditions for motion timeout are met
         // cursor.ctrl.ctrl must be fixed rate
-        // cursor.ctrl.src must be leaf (so that we can get items) 
-        if (cursor.ctrl.ctrl.isFixedRate && cursor.ctrl.src.isLeaf) {
+        // cursor.ctrl.src must have itemsOnly == true 
+        if (cursor.ctrl.ctrl.fixedRate && cursor.ctrl.src.itemsOnly) {
             /* 
                 possible timeout associated with leaving region
                 through either region_low or region_high.

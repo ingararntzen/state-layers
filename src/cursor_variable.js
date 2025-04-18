@@ -9,8 +9,8 @@ import { load_segment } from "./util/segments.js";
 /**
  * cursor supporting updates
  *  
- * "src" is a layer which is NOT readOnly (=> leaf layer)
- * "ctrl" is fixed-rate cursor (=> Number type)
+ * "src" is a layer which is mutable
+ * "ctrl" is fixed-rate cursor
  * 
  * variable may also support recording
  */
@@ -19,7 +19,7 @@ export function variable_cursor(options={}) {
 
     const {ctrl, src, record=false} = options;
 
-    const cursor = new playback_cursor({ctrl, src, isReadOnly: false});
+    const cursor = new playback_cursor({ctrl, src, mutable: true});
 
     /**
      * override to implement restrictions on src and ctrl
@@ -29,14 +29,14 @@ export function variable_cursor(options={}) {
     cursor.srcprop_check = function (propName, obj) {
         obj = original_srcprop_check(propName, obj);
         if (propName == "ctrl") {
-            if (!obj.isFixedRate) {
-                throw new Error(`"ctrl" property must be a fixed-rate cursor ${obj}`);
+            if (!obj.fixedRate) {
+                throw new Error(`"ctrl" property must be a fixedrate cursor ${obj}`);
             }
             return obj;
         }
         if (propName == "src") {
-            if (obj.isReadOnly) {
-                throw new Error(`"src" property can not be readOnly ${obj}`);
+            if (!obj.mutable) {
+                throw new Error(`"src" property must be mutable layer ${obj}`);
             }
             return obj;
         }
@@ -65,7 +65,7 @@ export function variable_cursor(options={}) {
     }
     
     cursor.update = (items) => {
-        if (cursor.isReadOnly  || cursor.src.isReadOnly) {
+        if (cursor.mutable  && cursor.src.mutable) {
             throw new Error("cursor update not allowed, readonly");
         }
         if (record) {
