@@ -1,5 +1,5 @@
 import { Cursor } from "./cursor_base.js";
-import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
+import { ClockProvider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
 import * as srcprop from "./util/api_srcprop.js";
 
 /**
@@ -29,8 +29,6 @@ export function clock_cursor(options={}) {
     // restrictions
     Object.defineProperty(cursor, "numeric", {get: () => true});
     Object.defineProperty(cursor, "mutable", {get: () => false});
-    // properties
-    Object.defineProperty(cursor, "leaf", {get: () => true});
     Object.defineProperty(cursor, "fixedRate", {get: () => true});
     Object.defineProperty(cursor, "itemsOnly", {get: () => false});
 
@@ -47,7 +45,7 @@ export function clock_cursor(options={}) {
     cursor.srcprop_register("provider");
     cursor.srcprop_check = function (propName, obj) {
         if (propName == "provider") {
-            if (!is_clock_provider(obj)) {
+            if (!(obj instanceof ClockProvider)) {
                 throw new Error(`provider must be clockProvider ${provider}`);
             }        
             return obj;    

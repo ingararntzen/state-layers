@@ -32,7 +32,7 @@ import { render_provider } from "./util/provider_viewer.js";
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, provider, items, value, ...opts} = options;
+    let {src, provider, items=[], value, ...opts} = options;
     if (src != undefined) {
         if (src instanceof Layer) {
             return src;
@@ -45,10 +45,10 @@ function layer(options={}) {
                 data: value
             }])
             provider = new ObjectProvider({items});
-        } else if (items != undefined) {
+        } else {
             items = check_items(items);
             provider = new CollectionProvider({items});
-        }
+        } 
     }
     return leaf_layer({provider, ...opts}); 
 }
@@ -77,6 +77,10 @@ function variable(options={}) {
         src = layer(src_opts);
     }
     return variable_cursor({ctrl, src});
+}
+
+function mediacontrol(options={}) {
+    return variable({...options, numeric:true});
 }
 
 function playback(options={}) {
@@ -108,6 +112,7 @@ export {
     layer, 
     clock,
     variable,
+    mediacontrol,
     playback,
     merge_layer as merge, 
     boolean_layer as boolean,

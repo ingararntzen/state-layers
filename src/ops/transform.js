@@ -1,10 +1,12 @@
 import { Cursor } from "../cursor_base.js";
 import { Layer } from "../layer_base.js"
 import { NearbyIndexSrc } from "../nearby_base.js"
-import { is_clock_cursor } from "../cursor_clock.js";
 
 
-function toState(state, options={}) {
+
+// TODO - enusure numeric if set to true
+
+function transformState(state, options={}) {
     const {valueFunc, stateFunc} = options;
     if (valueFunc != undefined) {
         state.value = valueFunc(state.value);
@@ -18,7 +20,13 @@ function toState(state, options={}) {
 
 /**
  * Cursor Transform
- * Create a new Cursor which is a transformation of the src Cursor
+ * Create a new Cursor which is a transformation of a src Cursor.
+ * 
+ * The new transformed Cursor does not have a src (layer) and and a ctrl (cursor)
+ * property, since it only depends on the src cursor.
+ * 
+ * Also, the new transformed cursor does not need any playback logic on its own
+ * as long as the nature of the transformation is a plain value/state transition. 
  */
 export function cursor_transform(src, options={}) {
 
@@ -26,35 +34,23 @@ export function cursor_transform(src, options={}) {
         throw new Error(`src must be a Cursor ${src}`);
     }
 
+    const {numeric=false, valueFunc, stateFunc} = options;
     const cursor = new Cursor();
 
     // implement query
     cursor.query = function query() {
         const state = src.query();
-        return toState(state, options);
+        return transformState(state, {stateFunc, valueFunc});
     }
 
-    // adopt the ctrl of the src-cursor
-    if (!is_clock_cursor(src)) {
-        cursor.ctrl = src.ctrl;
-        // add callbacks
-        cursor.ctrl.add_callback(() => {cursor.onchange()});
-    }
-
-    /* 
-        Current definition of Cursor src property is that it is a layer or undefined.
-        This leaves cursor transform options.
-        1) wrap src cursor as a layer,
-        2) let src property be undefined
-        3) adopt the src property of the src cursor as its own src
-
-        We go for 3)
-    */
-
-    // adopt the src of the src-cursor as src
-    if (!is_clock_cursor(src)) {
-        cursor.src = src.src;
-    }
+    // numberic can be set to true by options
+    Object.defineProperty(cursor, "numeric", {get: () => {
+        return numeric;
+    }});
+    // fixedRate is inherited from src
+    Object.defineProperty(cursor, "fixedRate", {get: () => src.fixedRate});
+    // mutable is false (default)
+    // itesOnly is false (default)
 
     // callbacks from src-cursor
     src.add_callback(() => {cursor.onchange()});

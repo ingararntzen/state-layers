@@ -20,8 +20,8 @@ export function leaf_layer(options={}) {
 
     const {
         provider,
-        numeric, 
-        mutable, 
+        numeric=false, 
+        mutable=true, 
         ...opts} = options;
 
     const layer = new Layer({
@@ -32,10 +32,7 @@ export function leaf_layer(options={}) {
     // restrictions
     Object.defineProperty(layer, "numeric", {get: () => numeric});
     Object.defineProperty(layer, "mutable", {get: () => mutable});
-
-    // properties
     Object.defineProperty(layer, "itemsOnly", {get: () => true});
-    Object.defineProperty(layer, "leaf", {get: () => true});
 
     // setup provider as property
     srcprop.addState(layer);

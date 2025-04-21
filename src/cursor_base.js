@@ -24,9 +24,6 @@ export class Cursor {
     // restriction defaults
     get mutable () {return false;}
     get numeric () {return false};
-
-    // property defaults
-    get leaf () {return false;}
     get itemsOnly () {return false;}
     get fixedRate () {return false}
 

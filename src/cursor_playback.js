@@ -1,7 +1,7 @@
 import { Cursor } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
 import * as srcprop from "./util/api_srcprop.js";
-import { set_timeout} from "./util/common.js";
+import { check_number, set_timeout} from "./util/common.js";
 import { interval } from "./util/intervals.js";
 
 
@@ -29,18 +29,15 @@ export function playback_cursor(options={}) {
     const cursor = new Cursor();
 
     /**********************************************************
-     * TYPE PROPERTIES
+     * RESTRICTIONS
      **********************************************************/
 
-    // restrictions
     Object.defineProperty(cursor, "numeric", {get: () => {
         return (cursor.src != undefined) ? cursor.src.numeric : false;
     }});
     Object.defineProperty(cursor, "mutable", {get: () => {
         return (cursor.src != undefined) ? (cursor.src.mutable && mutable) : false;
     }});
-    // properties
-    Object.defineProperty(cursor, "leaf", {get: () => false});
     Object.defineProperty(cursor, "fixedRate", {get: () => false});
     Object.defineProperty(cursor, "itemsOnly", {get: () => {
         return (cursor.src != undefined) ? cursor.src.itemsOnly : false;
@@ -85,8 +82,16 @@ export function playback_cursor(options={}) {
     }
 
     cursor.query = function query(local_ts) {
-        const offset = cursor.ctrl.query(local_ts).value;
-        return src_cache.query(offset);
+        let offset = cursor.ctrl.query(local_ts).value;
+        // should not happen
+        check_number("cursor.ctrl.offset", offset);
+        const state = src_cache.query(offset);
+        // if (src) layer is numeric, default value 0 
+        // is assumed in regions where the layer is undefined
+        if (cursor.src.numeric && state.value == undefined) {
+            state.value = 0.0;
+        }
+        return state;
     }
 
     cursor.active_items = function get_item(local_ts) {
@@ -130,17 +135,15 @@ export function playback_cursor(options={}) {
      * 
      */
     cursor.detect_future_event = function detect_future_event() {
-        // clear pending timeouts 
-        if (tid != undefined) { 
-            tid.cancel(); 
-        }
-        if (pid != undefined) { 
-            clearInterval(pid); 
-        }
+
+        cancel_timeout();
+        cancel_polling();
+
         // no future timeout if cursor itself is fixedRate
         if (cursor.fixedRate) {
             return;
         }
+
         // all other cursors must have (src) and (ctrl)
         if (cursor.ctrl == undefined) {
             throw new Error("cursor.ctrl can not be undefined with isFixedRate=false");
@@ -176,7 +179,7 @@ export function playback_cursor(options={}) {
             */
             const vector = [pos0, cursor.ctrl.rate, 0, ts0];
             const target = src_region_high
-            timeout(vector, target);
+            schedule_timeout(vector, target);
             return;
         }
 
@@ -184,13 +187,14 @@ export function playback_cursor(options={}) {
         // cursor.ctrl.ctrl must be fixed rate
         // cursor.ctrl.src must have itemsOnly == true 
         if (cursor.ctrl.ctrl.fixedRate && cursor.ctrl.src.itemsOnly) {
+
             /* 
                 possible timeout associated with leaving region
                 through either region_low or region_high.
 
                 However, this can only be predicted if cursor.ctrl
                 implements a deterministic function of time.
-                This can be known only if cursor.ctrl.src is a leaf layer.
+                This can be known only if cursor.ctrl.src is a layer with items.
                 and a single active item describes either a motion or a transition 
                 (with linear easing).                
             */
@@ -204,7 +208,7 @@ export function playback_cursor(options={}) {
                         // figure out which region boundary we hit first
                         const target = (v > 0) ? src_region_high : src_region_low;
                         const vector = [pos0, v, 0, ts0];
-                        timeout(vector, target);
+                        schedule_timeout(vector, target);
                         return;
                     }
                 } else if (active_item.type == "transition") {
@@ -214,7 +218,7 @@ export function playback_cursor(options={}) {
                         const v = (v1-v0)/(t1-t0);
                         let target = (v > 0) ? Math.min(v1, src_region_high) : Math.max(v1, src_region_low);
                         const vector = [pos0, v, 0, ts0];
-                        timeout(vector, target);
+                        schedule_timeout(vector, target);
                         return;                           
                     }
                 }
@@ -224,37 +228,48 @@ export function playback_cursor(options={}) {
         /**
          * detection of leave events falls back on polling
          */
-        poll(src_nearby.itv);
+        start_polling(src_nearby.itv);
     }
 
     /**********************************************************
-     * TIMEOUT / POLLING UTILS
+     * TIMEOUT
      **********************************************************/
 
-    /*
-        schedule timeout when target is reached  
-    */
-    function timeout(vector, target) {
+    function schedule_timeout(vector, target) {
         const [p,v,a,t] = vector;
         if (a != 0) {
             throw new Error("timeout not yet implemented for acceleration");
         }
+        if (target == Infinity) {
+            // no timeout
+            return;
+        }
         const delta_sec = (target - p) / v;
-        tid = set_timeout(() => {
-            // event detected
-            cursor.onchange();
-        }, delta_sec * 1000.0);
+        tid = set_timeout(handle_timeout, delta_sec * 1000.0);
     }
 
-    // start polling
-    function poll(itv) {
+    function handle_timeout() {
+        // event detected
+        cursor.onchange();
+    }
+
+    function cancel_timeout() {
+        if (tid != undefined) {
+            tid.cancel(); 
+        }    
+    }
+
+    /**********************************************************
+     * POLLING
+     **********************************************************/
+
+    function start_polling(itv) {
         pid = setInterval(() => {
-            handle_poll(itv);
+            handle_polling(itv);
         }, 100);
     }
 
-    // handle poll
-    function handle_poll(itv) {
+    function handle_polling(itv) {
         let pos = cursor.ctrl.value;
         if (!interval.covers_endpoint(itv, pos)) {
             // event detected
@@ -262,6 +277,12 @@ export function playback_cursor(options={}) {
         }
     }
 
+    function cancel_polling() {
+        if (pid != undefined) { 
+            clearInterval(pid); 
+        }
+    }
+ 
     /**********************************************************
      * INITIALIZATION
      **********************************************************/

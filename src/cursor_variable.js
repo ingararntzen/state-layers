@@ -22,7 +22,8 @@ export function variable_cursor(options={}) {
     const cursor = new playback_cursor({ctrl, src, mutable: true});
 
     /**
-     * override to implement restrictions on src and ctrl
+     * override to implement additional restrictions 
+     * on src and ctrl
      */
     const original_srcprop_check = cursor.srcprop_check;
 
@@ -65,9 +66,6 @@ export function variable_cursor(options={}) {
     }
     
     cursor.update = (items) => {
-        if (cursor.mutable  && cursor.src.mutable) {
-            throw new Error("cursor update not allowed, readonly");
-        }
         if (record) {
             return cursor.src.append(items, cursor.ctrl.value);
         } else {
@@ -115,7 +113,6 @@ function create_set_items(cursor, value) {
  */
 
 export function create_motion_items(cursor, vector={}) {
-
     // get the current state of the cursor
     let {value:p0, offset:t0} = cursor.query();
     // ensure that p0 is number type

@@ -39,10 +39,10 @@
             {itv: [6, 7], data: "violet"},
         ];
 
-        const colors = sl.layer({insert:items})
-        const offset = sl.variable({value:0});
+        const colors = sl.layer({items})
+        const offset = sl.mediacontrol();
         const color = sl.playback({src:colors, ctrl:offset});
-
+        
         // render
         sl.render_cursor(offset, "#offset", {render:renderNumber, novalue:0});
         sl.render_cursor(color, "#color", {render:renderValue});

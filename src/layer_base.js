@@ -62,11 +62,8 @@ export class Layer {
 
     // restrictions (defaults)
     get numeric () {return false;}
-    get mutable () {return false;}
-
-    // properties (defaults)
+    get mutable () {return true;}
     get itemsOnly () {return false;}
-    get leaf () {return false;}
 
     // query options
     get valueFunc () {return this._valueFunc;}
