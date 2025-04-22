@@ -66,10 +66,12 @@ export function object_cursor(options={}) {
     }
     
     cursor.update = (items) => {
-        if (record) {
-            return cursor.src.append(items, cursor.ctrl.value);
-        } else {
-            return cursor.src.update({insert:items, reset:true});
+        if (items != undefined) {
+            if (record) {
+                return cursor.src.append(items, cursor.ctrl.value);
+            } else {
+                return cursor.src.update({insert:items, reset:true});
+            }
         }
     }
 
@@ -207,6 +209,10 @@ function create_transition_items(cursor, target, duration, easing) {
     const {value:v0, offset:t0} = cursor.query();
     const v1 = target;
     const t1 = t0 + duration;
+    if (v1 == v0) {
+        // noop
+        return;
+    }
     check_number("position", v0);
     check_number("position", v1);
     check_number("position", t0);

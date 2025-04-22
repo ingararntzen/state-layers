@@ -2,7 +2,6 @@ import { Cursor } from "./cursor_base.js";
 import { Layer } from "./layer_base.js";
 import * as srcprop from "./util/api_srcprop.js";
 import { check_number, set_timeout} from "./util/common.js";
-import { interval } from "./util/intervals.js";
 
 
 /*****************************************************
@@ -164,20 +163,28 @@ export function playback_cursor(options={}) {
         const src_region_low = src_nearby.itv[0] ?? -Infinity;
         const src_region_high = src_nearby.itv[1] ?? Infinity;
 
-        // no future timeout if the region is infinite 
         if (src_region_low == -Infinity && src_region_high == Infinity) {
-            // will never leave region
+            // unbounded region - no event
             return;
         }
 
         // check if condition for clock timeout is met
         if (cursor.ctrl.fixedRate) {
+            console.log("fixedRate cursor");
             /* 
                 cursor.ctrl is fixed rate (clock)
                 future timeout when cursor.ctrl leaves src_region (on the right)
             */
             const vector = [pos0, cursor.ctrl.rate, 0, ts0];
             const target = src_region_high
+
+            /**
+             * PROBLEM:
+             * aborting a transition with reset
+             * creates a new timeout for some reason
+             * it should not - because cursor.src says no motion
+             */
+
             schedule_timeout(vector, target);
             return;
         }
@@ -186,7 +193,7 @@ export function playback_cursor(options={}) {
         // cursor.ctrl.ctrl must be fixed rate
         // cursor.ctrl.src must have itemsOnly == true 
         if (cursor.ctrl.ctrl.fixedRate && cursor.ctrl.src.itemsOnly) {
-
+            console.log("mediaclock cursor");
             /* 
                 possible timeout associated with leaving region
                 through either region_low or region_high.
@@ -215,7 +222,7 @@ export function playback_cursor(options={}) {
                     if (easing == "linear") {
                         // linear transition
                         const v = (v1-v0)/(t1-t0);
-                        let target = (v > 0) ? Math.min(v1, src_region_high) : Math.max(v1, src_region_low);
+                        const target = (v > 0) ? src_region_high : src_region_low;
                         const vector = [pos0, v, 0, ts0];
                         schedule_timeout(vector, target);
                         return;                           
@@ -227,7 +234,7 @@ export function playback_cursor(options={}) {
         /**
          * detection of leave events falls back on polling
          */
-        start_polling(src_nearby.itv);
+        start_polling(src_region_low, src_region_high);
     }
 
     /**********************************************************
@@ -239,11 +246,18 @@ export function playback_cursor(options={}) {
         if (a != 0) {
             throw new Error("timeout not yet implemented for acceleration");
         }
-        if (target == Infinity) {
+        if (target == Infinity || target == -Infinity) {
             // no timeout
             return;
         }
         const delta_sec = (target - p) / v;
+        console.log("delta_sec", delta_sec);
+        if (delta_sec < 0) {
+            console.log("negative delta_sec", delta_sec)
+            console.log("p", p, "v", v, "target", target);
+            return;
+        }
+
         tid = set_timeout(handle_timeout, delta_sec * 1000.0);
     }
 
@@ -262,17 +276,21 @@ export function playback_cursor(options={}) {
      * POLLING
      **********************************************************/
 
-    function start_polling(itv) {
+    function start_polling(targetLow, targetHigh) {
         pid = setInterval(() => {
-            handle_polling(itv);
+            handle_polling(targetLow, targetHigh);
         }, 100);
     }
 
-    function handle_polling(itv) {
+    function handle_polling(targetLow, targetHigh) {
         let pos = cursor.ctrl.value;
-        if (!interval.covers_endpoint(itv, pos)) {
+        if (
+            (targetLow > -Infinity && pos < targetLow) ||
+            (targetHigh < Infinity && pos > targetHigh)
+        ){ 
             // event detected
             cursor.onchange();
+            return;
         }
     }
 

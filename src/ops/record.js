@@ -179,7 +179,6 @@ export function layer_recorder(options={}) {
     }
 
     function record() {
-        console.log("record")
         const ts = local_clock.now();
         const src_offset = src.query(ts).offset;
         const dst_offset = ctrl.query(ts).value;

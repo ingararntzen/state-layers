@@ -41,18 +41,18 @@
 
         import * as sl from './libs/statelayers.es.js';
 
-        // record ctrl
-        const record_clock = sl.clock();
         // live variable
         const src_live = sl.object({numeric:true});
+        // record ctrl
+        const record_clock = src_live.ctrl;
         // record dst layer
         const record_layer = sl.record({src:src_live, ctrl:record_clock});
         // playback ctrl
-        const playback_clock = sl.cursor_transform(record_clock, {valueFunc: v => v - 2});
+        //const playback_clock = sl.cursor_transform(record_clock, {valueFunc: v => v - 2});
         // playback 
-        const playback = sl.playback({ctrl:playback_clock, src:record_layer})
-
+        //const playback = sl.playback({ctrl:playback_clock, src:record_layer})
         
+
         // button controls
         document.querySelector("#live-valueBtn").onclick = () => {
             src_live.set(getRandomInt(10))
@@ -61,7 +61,7 @@
             src_live.set(0);
         }
         document.querySelector("#live-playBtn").onclick = () => {
-            src_live.motion({velocity:1, range:[-10, 10]});
+            src_live.motion({velocity:1});
         }
         document.querySelector("#live-pauseBtn").onclick = () => {
             src_live.motion({velocity:0});
@@ -81,12 +81,18 @@
             src_live.interpolate({tuples, duration:4});
         }
 
+
         /**
          * LIVE SRC
          * */
-
-        // variable
         sl.render_cursor(src_live, "#live-text", {render:renderNumber});
+        /*
+        src_live.on("change", ({dynamic}) => {
+            console.log("dynamic", dynamic);
+        });
+        */
+
+
 
         /**
          * RECORD CONTROLS
@@ -96,15 +102,17 @@
         /**
          * PLAYBACK CONTROLS
          * */        
-        sl.render_cursor(playback_clock, "#playback-ctrl-text", {render:renderNumber});
+        //sl.render_cursor(playback_clock, "#playback-ctrl-text", {render:renderNumber});
 
         /**
          * PLAYBACK
          * */        
-        sl.render_cursor(playback, "#playback-text", {render:renderNumber});
+        //sl.render_cursor(playback, "#playback-text", {render:renderNumber});
 
         // recorded state
-        sl.render_provider(record_layer.provider, "#record-state");
+        // sl.render_provider(record_layer.provider, "#record-state");
+        sl.render_provider(src_live.src.provider, "#record-state");
+
 
 </script>
 </head>
