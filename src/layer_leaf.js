@@ -4,7 +4,7 @@ import { is_collection_provider } from "./provider_collection.js";
 import { is_object_provider} from "./provider_object.js";
 import { NearbyIndex } from "./nearby_index.js";
 import { load_segment } from "./util/segments.js";
-import { toState, is_finite_number, check_items} from "./util/common.js";
+import { toState, is_finite_number, check_items, check_number} from "./util/common.js";
 import { endpoint, interval } from "./util/intervals.js";
 
 
@@ -22,6 +22,7 @@ export function leaf_layer(options={}) {
         provider,
         numeric=false, 
         mutable=true, 
+        mask,
         ...opts} = options;
 
     const layer = new Layer({
@@ -33,6 +34,12 @@ export function leaf_layer(options={}) {
     Object.defineProperty(layer, "numeric", {get: () => numeric});
     Object.defineProperty(layer, "mutable", {get: () => mutable});
     Object.defineProperty(layer, "itemsOnly", {get: () => true});
+
+    // numeric mask - replaces undefined for numeric layers
+    if (mask != undefined) {
+        check_number("mask", mask);
+    }
+    layer.mask = mask;
 
     // setup provider as property
     srcprop.addState(layer);
@@ -121,7 +128,8 @@ class LeafLayerCache {
         this._query_options = {
             valueFunc: this._layer.valueFunc,
             stateFunc: this._layer.stateFunc,
-            numberOnly: this._layer.isNumberOnly,
+            numeric: this._layer.numeric,
+            mask: this._layer.mask
         };
     }
 
@@ -146,7 +154,7 @@ class LeafLayerCache {
             return seg.query(offset);
         });
         // calculate single result state
-        return toState(this._segments, states, offset, this._query_options);    
+        return toState(this._segments, states, offset, this._query_options);
     }
 
     clear() {

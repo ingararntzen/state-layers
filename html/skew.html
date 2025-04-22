@@ -19,7 +19,7 @@
         import * as sl from './libs/statelayers.es.js';
 
         // Variable
-        const offset = sl.variable({value:0});        
+        const offset = sl.variable({numeric:true});        
         sl.render_cursor(offset, "#offset", {render:renderNumber});
         
         // Skewed Variable

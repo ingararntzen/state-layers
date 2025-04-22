@@ -95,7 +95,7 @@ export const local_epoch = function local_epoch () {
  */
 
 export function toState(sources, states, offset, options={}) {
-    let {valueFunc, stateFunc, numberOnly=false} = options; 
+    let {valueFunc, stateFunc, numeric=false, mask} = options; 
     let state;
     if (valueFunc != undefined) {
         let value = valueFunc({sources, states, offset});
@@ -108,10 +108,9 @@ export function toState(sources, states, offset, options={}) {
     } else {
         state = {...states[0], offset}
     }
-    if (numberOnly && state.value != undefined) {
+    if (numeric && state.value != undefined) {
         if (!is_finite_number(state.value)) {
-            console.log(`warning: not number ${state.value}`);
-            state = {value:undefined, dynamic:false, offset};
+            state = {value:mask, dynamic:false, offset};
         }
     }
     return state;

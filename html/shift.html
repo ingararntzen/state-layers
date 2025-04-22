@@ -8,7 +8,7 @@
 
         import * as sl from './libs/statelayers.es.js';
 
-        const l1 = sl.layer({insert:[
+        const l1 = sl.layer({items:[
             {itv: [0, 1], data: 0},
             {itv: [1, 2], data: 1},
             {itv: [2, 3], data: 2},
@@ -25,12 +25,12 @@
         console.log("Layer 1")
 
 
-        for (let tup of l1.sample(0,10)) {
+        for (let tup of l1.sample({start:0, stop:10})) {
             console.log(`${tup[0]},${tup[1]}`);
         }
         console.log("Layer 2")
 
-        for (let tup of l2.sample(0,10)) {
+        for (let tup of l2.sample({start:0, stop:10})) {
             console.log(`${tup[0]},${tup[1]}`);
         }
             

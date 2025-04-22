@@ -44,13 +44,9 @@ export function cursor_transform(src, options={}) {
     }
 
     // numberic can be set to true by options
-    Object.defineProperty(cursor, "numeric", {get: () => {
-        return numeric;
-    }});
+    Object.defineProperty(cursor, "numeric", {get: () => {return numeric;}});
     // fixedRate is inherited from src
     Object.defineProperty(cursor, "fixedRate", {get: () => src.fixedRate});
-    // mutable is false (default)
-    // itesOnly is false (default)
 
     // callbacks from src-cursor
     src.add_callback(() => {cursor.onchange()});
@@ -89,6 +85,9 @@ export function layer_transform(src, options={}) {
     layer.index = new NearbyIndexSrc(src);
     layer.src = src;
     layer.src.add_callback((eArg) => {layer.onchange(eArg)});
+
+    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+
     return layer;
 }
 

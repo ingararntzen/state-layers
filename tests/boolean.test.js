@@ -42,9 +42,9 @@ describe('Test Logical Layer', () => {
         
 
         // values
-        expect(l2.query(-1).value).toBe(false);
-        expect(l2.query(4).value).toBe(true);
-        expect(l2.query(10).value).toBe(false);
+        expect(l2.query(-1).value).toBe(0);
+        expect(l2.query(4).value).toBe(1);
+        expect(l2.query(10).value).toBe(0);
  
     });
 
@@ -75,7 +75,7 @@ describe('Test Logical Layer', () => {
         const bools = offsets.map((offset) => {
             return bool_index.nearby(offset).center[0].query(offset).value;
         });
-        expect(bools).toStrictEqual([false, true, false, true, false, true]);
+        expect(bools).toStrictEqual([0, 1, 0, 1, 0, 1]);
 
         // check regions
         const regions = [...bool_index.regions()];

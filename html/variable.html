@@ -19,8 +19,8 @@
         import * as sl from './libs/statelayers.es.js';
 
         // variable
-        const offset = sl.variable();
-        sl.render_cursor(offset, "#offset", {render:renderNumber, novalue:0});
+        const offset = sl.variable({numeric:true});
+        sl.render_cursor(offset, "#offset", {render:renderNumber});
 
         // button controls
         document.querySelector("#valueBtn").onclick = () => {

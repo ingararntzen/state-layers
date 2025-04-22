@@ -79,10 +79,6 @@ function variable(options={}) {
     return variable_cursor({ctrl, src});
 }
 
-function mediacontrol(options={}) {
-    return variable({...options, numeric:true});
-}
-
 function playback(options={}) {
     let {ctrl, src, ...src_opts} = options;
     if (ctrl == undefined) {
@@ -112,7 +108,6 @@ export {
     layer, 
     clock,
     variable,
-    mediacontrol,
     playback,
     merge_layer as merge, 
     boolean_layer as boolean,

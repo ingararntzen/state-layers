@@ -33,9 +33,9 @@ describe('Test Logical Merge', () => {
         expect(regions[1].itv).toStrictEqual([3, 5, true, false]);
         expect(regions[2].itv).toStrictEqual([5, null, true, true]);
         
-        expect(l3.query(-1).value).toBe(false);
-        expect(l3.query(4).value).toBe(true);
-        expect(l3.query(10).value).toBe(false);
+        expect(l3.query(-1).value).toBe(0);
+        expect(l3.query(4).value).toBe(1);
+        expect(l3.query(10).value).toBe(0);
     });
 
 });

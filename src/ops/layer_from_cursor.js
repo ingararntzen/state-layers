@@ -15,7 +15,10 @@ export function layer_from_cursor(src) {
  
     const layer = new Layer();
     layer.index = new CursorIndex(src);
-    
+
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+
     // subscribe
     src.add_callback((eArg) => {
         layer.onchange(eArg);

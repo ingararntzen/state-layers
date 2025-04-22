@@ -74,7 +74,10 @@ export class MotionSegment extends BaseSegment {
 
     state(offset) {
         const [p,v,a,t] = motion_utils.calculate(this._vector, offset);
-        return {value: p, dynamic: (v != 0 || a != 0 )}
+        return {
+            value: p, dynamic: (v != 0 || a != 0 ),
+            vector: [p, v, a, t],
+        }
     }
 }
 

@@ -14,8 +14,8 @@
         }
 
         import * as sl from './libs/statelayers.es.js';
-        const mc = sl.variable();
-        sl.render_cursor(mc, "#offset", {render:renderNumber, novalue:0});
+        const mc = sl.variable({numeric:true});
+        sl.render_cursor(mc, "#offset", {render:renderNumber});
         document.querySelector("#resetBtn").onclick = () => {
             mc.motion({position:0});
         }

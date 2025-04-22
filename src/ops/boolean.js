@@ -6,6 +6,11 @@ import { Layer } from "../layer_base.js"
     BOOLEAN LAYER
 *********************************************************************/
 
+/* 
+    Boolean Layer is returns values 0/1 - making it a numeric layer
+*/
+
+
 export function boolean_layer(src) {
 
     const layer = new Layer();
@@ -15,6 +20,10 @@ export function boolean_layer(src) {
     src.add_callback((eArg) => {
         layer.onchange(eArg);
     });
+
+
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => true});
 
     // initialise
     layer.src = src;
@@ -87,9 +96,10 @@ export class NearbyIndexBoolean extends NearbyIndexBase {
         right = right || endpoint.POS_INF;
         const low = endpoint.flip(left);
         const high = endpoint.flip(right)
+        const value = evaluation ? 1 : 0;
         return {
             itv: interval.from_endpoints(low, high),
-            center : [queryObject(evaluation)],
+            center : [queryObject(value)],
             left,
             right,
         }

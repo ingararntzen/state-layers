@@ -38,7 +38,6 @@ export function playback_cursor(options={}) {
     Object.defineProperty(cursor, "mutable", {get: () => {
         return (cursor.src != undefined) ? (cursor.src.mutable && mutable) : false;
     }});
-    Object.defineProperty(cursor, "fixedRate", {get: () => false});
     Object.defineProperty(cursor, "itemsOnly", {get: () => {
         return (cursor.src != undefined) ? cursor.src.itemsOnly : false;
     }});

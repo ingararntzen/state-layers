@@ -23,7 +23,7 @@ export class Cursor {
 
     // restriction defaults
     get mutable () {return false;}
-    get numeric () {return false};
+    get numeric () {return false;};
     get itemsOnly () {return false;}
     get fixedRate () {return false}
 

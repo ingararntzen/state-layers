@@ -121,8 +121,14 @@ export function timeline_transform (src, options={}) {
         }
     }
 
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+
     // initialise
     layer.src = src;
+
+
+
     
     return layer;
 }

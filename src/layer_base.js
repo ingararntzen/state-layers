@@ -62,7 +62,7 @@ export class Layer {
 
     // restrictions (defaults)
     get numeric () {return false;}
-    get mutable () {return true;}
+    get mutable () {return false;}
     get itemsOnly () {return false;}
 
     // query options

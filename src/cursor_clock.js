@@ -28,9 +28,7 @@ export function clock_cursor(options={}) {
 
     // restrictions
     Object.defineProperty(cursor, "numeric", {get: () => true});
-    Object.defineProperty(cursor, "mutable", {get: () => false});
     Object.defineProperty(cursor, "fixedRate", {get: () => true});
-    Object.defineProperty(cursor, "itemsOnly", {get: () => false});
 
     // query
     cursor.query = function (local_ts) {

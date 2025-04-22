@@ -24,6 +24,9 @@ export function logical_merge_layer(sources, options={}) {
     
     layer.sources = sources;
 
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => true});
+
     return layer;
 }
 

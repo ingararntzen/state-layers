@@ -74,6 +74,10 @@ export function merge_layer (sources, options={}) {
         }
     }
 
+    // restrictions
+    const numeric = sources.map((src) => src.numeric).every(e=>e)  
+    Object.defineProperty(layer, "numeric", {get: () => numeric});
+
     // initialise
     layer.sources = sources;
 
