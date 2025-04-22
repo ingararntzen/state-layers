@@ -3,19 +3,19 @@ import { random_string, check_number, motion_utils } from "./util/common.js";
 import { load_segment } from "./util/segments.js";
 
 /*****************************************************
- * VARIABLE CURSOR
+ * OBJECT CURSOR
  *****************************************************/
 
 /**
- * cursor supporting updates
+ * cursor object supporting updates
  *  
  * "src" is a layer which is mutable
  * "ctrl" is fixed-rate cursor
  * 
- * variable may also support recording
+ * object_cursor may also support recording
  */
 
-export function variable_cursor(options={}) {
+export function object_cursor(options={}) {
 
     const {ctrl, src, record=false} = options;
 
@@ -100,7 +100,7 @@ function create_set_items(cursor, value) {
 /**
  * create items for motion operation
  *  
- * motion only makes sense if variable cursor is restricted to number values,
+ * motion only makes sense if object cursor is restricted to number values,
  * which in turn implies that the cursor.src (Items Layer) should be
  * restricted to number values. 
  * If non-number values occur - we simply replace with 0.

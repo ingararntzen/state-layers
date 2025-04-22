@@ -41,27 +41,18 @@
 
         import * as sl from './libs/statelayers.es.js';
 
-        // live variable
-        const src_live = sl.variable();
         // record ctrl
         const record_clock = sl.clock();
+        // live variable
+        const src_live = sl.object({numeric:true});
         // record dst layer
-        const record_layer = sl.layer();
-        const recorder = sl.recorder({
-            src:src_live, ctrl:record_clock, dst:record_layer
-        });
+        const record_layer = sl.record({src:src_live, ctrl:record_clock});
         // playback ctrl
-        const playback_clock = sl.skew(record_clock, -2);
+        const playback_clock = sl.cursor_transform(record_clock, {valueFunc: v => v - 2});
         // playback 
         const playback = sl.playback({ctrl:playback_clock, src:record_layer})
 
-        /**
-         * LIVE SRC
-         * */
-
-        // variable
-        sl.render_cursor(src_live, "#live-text", {render:renderNumber, novalue:0});
-
+        
         // button controls
         document.querySelector("#live-valueBtn").onclick = () => {
             src_live.set(getRandomInt(10))
@@ -91,6 +82,13 @@
         }
 
         /**
+         * LIVE SRC
+         * */
+
+        // variable
+        sl.render_cursor(src_live, "#live-text", {render:renderNumber});
+
+        /**
          * RECORD CONTROLS
          * */        
         sl.render_cursor(record_clock, "#record-ctrl-text", {render:renderNumber});
@@ -103,10 +101,10 @@
         /**
          * PLAYBACK
          * */        
-        sl.render_cursor(playback, "#playback-text", {render:renderNumber, novalue:0});
+        sl.render_cursor(playback, "#playback-text", {render:renderNumber});
 
         // recorded state
-        sl.render_provider(record_layer.src, "#record-state");
+        sl.render_provider(record_layer.provider, "#record-state");
 
 </script>
 </head>

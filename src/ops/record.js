@@ -62,8 +62,10 @@ export function layer_recorder(options={}) {
     ) {
         throw new Error(`ctrl or ctrl.ctrl must be fixedRate ${ctrl}`);
     }
-    if (ctrl.ctrl.fixedRate && !ctrl.itemsOnly) {
-        throw new Error(`given ctrl.ctrl.fixedRate, ctrl must be itemsOnly ${ctrl}`);
+    if (!ctrl.fixedRate) {
+        if (ctrl.ctrl.fixedRate && !ctrl.itemsOnly) {
+            throw new Error(`given ctrl.ctrl.fixedRate, ctrl must be itemsOnly ${ctrl}`);
+        }
     }
 
     // check - src

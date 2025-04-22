@@ -19,7 +19,7 @@
         import * as sl from './libs/statelayers.es.js';
 
         // variable
-        const offset = sl.variable({numeric:true});
+        const offset = sl.object({numeric:true});
         sl.render_cursor(offset, "#offset", {render:renderNumber});
 
         // button controls
@@ -54,7 +54,7 @@
 </script>
 </head>
 <body>
-    <h1>Hello, Variable!</h1>
+    <h1>Hello, Object!</h1>
     <h3> Value </h3>
     <p>
         <div class="cursor" id="offset"></div>

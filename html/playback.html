@@ -40,7 +40,7 @@
         ];
 
         const colors = sl.layer({items})
-        const offset = sl.variable({numeric:true});
+        const offset = sl.object({numeric:true});
         const color = sl.playback({src:colors, ctrl:offset});
         
         // render

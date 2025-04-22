@@ -39,7 +39,7 @@ describe('Test Layer', () => {
 
     test('test layer from cursor', () => {
 
-        const cursor = sl.variable({value:5});
+        const cursor = sl.object({value:5});
         const layer = sl.layer_from_cursor(cursor);
         
         let result = layer.sample({start:2, stop:8});       

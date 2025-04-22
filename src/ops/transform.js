@@ -34,7 +34,7 @@ export function cursor_transform(src, options={}) {
         throw new Error(`src must be a Cursor ${src}`);
     }
 
-    const {numeric=false, valueFunc, stateFunc} = options;
+    const {numeric, valueFunc, stateFunc} = options;
     const cursor = new Cursor();
 
     // implement query
@@ -44,7 +44,9 @@ export function cursor_transform(src, options={}) {
     }
 
     // numberic can be set to true by options
-    Object.defineProperty(cursor, "numeric", {get: () => {return numeric;}});
+    Object.defineProperty(cursor, "numeric", {get: () => {
+        return (numeric == undefined) ? src.numeric : numeric; 
+    }});
     // fixedRate is inherited from src
     Object.defineProperty(cursor, "fixedRate", {get: () => src.fixedRate});
 

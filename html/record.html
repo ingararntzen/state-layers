@@ -39,23 +39,23 @@
         import * as sl from './libs/statelayers.es.js';
 
         // live src (color)
-        const live_src = sl.variable();
+        const live_src = sl.object();
         // record ctrl cursor
-        const record_ctrl = sl.variable({numeric:true});
+        const record_ctrl = sl.object({numeric:true});
         // recorder
         const record_dst = sl.record({src:live_src, ctrl:record_ctrl});
         // playback ctrl cursor
-        const playback_ctrl = sl.variable({numeric:true});
-        // playback 
+        const playback_ctrl = sl.object({numeric:true});
+        // playback (color)
         const playback_color = sl.playback({ctrl:playback_ctrl, src:record_dst})
 
 
         /**
          * RECORD SRC (COLOR)
          * */
-        function set_color(variable, color) {
-            const _color = variable.get();
-            variable.set((color != _color) ? color : undefined);
+        function set_color(object, color) {
+            const _color = object.get();
+            object.set((color != _color) ? color : undefined);
         }
         document.querySelector("#live-src-blackBtn").onclick = () => {
             set_color(live_src, "black");

@@ -11,7 +11,7 @@ import { ObjectProvider } from "./provider_object.js";
 // factory functions
 import { leaf_layer } from "./layer_leaf.js";
 import { clock_cursor } from "./cursor_clock.js"
-import { variable_cursor } from "./cursor_variable.js";
+import { object_cursor } from "./cursor_object.js";
 import { playback_cursor } from "./cursor_playback.js";
 import { layer_from_cursor } from "./ops/layer_from_cursor.js";
 import { merge_layer } from "./ops/merge.js";
@@ -72,7 +72,7 @@ function clock(options={}) {
     return clock_cursor({provider, ...opts});
 }
 
-function variable(options={}) {
+function object(options={}) {
     let {ctrl, src, ...src_opts} = options;
     if (ctrl == undefined) {
         ctrl = clock();
@@ -80,7 +80,7 @@ function variable(options={}) {
     if (src == undefined) {
         src = layer(src_opts);
     }
-    return variable_cursor({ctrl, src});
+    return object_cursor({ctrl, src});
 }
 
 function playback(options={}) {
@@ -101,10 +101,11 @@ function playback(options={}) {
 
 export {
     CollectionProvider, ObjectProvider,
+    local_clock,
     Layer, Cursor, NearbyIndexBase,
     layer, 
     clock,
-    variable,
+    object,
     playback,
     record,
     merge_layer as merge, 
@@ -116,6 +117,5 @@ export {
     cursor_transform,
     timeline_transform,
     render_provider,
-    render_cursor,
-    local_clock
+    render_cursor
 }
