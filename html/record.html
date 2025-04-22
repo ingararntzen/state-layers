@@ -41,15 +41,11 @@
         // live src (color)
         const live_src = sl.variable();
         // record ctrl cursor
-        const record_ctrl = sl.variable({value:0});
-        // record dst layer
-        const record_dst = sl.layer();
+        const record_ctrl = sl.variable({numeric:true});
         // recorder
-        const recorder = sl.recorder({
-            src:live_src, ctrl:record_ctrl, dst:record_dst
-        });
+        const record_dst = sl.record({src:live_src, ctrl:record_ctrl});
         // playback ctrl cursor
-        const playback_ctrl = sl.variable({value:0});
+        const playback_ctrl = sl.variable({numeric:true});
         // playback 
         const playback_color = sl.playback({ctrl:playback_ctrl, src:record_dst})
 
@@ -140,7 +136,7 @@
 
 
         // recorded state
-        sl.render_provider(record_dst.src, "#record-state");
+        sl.render_provider(record_dst.provider, "#record-state");
 
 </script>
 </head>

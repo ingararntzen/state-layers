@@ -22,8 +22,11 @@
         const offset = sl.variable({numeric:true});        
         sl.render_cursor(offset, "#offset", {render:renderNumber});
         
-        // Skewed Variable
-        const skew_offset = sl.skew(offset, 2);
+        // Skewed Variable        
+        function valueFunc(value) {
+            return value + 2;
+        } 
+        const skew_offset = sl.cursor_transform(offset, {valueFunc});        
         sl.render_cursor(skew_offset, "#skew-offset", {render:renderNumber});
 
         document.querySelector("#valueBtn").onclick = () => {

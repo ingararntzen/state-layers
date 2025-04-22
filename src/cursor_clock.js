@@ -1,5 +1,5 @@
 import { Cursor } from "./cursor_base.js";
-import { ClockProvider, LOCAL_CLOCK_PROVIDER } from "./provider_clock.js";
+import { ClockProvider } from "./provider_clock.js";
 import * as srcprop from "./util/api_srcprop.js";
 
 /**
@@ -22,7 +22,7 @@ import * as srcprop from "./util/api_srcprop.js";
 
 export function clock_cursor(options={}) {
 
-    const {provider=LOCAL_CLOCK_PROVIDER, shift=0, scale=1.0} = options;
+    const {provider, shift=0, scale=1.0} = options;
 
     const cursor = new Cursor();
 

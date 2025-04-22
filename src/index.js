@@ -4,7 +4,7 @@ import { Layer } from "./layer_base.js";
 import { Cursor } from "./cursor_base.js";
 
 // stateProviders
-import { ClockProvider } from "./provider_clock.js";
+import { clock_provider } from "./provider_clock.js";
 import { CollectionProvider } from "./provider_collection.js";
 import { ObjectProvider } from "./provider_object.js";
 
@@ -19,7 +19,7 @@ import { boolean_layer } from "./ops/boolean.js"
 import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
 import { timeline_transform } from "./ops/timeline_transform.js";
 import { cursor_transform, layer_transform } from "./ops/transform.js";
-// import { layer_recorder } from "./ops/recorder.js";
+import { layer_recorder } from "./ops/record.js";
 
 
 // util
@@ -53,25 +53,29 @@ function layer(options={}) {
     return leaf_layer({provider, ...opts}); 
 }
 
-/*
-function recorder (options={}) {
-    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst} = options;
-    return layer_recorder(ctrl, src, dst);
+function record (options={}) {
+    const dst = layer({mutable:true});
+    let {ctrl, src} = options;
+    if (ctrl == undefined) {
+        ctrl = clock();
+    }
+    return layer_recorder({ctrl, src, dst});
 }
-*/
 
 /*********************************************************************
     CURSOR FACTORIES
 *********************************************************************/
 
 function clock(options={}) {
-    return clock_cursor(options);
+    const {clock, vector, ...opts} = options;
+    const provider = clock_provider({clock, vector});
+    return clock_cursor({provider, ...opts});
 }
 
 function variable(options={}) {
     let {ctrl, src, ...src_opts} = options;
     if (ctrl == undefined) {
-        ctrl = clock_cursor();
+        ctrl = clock();
     }
     if (src == undefined) {
         src = layer(src_opts);
@@ -90,25 +94,19 @@ function playback(options={}) {
     return playback_cursor({ctrl, src});
 }
 
-function skew (src, offset) {
-    function valueFunc(value) {
-        return value + offset;
-    } 
-    return cursor_transform(src, {valueFunc});
-}
-
 
 /*********************************************************************
     EXPORTS
 *********************************************************************/
 
 export {
-    CollectionProvider, ObjectProvider, ClockProvider,
+    CollectionProvider, ObjectProvider,
     Layer, Cursor, NearbyIndexBase,
     layer, 
     clock,
     variable,
     playback,
+    record,
     merge_layer as merge, 
     boolean_layer as boolean,
     logical_merge_layer as logical_merge, 
@@ -117,8 +115,6 @@ export {
     layer_transform,
     cursor_transform,
     timeline_transform,
-    // recorder,
-    skew,
     render_provider,
     render_cursor,
     local_clock

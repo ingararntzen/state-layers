@@ -1,33 +1,32 @@
 import { Cursor } from "../cursor_base.js";
-import { is_clock_cursor, clock_cursor } from "../cursor_clock.js";
-import { is_clock_provider, LOCAL_CLOCK_PROVIDER } from "../provider_clock.js";
 import { local_clock } from "../util/common.js";
-import { is_leaf_layer } from "../layer_leaf.js";
 
 /**
- * recorder for cursor into layer
+ * record cursor into layer
  * 
  *   MAIN IDEA
  * - record the current value of a cursor (src) into a layer (dst)
+ * 
  * - recording is essentially a copy operation from the
- *   stateProvider of the cursor (src) to the stateProvider of the layer (dst).
- * - recording does not apply to derived cursors - only cursors that
- *   are directly connected to a stateProvider.
+ *   stateProvider of a cursor (src) to the stateProvider of the layer (dst).
+ * - more generally copy state (items) from cursor to layer. 
+ * - recording therefor only applies to cursors that run directly on a layer with items
+ * - moreover, the target layer must have items (typically a leaflayer)
  *
  * 
- *   TIMEFRAMES
- * - the (src) cursor is driven by a clock (src.ctrl): <SRC_CLOCK> 
+ *   TIMEFRAMES 
  * - the recording to (dst) layer is driven by a clock (ctrl): <DST_CLOCK>
- * - if SRC_CLOCK is not the same as DST_CLOCK, recorded items need to be
- *   converted to the DST_CLOCK time frame.
- * - for example - a common scenario would be to record a cursor with real-time
- *   timestamps into a logical timeline starting at 0, possibly 
- *   rewinding the DST_CLOCK to 0 multiple times in order to do new takes
+ * - during recording - current value of the src cursor will be copied, and
+ *   converted into the timeline of the <DST_CLOCK>
+ * - recording is active only when <DST_CLOCK> is progressing with rate==1.0
+ * - this opens for LIVE recording (<DST_CLOCK> is fixedRate cursor) or
+ *   iterative recording using a (NumbericVariable), allowing multiple takes, 
+ * 
  * 
  *   RECORDING
  * - recording is done by appending items to the dst layer 
- * - when the cursor state changes (entire timeline reset) 
- * - the part of it which describes the future will overwrite the relevant
+ * - when the cursor state changes (entire cursor.src layer is reset) 
+ * - the part which describes the future will overwrite the relevant
  * - part of the the layer timeline
  * - the delineation between past and future is determined by 
  * - fresh timestamp <TS> from <DST_CLOCK>
@@ -37,54 +36,53 @@ import { is_leaf_layer } from "../layer_leaf.js";
  *   when the (ctrl) is moving forward
  * 
  *   INPUT
- * - (ctrl) - clock cursor or clock provider media control 
- *   (ctrl is clock_cursor or ctrl.ctrl is clock_cursor)
- * - (src) - cursor with a itemslayer as src 
- *   (src.src is itemslayer)
- * - (dst) - itemslayer
+ * - (ctrl)
+ *      - numeric cursor (ctrl.fixedRate, or 
+ *      - media control (ctrl.ctrl.fixedRate && ctrl.src.itemsOnly)
+ * - (src) - cursor with layer with items (src.itemsOnly) 
+ * - (dst) - layer of items (dst.itemsOnly && dst.mutable)
  *
- *   WARNING
- * - implementation assumes (dst) layer is not the same as the (src) layer
- * - (src) cursor can not be clock cursor (makes no sense to record a clock
- *   - especially when you can make a new one at any time)
- *  
- * - if (dst) is not provided, an empty layer will be created
- * - if (ctrl) is not provided, LOCAL_CLOCK_PROVIDER will be used
+ *   NOTE
+ * - implementation assumes 
+ *      - (dst) layer is not the same as the (src) layer
+ *      - (src) cursor can not be clock cursor (makes no sense to record a clock
+ *   
  */
 
 
-export function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
+export function layer_recorder(options={}) {
+    const {ctrl, src, dst} = options;
 
-    // check - ctrl 
-    if (is_clock_provider(ctrl)) {
-        ctrl = clock_cursor(ctrl);
+    // check - ctrl
+    if (!(ctrl instanceof Cursor)) {
+        throw new Error(`ctrl must be a cursor ${ctrl}`);
     }
     if (
-        !is_clock_cursor(ctrl) &&
-        !is_clock_cursor(ctrl.ctrl)
-    ){
-        throw new Error(`ctrl or ctrl.ctrl must be a clock cursor ${ctrl}`);
-    }    
+        !ctrl.fixedRate && !ctrl.ctrl.fixedRate
+    ) {
+        throw new Error(`ctrl or ctrl.ctrl must be fixedRate ${ctrl}`);
+    }
+    if (ctrl.ctrl.fixedRate && !ctrl.itemsOnly) {
+        throw new Error(`given ctrl.ctrl.fixedRate, ctrl must be itemsOnly ${ctrl}`);
+    }
 
     // check - src
     if (!(src instanceof Cursor)) {
         throw new Error(`src must be a cursor ${src}`);
     }
-    if (is_clock_cursor(src)) {
-        throw new Error(`src can not be a clock cursor ${src}`);
+    if ((src.fixedRate)) {
+        throw new Error(`cursor src can not be fixedRate cursor ${src}`);
     }
-    if (!is_leaf_layer(src.src)) {
-        throw new Error(`cursor src must be itemslayer ${src.src}`);
+    if (!src.itemsOnly) {
+        throw new Error(`cursor src must be itemsOnly ${src}`);
     }
-
-    // check - dst
-    if (!is_leaf_layer(dst)) {
-        throw new Error(`dst must be a itemslayer ${dst}`);
+    if (!src.mutable) {
+        throw new Error(`cursor src must be mutable ${src}`);
     }
 
     // check - stateProviders
-    const src_stateProvider = src.src.src;
-    const dst_stateProvider = dst.src;
+    const src_stateProvider = src.src.provider;
+    const dst_stateProvider = dst.provider;
     if (src_stateProvider === dst_stateProvider) {
         throw new Error(`src and dst can not have the same stateProvider`);
     }
@@ -114,8 +112,6 @@ export function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
      * 
      */
 
-
-
     // internal state
     let is_recording = false;
 
@@ -135,9 +131,9 @@ export function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
         // figure out if recording starts or stops
         const was_recording = is_recording;
         is_recording = false;
-        if (is_clock_cursor(ctrl)) {
+        if (ctrl.fixedRate) {
             is_recording = true;
-        } else if (is_clock_cursor(ctrl.ctrl)) {
+        } else {
             const ctrl_ts = ctrl.ctrl.value;
             const items = ctrl.src.index.nearby(ctrl_ts).center;
             if (items.length == 1)
@@ -203,7 +199,8 @@ export function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
     src_stateProvider.add_callback(on_src_change);
     ctrl.add_callback(on_ctrl_change);
     on_ctrl_change();
-    return {};
+
+    return dst;
 }
 
 

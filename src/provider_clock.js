@@ -35,11 +35,10 @@ function is_clock(obj) {
     return true;
 }
 
-
 export class ClockProvider {
 
     constructor (options={}) {
-        const {clock, vector} = options;
+        const {clock, vector=LOCAL_CLOCK_VECTOR} = options;
 
         if (clock !== undefined && is_clock(clock)) {
             this._clock = {
@@ -52,7 +51,7 @@ export class ClockProvider {
                 }
             }    
             this._rate = 1.0;
-        } else if (vector != undefined) {
+        } else {
             let {ts, value, rate=1.0} = vector;
             if (ts == undefined) {
                 ts = local_clock.now();
@@ -68,8 +67,6 @@ export class ClockProvider {
                     return this._value + (local_ts - this._t0)*this._rate;
                 }
             }
-        } else {
-            throw new Error("ClockProvider: provide clock or vector");
         }
     }
 
@@ -81,17 +78,19 @@ export class ClockProvider {
 }
 
 
+// default clock provider    
+const LOCAL_CLOCK_VECTOR = {
+    ts: local_clock.now(),
+    value: new Date()/1000.0, 
+    rate: 1.0
+};
+const LOCAL_CLOCK_PROVIDER = new ClockProvider({vector:LOCAL_CLOCK_VECTOR});
 
+export const clock_provider = (options={}) => {
 
-
-/**
- * LOCAL CLOCK PROVIDER represent local epoch time (locked to *local clock*)
- */
-
-export const LOCAL_CLOCK_PROVIDER = new ClockProvider({
-    vector: {
-        value: new Date()/1000.0, 
-        rate: 1.0
+    const {clock, vector} = options;
+    if (clock == undefined && vector == undefined) {
+        return LOCAL_CLOCK_PROVIDER;
     }
-});
-
+    return new ClockProvider(options); 
+}
