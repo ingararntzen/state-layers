@@ -50,6 +50,11 @@ export function cursor_transform(src, options={}) {
     // fixedRate is inherited from src
     Object.defineProperty(cursor, "fixedRate", {get: () => src.fixedRate});
 
+    if (src.fixedRate) {
+        // propagate rate property from src
+        Object.defineProperty(cursor, "rate", {get: () => src.rate});
+    }
+
     // callbacks from src-cursor
     src.add_callback(() => {cursor.onchange()});
     return cursor;

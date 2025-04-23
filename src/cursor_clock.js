@@ -1,6 +1,7 @@
 import { Cursor } from "./cursor_base.js";
 import { ClockProvider } from "./provider_clock.js";
 import * as srcprop from "./util/api_srcprop.js";
+import { local_clock } from "./util/common.js";
 
 /**
  * Clock Cursor is a cursor that wraps a clock provider, which is available 
@@ -31,7 +32,7 @@ export function clock_cursor(options={}) {
     Object.defineProperty(cursor, "fixedRate", {get: () => true});
 
     // query
-    cursor.query = function (local_ts) {
+    cursor.query = function (local_ts=local_clock.now()) {
         const clock_ts = provider.now(local_ts);
         const value = (clock_ts * scale) + shift;
         return {value, dynamic:true, offset:local_ts};

@@ -183,7 +183,10 @@ export function layer_recorder(options={}) {
         const src_offset = src.query(ts).offset;
         const dst_offset = ctrl.query(ts).value;
         // get current src items
-        let src_items = src_stateProvider.get();
+        // crucial to clone the items before changing and
+        // storing them in the dst layer
+        let src_items = structuredClone(src_stateProvider.get());
+
         // re-encode items in dst timeframe, if needed
         const offset = dst_offset - src_offset;
         if (offset != 0) {
