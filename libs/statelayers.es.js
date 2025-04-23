@@ -1132,37 +1132,46 @@ const local_clock = function local_clock () {
     }
 }();
 
-// system clock - epoch - seconds
-const local_epoch = function local_epoch () {
-    return {
-        now: () => {
-            return new Date()/1000.0;
-        }
-    }
-}();
-
 /**
  * Create a single state from a list of states, using a valueFunc
  * state:{value, dynamic, offset}
  * 
  */
 
-function toState$1(sources, states, offset, options={}) {
-    let {valueFunc, stateFunc} = options; 
+function toState(sources, states, offset, options={}) {
+    let {valueFunc, stateFunc, numeric=false, mask} = options; 
+    let state;
     if (valueFunc != undefined) {
         let value = valueFunc({sources, states, offset});
         let dynamic = states.map((v) => v.dymamic).some(e=>e);
-        return {value, dynamic, offset};
+        state = {value, dynamic, offset};
     } else if (stateFunc != undefined) {
-        return {...stateFunc({sources, states, offset}), offset};
+        state = {...stateFunc({sources, states, offset}), offset};
+    } else if (states.length == 0) {
+        state = {value:undefined, dynamic:false, offset};
+    } else {
+        state = {...states[0], offset};
     }
-    // no valueFunc or stateFunc
-    if (states.length == 0) {
-        return {value:undefined, dynamic:false, offset}
+    if (numeric && state.value != undefined) {
+        if (!is_finite_number(state.value)) {
+            state = {value:mask, dynamic:false, offset};
+        }
     }
-    // fallback - just use first state
-    let state = states[0];
-    return {...state, offset}; 
+    return state;
+}
+
+
+function check_items(items) {
+    if (!Array.isArray(items)) {
+        throw new Error("Input must be an array");
+    }
+    for (const item of items) {
+        // make suer item has id
+        item.id = item.id || random_string(10);
+        // make sure item intervals are well formed
+        item.itv = interval.from_input(item.itv);
+    }
+    return items;
 }
 
 
@@ -1458,10 +1467,11 @@ class Layer {
 
     constructor(options={}) {
 
-        let {CacheClass=LayerCache, ...opts} = options; 
-
-        // layer options
-        this._options = opts;
+        const {
+            CacheClass=LayerCache, 
+            valueFunc=undefined,
+            stateFunc=undefined,
+        } = options; 
 
         // callbacks
         addState$1(this);
@@ -1476,10 +1486,20 @@ class Layer {
         this._CacheClass = CacheClass;
         this._private_cache;
         this._consumer_caches = [];
+
+        // properties
+        this._valueFunc = valueFunc;
+        this._stateFunc = stateFunc;
     }
 
-    // layer options
-    get options () { return this._options; }
+    // restrictions (defaults)
+    get numeric () {return false;}
+    get mutable () {return false;}
+    get itemsOnly () {return false;}
+
+    // query options
+    get valueFunc () {return this._valueFunc;}
+    get stateFunc () {return this._stateFunc;}
 
     // private cache
     get cache () {
@@ -1506,8 +1526,6 @@ class Layer {
             this._consumer_caches.splice(idx, 1);
         }
     }
-
-
     clearCaches() {
         for (const cache of this._consumer_caches){
             cache.clear();
@@ -1610,6 +1628,12 @@ class LayerCache {
         this._nearby;
         // cached state
         this._state;
+        // query options
+        this._query_options = {
+            valueFunc: this._layer.valueFunc,
+            stateFunc: this._layer.stateFunc,
+            numberOnly: this._layer.isNumberOnly,
+        };
     }
 
     get layer() {return this._layer};
@@ -1639,7 +1663,7 @@ class LayerCache {
             return cache.query(offset);
         });
         // calculate single result state
-        const state = toState$1(this._nearby.center, states, offset, this._layer.options);
+        const state = toState(this._nearby.center, states, offset, this._query_options);
         // cache state only if not dynamic
         this._state = (state.dynamic) ? undefined : state;
         return state    
@@ -1849,19 +1873,6 @@ function release(binding) {
     return monitor.release(binding);
 }
 
-/**
- * convenience
- * get current state from cursor.ctrl
- * ensure that cursor.ctrl return a number offset
- */
-function get_cursor_ctrl_state (cursor, ts_local) {
-    const state = cursor.ctrl.query(ts_local);
-    if (!is_finite_number(state.value)) {
-        throw new Error(`warning: cursor ctrl value must be number ${state.value}`);
-    }
-    return state;
-}
-
 /************************************************
  * CURSOR
  ************************************************/  
@@ -1880,23 +1891,25 @@ class Cursor {
         this.eventifyDefine("change", {init:true});
     }
 
+    // restriction defaults
+    get mutable () {return false;}
+    get numeric () {return false;};
+    get itemsOnly () {return false;}
+    get fixedRate () {return false}
+
     /**********************************************************
      * QUERY API
      **********************************************************/
 
-    query() {
+    query(local_ts) {
         throw new Error("query() not implemented");
     }
-
     get value () {return this.query().value};
+    get () {return this.query().value;}
 
-    get () {
-        return this.query().value;
-    }
-
-    /*
-        Eventify: immediate events
-    */
+    /**
+     * Eventify: immediate events
+     */
     eventifyInitEventArgs(name) {
         if (name == "change") {
             return [this.query()];
@@ -1907,6 +1920,13 @@ class Cursor {
      * BIND RELEASE (convenience)
      **********************************************************/
 
+    /**
+     * alternative to listening to the change event
+     * bind subscribes to the change event, but also automatically
+     * turns listening on and off when as the cursor switches
+     * between dynamic and non-dynamic behavior.
+     */
+
     bind(callback, delay, options={}) {
         return bind(this, callback, delay);
     }
@@ -1914,47 +1934,125 @@ class Cursor {
         return release(handle);
     }
 
-    // invoked by subclass whenever cursor has changed
+    /**********************************************************
+     * CHANGE NOTIFICATION
+     **********************************************************/
+
+    /**
+     * invoked by cursor implementation to signal change in cursor
+     * behavior.
+     */
     onchange() {
         this.notify_callbacks();
-        this.eventifyTrigger("change", this.query());    
+        this.eventifyTrigger("change", this.query());
+        this.detect_future_event();
     }
+
+    /**
+     * override by cursor implementation in order to detect
+     * and trigger future change events - which are not triggered
+     * by state changes - but caused by time progression
+     * or playback. This function is invoked after each 
+     * onchange() event.
+     */
+    detect_future_event() {}
 }
 addMethods$1(Cursor.prototype);
 eventifyPrototype(Cursor.prototype);
 
 /**
- * clock provider must have a now() method
+ * CLOCK PROVIDER
+ * 
+ * A ClockProvider can be created in two ways
+ * - either by supplying a clock object
+ * - or by supplying a vector 
+ * 
+ * A *clock* is an object that has a now() method which returns the current time.
+ * A clock is expected to return a timestamp in seconds, monitonically increasing 
+ * at rate 1.0 sec/sec. 
+ * 
+ * A *vector* initializes a determistic clock based on the official *local_clock*. 
+ * - ts (sec) - timestamp from official *local_clock*
+ * - value (sec) - value of clock at time ts
+ * - rate (sec/sec) - rate of clock (default 1.0)
+ * Clock Provider uses official *local clock* (performace.now()/1000.0)
+ * The official clock is exported by the statelayers framework, so application
+ * code can use it to create an initial timestamps. If ommitted, clock
+ * provider creates the timestamp - thereby assuming that the provided value was 
+ * sampled immediately before.
+ * 
+ * 
+ * The key difference between *clock* and *vector* is that the clock object can drift 
+ * relative to the official *local_clock*, while the vector object is forever locked to
+ * the official *local_clock*.
+ *   
  */
-function is_clock_provider(obj) {
-    if (obj == undefined) return false;
+
+function is_clock(obj) {
     if (!("now" in obj)) return false;
-    if (typeof obj.now != 'function') return false;
+    if (typeof obj.now != "function") return false;
     return true;
 }
 
+class ClockProvider {
 
-/**
- * CLOCK gives epoch values, but is implemented
- * using performance now for better
- * time resolution and protection against system 
- * time adjustments.
- */
-const LOCAL_CLOCK_PROVIDER = function () {
-    const t0 = local_clock.now();
-    const t0_epoch = local_epoch.now();
-    return {
-        now (local_ts = local_clock.now()) {
-            return t0_epoch + (local_ts - t0);
+    constructor (options={}) {
+        const {clock, vector=LOCAL_CLOCK_VECTOR} = options;
+
+        if (clock !== undefined && is_clock(clock)) {
+            this._clock = {
+                now: (local_ts) => {
+                    // if local_ts is defined it defines a timestamp for
+                    // evaluation of the clock - which is not necessarily the same
+                    // as now - back-date clock accordingly
+                    const diff_ts = (local_ts != undefined) ? local_clock.now() - local_ts : 0;
+                    return clock.now() - diff_ts;
+                }
+            };    
+            this._rate = 1.0;
+        } else {
+            let {ts, value, rate=1.0} = vector;
+            if (ts == undefined) {
+                ts = local_clock.now();
+            }
+            check_number("ts", ts);
+            check_number("value", value);
+            check_number("rate", rate);
+            this._t0 = ts;
+            this._value = value;
+            this._rate = rate;
+            this._clock = {
+                now: (local_ts = local_clock.now()) => {
+                    return this._value + (local_ts - this._t0)*this._rate;
+                }
+            };
         }
     }
-}();
 
-function check_item(item) {
-    item.itv = interval.from_input(item.itv);
-    item.id = item.id || random_string(10);
-    return item;
+    now () {
+        return this._clock.now();
+    }
+
+    get rate() {return this._rate;}
 }
+
+
+// default clock provider    
+const LOCAL_CLOCK_VECTOR = {
+    ts: local_clock.now(),
+    value: new Date()/1000.0, 
+    rate: 1.0
+};
+const LOCAL_CLOCK_PROVIDER = new ClockProvider({vector:LOCAL_CLOCK_VECTOR});
+
+const clock_provider = (options={}) => {
+
+    const {clock, vector} = options;
+    if (clock == undefined && vector == undefined) {
+        return LOCAL_CLOCK_PROVIDER;
+    }
+    return new ClockProvider(options); 
+};
 
 /**
  * collection providers must provide get_all function
@@ -1992,9 +2090,11 @@ class CollectionProvider {
         addState$1(this);
         this._map = new Map();
         // initialize
-        let {insert} = options;
-        if (insert != undefined) {
-            this._update({insert, reset:true});
+        let {items} = options;
+        if (items != undefined) {
+            for (const item of items) {
+                this._map.set(item.id, item);
+            }
         }
     }
 
@@ -2043,7 +2143,6 @@ class CollectionProvider {
         }
         // insert items
         for (let item of insert) {
-            item = check_item(item);
             const diff = diff_map.get(item.id);
             const old = (diff != undefined) ? diff.old : this._map.get(item.id);
             diff_map.set(item.id, {id:item.id, new:item, old});
@@ -2059,10 +2158,10 @@ class CollectionProvider {
 addMethods$1(CollectionProvider.prototype);
 
 /**
- * variable providers must have a value property
- * and also implement callback interface
+ * object providers implement get() and set() methods
+ * and the callback interface
  */
-function is_variable_provider(obj) {
+function is_object_provider(obj) {
     if (!is_callback_api(obj)) return false;
     if (!("get" in obj)) return false;
     if (typeof obj.get != 'function') return false;
@@ -2071,45 +2170,35 @@ function is_variable_provider(obj) {
     return true;
 }
 
-
 /***************************************************************
-    VARIABLE PROVIDER
+    OBJECT PROVIDER
 ***************************************************************/
 
 /**
- * VariableProvider stores a list of items.
+ * ObjectProvider stores an object or undefined.
  */
 
-class VariableProvider {
+class ObjectProvider {
 
     constructor(options={}) {
+        const {items} = options;
         addState$1(this);
-        this._items = [];
-        // initialize
-        const {value} = options;
-        if (value != undefined) {
-            this._items = [{
-                id: random_string(10),
-                itv: [null, null, true, true], 
-                type: "static",
-                data: value
-            }];
-        }
+        this._object = items;
     }
 
-    set (items) {
+    set (obj) {
         return Promise.resolve()
             .then(() => {
-                this._items = items;
+                this._object = obj;
                 this.notify_callbacks();
             });
     }
 
     get () {
-        return this._items;
+        return this._object;
     }
 }
-addMethods$1(VariableProvider.prototype);
+addMethods$1(ObjectProvider.prototype);
 
 /************************************************
  * SOURCE PROPERTY (SRCPROP)
@@ -2601,7 +2690,7 @@ class NearbyIndex extends NearbyIndexBase {
 
 		if (
 			!is_collection_provider(stateProvider) &&
-			!is_variable_provider(stateProvider)
+			!is_object_provider(stateProvider)
 		) {
 			throw new Error(`stateProvider must be collectionProvider or variableProvider ${stateProvider}`);
         }
@@ -2842,7 +2931,10 @@ class MotionSegment extends BaseSegment {
 
     state(offset) {
         const [p,v,a,t] = motion_utils.calculate(this._vector, offset);
-        return {value: p, dynamic: (v != 0 || a != 0 )}
+        return {
+            value: p, dynamic: (v != 0 || a != 0 ),
+            vector: [p, v, a, t],
+        }
     }
 }
 
@@ -2999,55 +3091,59 @@ function load_segment(itv, item) {
 }
 
 /*********************************************************************
-    ITEMS LAYER
+    LEAF LAYER
 *********************************************************************/
 
-/**
- * Items Layer has a stateProvider (either collectionProvider or variableProvider)
- * as src property.
- */
+function leaf_layer(options={}) {
 
-function is_items_layer (obj) {
-    if (obj == undefined) return false;
-    // is layer
-    if (!(obj instanceof Layer)) return false;
-    // has src property
-    const desc = Object.getOwnPropertyDescriptor(obj, "src");
-    if (!!(desc?.get && desc?.set) == false) return false;
-    return true;
-}
+    const {
+        provider,
+        numeric=false, 
+        mutable=true, 
+        mask,
+        ...opts} = options;
 
-function items_layer(options={}) {
+    const layer = new Layer({
+        CacheClass:LeafLayerCache, 
+        ...opts,
+    });
 
-    const {src, ...opts} = options;
-    const layer = new Layer({CacheClass:ItemsLayerCache, ...opts});
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => numeric});
+    Object.defineProperty(layer, "mutable", {get: () => mutable});
+    Object.defineProperty(layer, "itemsOnly", {get: () => true});
 
-    // setup src property
+    // numeric mask - replaces undefined for numeric layers
+    if (mask != undefined) {
+        check_number("mask", mask);
+    }
+    layer.mask = mask;
+
+    // setup provider as property
     addState(layer);
     addMethods(layer);
-
-    layer.srcprop_register("src");
-    layer.srcprop_check = function (propName, src) {
-        if (propName == "src") {
-            if (!(is_collection_provider(src)) && !(is_variable_provider(src))) {
-                throw new Error(`"src" must collectionProvider or variableProvider ${src}`);
+    layer.srcprop_register("provider");
+    layer.srcprop_check = function (propName, obj) {
+        if (propName == "provider") {
+            if (!(is_collection_provider(obj)) && !(is_object_provider(obj))) {
+                throw new Error(`"obj" must collectionProvider or objectProvider ${obj}`);
             }
-            return src;    
+            return obj;    
         }
     };
     layer.srcprop_onchange = function (propName, eArg) {
-        if (propName == "src") {
+        if (propName == "provider") {
             if (eArg == "reset") {
-                if (is_collection_provider(layer.src)) {
-                    layer.index = new NearbyIndex(layer.src);
-                } else if (is_variable_provider(layer.src)) {
-                    layer.index = new NearbyIndex(layer.src);
+                if (is_collection_provider(layer.provider)) {
+                    layer.index = new NearbyIndex(layer.provider);
+                } else if (is_object_provider(layer.provider)) {
+                    layer.index = new NearbyIndex(layer.provider);
                 }
             } 
             if (layer.index != undefined) {
-                if (is_collection_provider(layer.src)) {
+                if (is_collection_provider(layer.provider)) {
                     layer.index.refresh(eArg);
-                } else if (is_variable_provider(layer.src)) {
+                } else if (is_object_provider(layer.provider)) {
                     layer.index.refresh();
                 }
                 layer.onchange();
@@ -3067,45 +3163,52 @@ function items_layer(options={}) {
     /******************************************************************
      * LAYER UPDATE API
      * ***************************************************************/
-    layer.update = function update(changes) {
-        return layer_update(layer, changes);
-    };
-    layer.append = function append(items, offset) {
-        return layer_append(layer, items, offset);
-    };
 
+    if (!layer.readOnly) {
+        layer.update = function update(changes) {
+            return layer_update(layer, changes);
+        };
+        layer.append = function append(items, offset) {
+            return layer_append(layer, items, offset);
+        };    
+    }
+ 
     // initialise
-    layer.src = src;
+    layer.provider = provider;
 
     return layer;
 }
 
 
 /*********************************************************************
-    ITEMS LAYER CACHE
+    LEAF LAYER CACHE
 *********************************************************************/
 
 /*
-    Layers with a CollectionProvider or a VariableProvider as src 
-    use a specific cache implementation, as objects in the 
-    index are assumed to be items from the provider, not layer objects. 
-    Thus, queries are not resolved directly on the items in the index, but
+    LeafLayers have a CollectionProvider or a ObjectProvider as provider 
+    and use a specific cache implementation, as objects in the 
+    index are assumed to be items from the provider, not other layer objects. 
+    Moreover, queries are not resolved directly on the items in the index, but
     rather from corresponding segment objects, instantiated from items.
 
     Caching here applies to nearby state and segment objects.
 */
 
-class ItemsLayerCache {
-    constructor(layer, options={}) {
+class LeafLayerCache {
+    constructor(layer) {
         // layer
         this._layer = layer;
         // cached nearby object
         this._nearby = undefined;
         // cached segment
         this._segment = undefined;
-        // default value
-        this._options = options;
-
+        // query options
+        this._query_options = {
+            valueFunc: this._layer.valueFunc,
+            stateFunc: this._layer.stateFunc,
+            numeric: this._layer.numeric,
+            mask: this._layer.mask
+        };
     }
 
     get src() {return this._layer};
@@ -3129,7 +3232,7 @@ class ItemsLayerCache {
             return seg.query(offset);
         });
         // calculate single result state
-        return toState$1(this._segments, states, offset, this._layer.options);
+        return toState(this._segments, states, offset, this._query_options);
     }
 
     clear() {
@@ -3152,23 +3255,39 @@ class ItemsLayerCache {
  * so we keep it here for now. 
  */
 
-
 /*
     Items Layer forwards update to stateProvider
 */
 function layer_update(layer, changes={}) {
-    if (is_collection_provider(layer.src)) {
-        return layer.src.update(changes);
-    } else if (is_variable_provider(layer.src)) {     
+
+    // check items to be inserted
+    let {insert=[]} = changes;
+    changes.insert = check_items(insert);
+
+    // check number restriction
+    // check that static items are restricted to numbers
+    // other item types are restricted to numbers by default
+    if (layer.isNumberOnly) {
+        for (let item of changes.insert) {
+            item.type ??= "static";
+            if (item.type == "static" && !is_finite_number(item.data)) {
+                throw new Error(`Layer is number only, but item ${item} is not a number`);
+            }
+        }
+    }
+
+    if (is_collection_provider(layer.provider)) {
+        return layer.provider.update(changes);
+    } else if (is_object_provider(layer.provider)) {     
         let {
             insert=[],
             remove=[],
             reset=false
         } = changes;
         if (reset) {
-            return layer.src.set(insert);
+            return layer.provider.set(insert);
         } else {
-            const map = new Map((layer.src.get() || [])
+            const map = new Map((layer.provider.get() || [])
                 .map((item) => [item.id, item]));
             // remove
             remove.forEach((id) => map.delete(id));
@@ -3176,7 +3295,7 @@ function layer_update(layer, changes={}) {
             insert.forEach((item) => map.set(item.id, item));
             // set
             const items = Array.from(map.values());
-            return layer.src.set(items);
+            return layer.provider.set(items);
         }
     }
 }
@@ -3233,7 +3352,7 @@ function layer_append(layer, items, offset) {
     // console.log("modify", modify_items);
 
     // remove pre-existing future - items covering itv.low > offset
-    const remove = layer.src.get()
+    const remove = layer.provider.get()
         .filter((item) => {
             const lowEp = endpoint.from_interval(item.itv)[0];
             return endpoint.gt(lowEp, ep);
@@ -3250,100 +3369,123 @@ function layer_append(layer, items, offset) {
 }
 
 /**
- * Clock cursor is a thin wrapper around a clockProvider,
- * so that it can be consumed as a cursor.
+ * Clock Cursor is a cursor that wraps a clock provider, which is available 
+ * on the provider property.
  * 
- * The ctrl property of any Cursor is required to be a Cursor or undefined,
- * so in the case of a clock cursor, which is the starting point,
- * the ctrl property is always set to undefined.
+ * Clock cursor does not depend on a src layer or a ctrl cursor. 
+ * Clock cursor is FixedRate Cursor (bpm 1)
+ * Clock cursor is NumberOnly
  * 
- * Additionally, clock cursor.src is also undefined.
+ * Clock cursor take options {skew, scale} to transform the clock value.
+ * Scale is multiplier to the clock value, applied before the skew so that
+ * it preserves the zero point.
  * 
- * Cursor transformation of a clock cursor will result in a new clock cursor.
- *  
- * Idenfifying a cursor as a clock cursor or not is important for playback
- * logic in cursor implemmentation.
+ * The Clock cursor generally does not invoke any callback, as it is always in dynamic state.
+ * However, a callback will be invoked if the clockprovider is changed through 
+ * assignment of the provider property.
+ * 
  */
 
-function is_clock_cursor(obj) {
-    return obj instanceof Cursor && obj.ctrl == undefined && obj.src == undefined; 
-}
+function clock_cursor(options={}) {
 
-function clock_cursor(src=LOCAL_CLOCK_PROVIDER) {
-    if (!is_clock_provider(src)) {
-        throw new Error(`src must be clockProvider ${src}`);
-    }
+    const {provider, shift=0, scale=1.0} = options;
+
     const cursor = new Cursor();
-    cursor.query = function (local_ts) {
-        const clock_ts = src.now(local_ts);
-        return {value:clock_ts, dynamic:true, offset:local_ts};
+
+    // restrictions
+    Object.defineProperty(cursor, "numeric", {get: () => true});
+    Object.defineProperty(cursor, "fixedRate", {get: () => true});
+
+    // query
+    cursor.query = function (local_ts=local_clock.now()) {
+        const clock_ts = provider.now(local_ts);
+        const value = (clock_ts * scale) + shift;
+        return {value, dynamic:true, offset:local_ts};
     };
+
+    // setup provider as settable property
+    addState(cursor);
+    addMethods(cursor);
+    cursor.srcprop_register("provider");
+    cursor.srcprop_check = function (propName, obj) {
+        if (propName == "provider") {
+            if (!(obj instanceof ClockProvider)) {
+                throw new Error(`provider must be clockProvider ${provider}`);
+            }        
+            return obj;    
+        }
+    };
+    cursor.srcprop_onchange = function (propName, eArg) {
+        if (propName == "provider") {
+            if (eArg == "reset") {
+                cursor.onchange();
+            }
+        }        
+    };
+
+    // initialise
+    cursor.rate = 1.0 * scale;
+    cursor.provider = provider;
     return cursor;
 }
 
-const check_range = motion_utils.check_range;
-
 /*****************************************************
- * VARIABLE CURSOR
+ * PLAYBACK CURSOR
  *****************************************************/
 
 /**
- * "src" is a layer or a stateProvider
- * "clock" is a clockCursor or a clockProvider
+ * generic playback cursor
  * 
- * - clockProvider is wrapped as clockCursor
- * to ensure that "clock" property of cursors is always a cursor
- * 
- * if no "clock" is provided - local clockProvider is used
- * 
- * - stateProvider is wrapped as itemsLayer
- * to ensure that "src" property of cursors is always a layer
- * this also ensures that variable cursor can easily
- * support live recording, which depends on the nearbyindex of the layer.
- * 
+ * "src" is a layer
+ * "ctrl" is cursor (Number)
+ * returns a cursor
  */
 
-/**
- * TODO - media control is a special case of variable cursors
- * where src layer is number type and defined on the entire
- * timeline. And protected agoinst other types of state
- * Could perhaps make a special type of layer for this,
- * and then make a special type of control cursor with
- * the appropriate restriction on the src layer.
- */
+function playback_cursor(options={}) {
 
+    const {ctrl, src, 
+        mutable=false} = options;
 
-function variable_cursor(ctrl, src, options={}) {
+    let src_cache; // cache for src layer
+    let tid; // timeout
+    let pid; // polling
 
     const cursor = new Cursor();
 
-    // cache for src
-    let src_cache;
-    // timeout
-    let tid;
+    /**********************************************************
+     * RESTRICTIONS
+     **********************************************************/
 
-    // setup src property
+    Object.defineProperty(cursor, "numeric", {get: () => {
+        return (cursor.src != undefined) ? cursor.src.numeric : false;
+    }});
+    Object.defineProperty(cursor, "mutable", {get: () => {
+        return (cursor.src != undefined) ? (cursor.src.mutable && mutable) : false;
+    }});
+    Object.defineProperty(cursor, "itemsOnly", {get: () => {
+        return (cursor.src != undefined) ? cursor.src.itemsOnly : false;
+    }});
+
+    
+    /**********************************************************
+     * SRC AND CTRL PROPERTIES
+     **********************************************************/
+
     addState(cursor);
     addMethods(cursor);
     cursor.srcprop_register("ctrl");
     cursor.srcprop_register("src");
 
-    cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
+    cursor.srcprop_check = function (propName, obj) {
         if (propName == "ctrl") {
-            if (is_clock_provider(obj)) {
-                obj = clock_cursor(obj);
-            }
-            if (!is_clock_cursor(obj)) {
-                throw new Error(`"ctrl" property must be a clock cursor ${obj}`);
+            if (!(obj instanceof Cursor) || obj.numeric == false) {
+                throw new Error(`"ctrl" property must be a numeric cursor ${obj}`);
             }
             return obj;
         }
         if (propName == "src") {
-            if (is_collection_provider(obj) || is_variable_provider(obj)) {
-                obj = items_layer({src:obj});
-            }
-            if (!is_items_layer(obj)) {
-                throw new Error(`"src" property must be an item layer ${obj}`);
+            if (!(obj instanceof Layer)) {
+                throw new Error(`"src" property must be a layer ${obj}`);
             }
             return obj;
         }
@@ -3359,61 +3501,300 @@ function variable_cursor(ctrl, src, options={}) {
                 src_cache.clear();                
             }
         }
-        // ctrl may change if clockProvider is reset - but
-        // this does not require any particular changes to the src cache        
-        detect_future_event();
         cursor.onchange();
     };
 
+    cursor.query = function query(local_ts) {
+        let offset = cursor.ctrl.query(local_ts).value;
+        // should not happen
+        check_number("cursor.ctrl.offset", offset);
+        const state = src_cache.query(offset);
+        // if (src) layer is numeric, default value 0 
+        // is assumed in regions where the layer is undefined
+        if (cursor.src.numeric && state.value == undefined) {
+            state.value = 0.0;
+        }
+        return state;
+    };
+
+    cursor.active_items = function get_item(local_ts) {
+        if (cursor.itemsOnly) {
+            const offset = cursor.ctrl.query(local_ts).value;
+            return cursor.src.index.nearby(offset).center;    
+        }
+    };
+
+    /**********************************************************
+     * DETECT FUTURE EVENT
+     **********************************************************/
+
     /**
-     * cursor.ctrl defines an active region of cursor.src (layer)
-     * at some point in the future, the cursor.ctrl will leave this region.
-     * in that moment, cursor should reevaluate its state - so we need to 
-     * detect this event by timeout  
+     * fixed rate cursors never change their behavior - and
+     * consequently never has to invoke any callbacks / events
+     * 
+     * Other cursors may change behaviour at a future time.
+     * If this future change is caused by a state change - 
+     * either in (src) layer or (ctrl) cursor - events will be 
+     * triggered in response to this. 
+     * 
+     * However, cursors may also change behaviour at a future time moment
+     * in time, without any causing state change. This may happen during 
+     * playback, as the (ctrl) cursor leaves the current region 
+     * of the (src) layer and enters into the next region.
+     * 
+     * This event must be detected, ideally at the right moment, 
+     * so that the cursor can generate events, allowing observers to
+     * react to the change. If the (ctrl) cursor behaves deterministically, 
+     * this future event can be calculated ahead of time, 
+     * and detected by timeout. Otherwise, the fallback solution is to
+     * detect such future events by polling.
+     * 
+     * NOTE consumers of cursors might poll the cursor themselves, thus 
+     * causing the event to be detected that way. However, there is no 
+     * guarantee that this will happen. For example, in circumstances 
+     * where the (src) layer region is static, consumers will turn
+     * polling off, and depend on the change event from the cursor, in order 
+     * to detect the change in behavior.
+     * 
      */
+    cursor.detect_future_event = function detect_future_event() {
 
-    function detect_future_event() {
-        if (tid) {tid.cancel();}
-        const ts = cursor.ctrl.value;
-        // nearby from src
-        const nearby = cursor.src.index.nearby(ts);
-        const region_high = nearby.itv[1] || Infinity;        
+        cancel_timeout();
+        cancel_polling();
 
-        if (region_high == Infinity) {
-            // no future leave event
+        // no future timeout if cursor itself is fixedRate
+        if (cursor.fixedRate) {
             return;
         }
-        const delta_ms = (region_high - ts) * 1000;
-        tid = set_timeout(() => {
-            cursor.onchange();
-        }, delta_ms);
+
+        // all other cursors must have (src) and (ctrl)
+        if (cursor.ctrl == undefined) {
+            throw new Error("cursor.ctrl can not be undefined with isFixedRate=false");
+        }
+        if (cursor.src == undefined) {
+            throw new Error("cursor.src can not be undefined with isFixedRate=false");
+        }
+
+        // current state of cursor.ctrl 
+        const {value:pos0, dynamic, offset:ts0} = cursor.ctrl.query();
+
+        // no future timeout if cursor.ctrl is static
+        if (!dynamic) {
+            return;
+        }
+
+        // current region of cursor.src
+        const src_nearby = cursor.src.index.nearby(pos0);
+        const src_region_low = src_nearby.itv[0] ?? -Infinity;
+        const src_region_high = src_nearby.itv[1] ?? Infinity;
+
+        if (src_region_low == -Infinity && src_region_high == Infinity) {
+            // unbounded src region - no event
+            return;
+        }
+
+        // check if condition for clock timeout is met
+        if (cursor.ctrl.fixedRate) {
+            /* 
+                cursor.ctrl is fixed rate (clock)
+                future timeout when cursor.ctrl leaves src_region (on the right)
+            */
+            const vector = [pos0, cursor.ctrl.rate, 0, ts0];
+            const target = src_region_high;
+            schedule_timeout(vector, target);
+            return;
+        }
+
+        // check if conditions for motion timeout are met
+        // cursor.ctrl.ctrl must be fixed rate
+        // cursor.ctrl.src must have itemsOnly == true 
+        if (cursor.ctrl.ctrl.fixedRate && cursor.ctrl.src.itemsOnly) {
+            /* 
+                possible timeout associated with leaving region
+                through either region_low or region_high.
+
+                However, this can only be predicted if cursor.ctrl
+                implements a deterministic function of time.
+                This can be known only if cursor.ctrl.src is a layer with items.
+                and a single active item describes either a motion or a transition 
+                (with linear easing).                
+            */
+            const active_items = cursor.ctrl.src.get_items(ts0);
+            if (active_items.length == 1) {
+                const active_item = active_items[0];
+                if (active_item.type == "motion") {
+                    const [p,v,a,t] = active_item.data;
+                    // TODO calculate timeout with acceleration too
+                    if (a == 0.0) {
+                        // figure out which region boundary we hit first
+                        const target = (v > 0) ? src_region_high : src_region_low;
+                        const vector = [pos0, v, 0, ts0];
+                        schedule_timeout(vector, target);
+                        return;
+                    }
+                } else if (active_item.type == "transition") {
+                    const {v0, v1, t0, t1, easing="linear"} = active_item.data;
+                    if (easing == "linear") {
+                        // linear transition
+                        const v = (v1-v0)/(t1-t0);
+                        const target = (v > 0) ? src_region_high : src_region_low;
+                        const vector = [pos0, v, 0, ts0];
+                        schedule_timeout(vector, target);
+                        return;                           
+                    }
+                }
+            }
+        }            
+
+        /**
+         * detection of leave events falls back on polling
+         */
+        start_polling(src_region_low, src_region_high);
+    };
+
+    /**********************************************************
+     * TIMEOUT
+     **********************************************************/
+
+    function schedule_timeout(vector, target) {
+        const [p,v,a,t] = vector;
+        if (a != 0) {
+            throw new Error("timeout not yet implemented for acceleration");
+        }
+        if (target == Infinity || target == -Infinity) {
+            // no timeout
+            return;
+        }
+        const delta_sec = (target - p) / v;
+        if (delta_sec <= 0) {
+            console.log("Warning - timeout <= 0 - dropping", delta_sec);
+            console.log("vector", vector);
+            console.log("target", target);
+            return;
+        }
+        tid = set_timeout(handle_timeout, delta_sec * 1000.0);
     }
 
-    cursor.query = function query(local_ts) {
-        const offset = cursor.ctrl.query(local_ts).value;
-        return src_cache.query(offset);
-    };
-    
-    /**
-     * UPDATE API for Variable Cursor
-     */    
-    cursor.set = function set(value) {
-        return set_value(cursor, value);
-    };
-    cursor.motion = function motion(vector) {
-        return set_motion(cursor, vector);
-    };
-    cursor.transition = function transition({target, duration, easing}) {
-        return set_transition(cursor, target, duration, easing);
-    };
-    cursor.interpolate = function interpolate ({tuples, duration}) {
-        return set_interpolation(cursor, tuples, duration);
-    };
-    
-    // initialize
-    cursor.options = options;
+    function handle_timeout() {
+        // event detected
+        cursor.onchange();
+    }
+
+    function cancel_timeout() {
+        if (tid != undefined) {
+            tid.cancel(); 
+        }    
+    }
+
+    /**********************************************************
+     * POLLING
+     **********************************************************/
+
+    function start_polling(targetLow, targetHigh) {
+        pid = setInterval(() => {
+            handle_polling(targetLow, targetHigh);
+        }, 100);
+    }
+
+    function handle_polling(targetLow, targetHigh) {
+        let pos = cursor.ctrl.value;
+        if (
+            (targetLow > -Infinity && pos < targetLow) ||
+            (targetHigh < Infinity && pos > targetHigh)
+        ){ 
+            // event detected
+            cursor.onchange();
+            return;
+        }
+    }
+
+    function cancel_polling() {
+        if (pid != undefined) { 
+            clearInterval(pid); 
+        }
+    }
+ 
+    /**********************************************************
+     * INITIALIZATION
+     **********************************************************/
     cursor.ctrl = ctrl;
     cursor.src = src;
+    return cursor;
+}
+
+/*****************************************************
+ * OBJECT CURSOR
+ *****************************************************/
+
+/**
+ * cursor object supporting updates
+ *  
+ * "src" is a layer which is mutable
+ * "ctrl" is fixed-rate cursor
+ * 
+ * object_cursor may also support recording
+ */
+
+function object_cursor(options={}) {
+
+    const {ctrl, src, record=false} = options;
+
+    const cursor = new playback_cursor({ctrl, src, mutable: true});
+
+    /**
+     * override to implement additional restrictions 
+     * on src and ctrl
+     */
+    const original_srcprop_check = cursor.srcprop_check;
+
+    cursor.srcprop_check = function (propName, obj) {
+        obj = original_srcprop_check(propName, obj);
+        if (propName == "ctrl") {
+            if (!obj.fixedRate) {
+                throw new Error(`"ctrl" property must be a fixedrate cursor ${obj}`);
+            }
+            return obj;
+        }
+        if (propName == "src") {
+            if (!obj.mutable) {
+                throw new Error(`"src" property must be mutable layer ${obj}`);
+            }
+            return obj;
+        }
+    };
+        
+
+    /**********************************************************
+     * UPDATE API
+     **********************************************************/
+    cursor.set = (value) => {
+        const items = create_set_items(cursor, value);
+        return cursor.update(items);
+    };
+    cursor.motion = (vector) => {
+        const items = create_motion_items(cursor, vector);
+        return cursor.update(items);
+    };
+    cursor.transition = ({target, duration, easing}) => { 
+        const items = create_transition_items(cursor, target, duration, easing);
+        return cursor.update(items);
+
+    };
+    cursor.interpolate = ({tuples, duration}) => {
+        const items = create_interpolation_items(cursor, tuples, duration);
+        return cursor.update(items);
+    };
+    
+    cursor.update = (items) => {
+        if (items != undefined) {
+            if (record) {
+                return cursor.src.append(items, cursor.ctrl.value);
+            } else {
+                return cursor.src.update({insert:items, reset:true});
+            }
+        }
+    };
+
     return cursor;
 }
 
@@ -3423,10 +3804,9 @@ function variable_cursor(ctrl, src, options={}) {
  * ***************************************************************/
 
 /**
- * set value of cursor
- */
-
-function set_value(cursor, value) {
+ * creaate items for set operation
+*/
+function create_set_items(cursor, value) {
     let items = [];
     if (value != undefined) {
         items = [{
@@ -3436,13 +3816,13 @@ function set_value(cursor, value) {
             data: value              
         }];
     }
-    return cursor_update (cursor, items);
+    return items;
 }
 
 /**
- * set motion state
+ * create items for motion operation
  *  
- * motion only makes sense if variable cursor is restricted to number values,
+ * motion only makes sense if object cursor is restricted to number values,
  * which in turn implies that the cursor.src (Items Layer) should be
  * restricted to number values. 
  * If non-number values occur - we simply replace with 0.
@@ -3454,7 +3834,7 @@ function set_value(cursor, value) {
  * - these will be set to zero.
  */
 
-function set_motion(cursor, vector={}) {
+function create_motion_items(cursor, vector={}) {
     // get the current state of the cursor
     let {value:p0, offset:t0} = cursor.query();
     // ensure that p0 is number type
@@ -3469,7 +3849,7 @@ function set_motion(cursor, vector={}) {
         timestamp:t1=t0,
         range=[null, null]
     } = vector;
-    check_range(range);
+    motion_utils.check_range(range);
     check_number("position", p1);
     check_number("velocity", v1);
     check_number("acceleration", a1);
@@ -3535,22 +3915,29 @@ function set_motion(cursor, vector={}) {
             data: val
         });
     }
-    return cursor_update (cursor, items);
+    return items;
 }
 
 /**
- * set transition - to target position using in <duration> seconds.
+ * create items for transition operation
+ *  
+ * transition to target position using in <duration> seconds.
  */
 
-function set_transition(cursor, target, duration, easing) {
+function create_transition_items(cursor, target, duration, easing) {
+
     const {value:v0, offset:t0} = cursor.query();
     const v1 = target;
     const t1 = t0 + duration;
+    if (v1 == v0) {
+        // noop
+        return;
+    }
     check_number("position", v0);
     check_number("position", v1);
     check_number("position", t0);
     check_number("position", t1);
-    let items = [
+    return [
         {
             id: random_string(10),
             itv: [null, t0, true, false],
@@ -3570,15 +3957,14 @@ function set_transition(cursor, target, duration, easing) {
             data: v1
         }
     ];
-    return cursor_update (cursor, items);
 }
 
 /**
- * set interpolation
- * 
+ * create items for interpolation operation
  */
 
-function set_interpolation(cursor, tuples, duration) {
+function create_interpolation_items(cursor, tuples, duration) {
+
     const now = cursor.ctrl.value;
     tuples = tuples.map(([v,t]) => {
         check_number("ts", t);
@@ -3596,7 +3982,7 @@ function set_interpolation(cursor, tuples, duration) {
     const t1 = t0 + duration;
     const v0 = seg.state(t0).value;
     const v1 = seg.state(t1).value;
-    const items = [
+    return [
         {
             id: random_string(10),
             itv: [-Infinity, t0, true, false],
@@ -3616,252 +4002,6 @@ function set_interpolation(cursor, tuples, duration) {
             data: v1
         }
     ];
-    return cursor_update (cursor, items);
-}
-
-
-function cursor_update(cursor, items) {
-    const {record=false} = cursor.options;
-    if (record) {
-        return cursor.src.append(items, cursor.ctrl.value);
-    } else {
-        return cursor.src.update({insert:items, reset:true});
-    }
-}
-
-/*****************************************************
- * PLAYBACK CURSOR
- *****************************************************/
-
-/**
- * src is a layer or a stateProvider
- * ctrl is a cursor or a clockProvider
- * 
- * clockProvider is wrapped as clockCursor
- * to ensure that "ctrl" property of cursors is always a cursor
- * 
- * stateProvider is wrapped as itemsLayer
- * to ensure that "src" property of cursors is always a layer
- */
-
-function playback_cursor(ctrl, src) {
-
-    const cursor = new Cursor();
-
-    // src cache
-    let src_cache;
-    // timeout
-    let tid;
-    // polling
-    let pid;
-
-    // setup src property
-    addState(cursor);
-    addMethods(cursor);
-    cursor.srcprop_register("ctrl");
-    cursor.srcprop_register("src");
-
-    /**
-     * src property initialization check
-     */
-    cursor.srcprop_check = function (propName, obj=LOCAL_CLOCK_PROVIDER) {
-        if (propName == "ctrl") {
-            if (is_clock_provider(obj)) {
-                obj = clock_cursor(obj);
-            }
-            if (obj instanceof Cursor) {
-                return obj
-            } else {
-                throw new Error(`ctrl must be clockProvider or Cursor ${obj}`);
-            }
-        }
-        if (propName == "src") {
-            if (is_collection_provider(obj) || is_variable_provider(obj)) {
-                obj = items_layer({src:obj});
-            }
-            if (obj instanceof Layer) {
-                return obj;
-            } else {
-                throw new Error(`src must be Layer ${obj}`);
-            }
-        }
-    };
-
-    /**
-     * handle src property change
-     */
-    cursor.srcprop_onchange = function (propName, eArg) {
-        if (cursor.src == undefined || cursor.ctrl == undefined) {
-            return;
-        }
-        if (propName == "src") {
-            if (eArg == "reset") {
-                src_cache = cursor.src.createCache();
-            } else {
-                src_cache.clear();                
-            }
-        }
-        cursor_onchange();
-    };
-
-    /**
-     * main cursor change handler
-     */
-    function cursor_onchange() {
-        cursor.onchange();
-        detect_future_event();
-    }
-
-    /**
-     * cursor.ctrl (cursor/clock) defines an active region of cursor.src (layer)
-     * at some point in the future, the cursor.ctrl will leave this region.
-     * in that moment, cursor should reevaluate its state - so we need to 
-     * detect this event, ideally by timeout, alternatively by polling.  
-     */
-    function detect_future_event() {
-        if (tid) { tid.cancel(); }
-        if (pid) { clearInterval(pid); }
-
-        // current state of cursor.ctrl 
-        const ctrl_state = get_cursor_ctrl_state(cursor);
-        // current (position, time) of cursor.ctrl
-        const current_pos = ctrl_state.value;
-        const current_ts = ctrl_state.offset;
-
-        // no future event if the ctrl is static
-        if (!ctrl_state.dynamic) {
-            // will never leave region
-            return;
-        }
-
-        // current region of cursor.src
-        const src_nearby = cursor.src.index.nearby(current_pos);
-
-        const region_low = src_nearby.itv[0] ?? -Infinity;
-        const region_high = src_nearby.itv[1] ?? Infinity;
-
-        // no future leave event if the region covers the entire timeline 
-        if (region_low == -Infinity && region_high == Infinity) {
-            // will never leave region
-            return;
-        }
-
-        if (is_clock_cursor(cursor.ctrl)) {
-            /* 
-                cursor.ctrl is a clock provider
-
-                possible timeout associated with leaving region
-                through region_high - as clock is increasing.
-            */
-           const target_pos = region_high;
-            const delta_ms = (target_pos - current_pos) * 1000;
-            tid = set_timeout(() => {
-                cursor_onchange();
-            }, delta_ms);
-            // leave event scheduled
-            return;
-        } 
-        
-        if (
-            is_clock_cursor(cursor.ctrl.ctrl) && 
-            is_items_layer(cursor.ctrl.src)
-        ) {
-            /* 
-                cursor.ctrl is a cursor with a clock provider
-
-                possible timeout associated with leaving region
-                through region_low or region_high.
-
-                However, this can only be predicted if cursor.ctrl
-                implements a deterministic function of time.
-
-                This can be the case if cursor.ctr.src is an items layer,
-                and a single active item describes either a motion or a transition (with linear easing).                
-            */
-            const active_items = cursor.ctrl.src.get_items(current_ts);
-            let target_pos;
-
-            if (active_items.length == 1) {
-                const active_item = active_items[0];
-                if (active_item.type == "motion") {
-                    const [p,v,a,t] = active_item.data;
-                    // TODO calculate timeout with acceleration too
-                    if (a == 0.0) {
-                        // figure out which region boundary we hit first
-                        if (v > 0) {
-                            target_pos = region_high;
-                        } else {
-                            target_pos = region_low;
-                        }
-                        const delta_ms = (target_pos - current_pos) * 1000;
-                        tid = set_timeout(() => {
-                            cursor_onchange();
-                        }, delta_ms);
-                        // leave-event scheduled
-                        return;
-                    }
-                } else if (active_item.type == "transition") {
-                    const {v0, v1, t0, t1, easing="linear"} = active_item.data;
-                    if (easing == "linear") {
-                        // linear transtion
-                        let velocity = (v1-v0)/(t1-t0);
-                        if (velocity > 0) {
-                            target_pos = Math.min(region_high, v1);
-                        }
-                        else {
-                            target_pos = Math.max(region_low, v1);
-                        }
-                        const delta_ms = (target_pos - current_pos) * 1000;
-                        tid = set_timeout(() => {
-                            cursor_onchange();
-                        }, delta_ms);
-                        // leave-event scheduled
-                        return;
-                    }
-                }
-            }
-        }
-
-        /**
-         * detection of leave events falls back on polling
-         */
-        start_polling(src_nearby.itv);
-    }
-
-    /**
-     * start polling
-     */
-    function start_polling(itv) {
-        pid = setInterval(() => {
-            handle_polling(itv);
-        }, 100);
-    }
-
-    /**
-     * handle polling
-     */
-    function handle_polling(itv) {
-        let offset = cursor.ctrl.value;
-        if (!interval.covers_endpoint(itv, offset)) {
-            cursor_onchange();
-        }
-    }
-
-
-    /**
-     * main query function - resolving query
-     * from cache object associated with cursor.src
-     */
-
-    cursor.query = function query(local_ts) {
-        const offset = get_cursor_ctrl_state(cursor, local_ts).value; 
-        return src_cache.query(offset);
-    };
-    
-    // initialize
-    cursor.ctrl = ctrl;
-    cursor.src = src;
-    return cursor;
 }
 
 /**
@@ -3876,7 +4016,10 @@ function layer_from_cursor(src) {
  
     const layer = new Layer();
     layer.index = new CursorIndex(src);
-    
+
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+
     // subscribe
     src.add_callback((eArg) => {
         layer.onchange(eArg);
@@ -3991,6 +4134,10 @@ function merge_layer (sources, options={}) {
         }
     };
 
+    // restrictions
+    const numeric = sources.map((src) => src.numeric).every(e=>e);  
+    Object.defineProperty(layer, "numeric", {get: () => numeric});
+
     // initialise
     layer.sources = sources;
 
@@ -4075,6 +4222,11 @@ class NearbyIndexMerge extends NearbyIndexBase {
     BOOLEAN LAYER
 *********************************************************************/
 
+/* 
+    Boolean Layer is returns values 0/1 - making it a numeric layer
+*/
+
+
 function boolean_layer(src) {
 
     const layer = new Layer();
@@ -4084,6 +4236,10 @@ function boolean_layer(src) {
     src.add_callback((eArg) => {
         layer.onchange(eArg);
     });
+
+
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => true});
 
     // initialise
     layer.src = src;
@@ -4156,9 +4312,10 @@ class NearbyIndexBoolean extends NearbyIndexBase {
         right = right || endpoint.POS_INF;
         const low = endpoint.flip(left);
         const high = endpoint.flip(right);
+        const value = evaluation ? 1 : 0;
         return {
             itv: interval.from_endpoints(low, high),
-            center : [queryObject(evaluation)],
+            center : [queryObject(value)],
             left,
             right,
         }
@@ -4185,6 +4342,9 @@ function logical_merge_layer(sources, options={}) {
     });
     
     layer.sources = sources;
+
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => true});
 
     return layer;
 }
@@ -4355,13 +4515,21 @@ function timeline_transform (src, options={}) {
         }
     };
 
+    // restrictions
+    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+
     // initialise
     layer.src = src;
+
+
+
     
     return layer;
 }
 
-function toState(state, options={}) {
+// TODO - enusure numeric if set to true
+
+function transformState(state, options={}) {
     const {valueFunc, stateFunc} = options;
     if (valueFunc != undefined) {
         state.value = valueFunc(state.value);
@@ -4375,7 +4543,13 @@ function toState(state, options={}) {
 
 /**
  * Cursor Transform
- * Create a new Cursor which is a transformation of the src Cursor
+ * Create a new Cursor which is a transformation of a src Cursor.
+ * 
+ * The new transformed Cursor does not have a src (layer) and and a ctrl (cursor)
+ * property, since it only depends on the src cursor.
+ * 
+ * Also, the new transformed cursor does not need any playback logic on its own
+ * as long as the nature of the transformation is a plain value/state transition. 
  */
 function cursor_transform(src, options={}) {
 
@@ -4383,34 +4557,25 @@ function cursor_transform(src, options={}) {
         throw new Error(`src must be a Cursor ${src}`);
     }
 
+    const {numeric, valueFunc, stateFunc} = options;
     const cursor = new Cursor();
 
     // implement query
     cursor.query = function query() {
         const state = src.query();
-        return toState(state, options);
+        return transformState(state, {stateFunc, valueFunc});
     };
 
-    // adopt the ctrl of the src-cursor
-    if (!is_clock_cursor(src)) {
-        cursor.ctrl = src.ctrl;
-        // add callbacks
-        cursor.ctrl.add_callback(() => {cursor.onchange();});
-    }
+    // numberic can be set to true by options
+    Object.defineProperty(cursor, "numeric", {get: () => {
+        return (numeric == undefined) ? src.numeric : numeric; 
+    }});
+    // fixedRate is inherited from src
+    Object.defineProperty(cursor, "fixedRate", {get: () => src.fixedRate});
 
-    /* 
-        Current definition of Cursor src property is that it is a layer or undefined.
-        This leaves cursor transform options.
-        1) wrap src cursor as a layer,
-        2) let src property be undefined
-        3) adopt the src property of the src cursor as its own src
-
-        We go for 3)
-    */
-
-    // adopt the src of the src-cursor as src
-    if (!is_clock_cursor(src)) {
-        cursor.src = src.src;
+    if (src.fixedRate) {
+        // propagate rate property from src
+        Object.defineProperty(cursor, "rate", {get: () => src.rate});
     }
 
     // callbacks from src-cursor
@@ -4450,33 +4615,38 @@ function layer_transform(src, options={}) {
     layer.index = new NearbyIndexSrc(src);
     layer.src = src;
     layer.src.add_callback((eArg) => {layer.onchange(eArg);});
+
+    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+
     return layer;
 }
 
 /**
- * recorder for cursor into layer
+ * record cursor into layer
  * 
  *   MAIN IDEA
  * - record the current value of a cursor (src) into a layer (dst)
+ * 
  * - recording is essentially a copy operation from the
- *   stateProvider of the cursor (src) to the stateProvider of the layer (dst).
- * - recording does not apply to derived cursors - only cursors that
- *   are directly connected to a stateProvider.
+ *   stateProvider of a cursor (src) to the stateProvider of the layer (dst).
+ * - more generally copy state (items) from cursor to layer. 
+ * - recording therefor only applies to cursors that run directly on a layer with items
+ * - moreover, the target layer must have items (typically a leaflayer)
  *
  * 
- *   TIMEFRAMES
- * - the (src) cursor is driven by a clock (src.ctrl): <SRC_CLOCK> 
+ *   TIMEFRAMES 
  * - the recording to (dst) layer is driven by a clock (ctrl): <DST_CLOCK>
- * - if SRC_CLOCK is not the same as DST_CLOCK, recorded items need to be
- *   converted to the DST_CLOCK time frame.
- * - for example - a common scenario would be to record a cursor with real-time
- *   timestamps into a logical timeline starting at 0, possibly 
- *   rewinding the DST_CLOCK to 0 multiple times in order to do new takes
+ * - during recording - current value of the src cursor will be copied, and
+ *   converted into the timeline of the <DST_CLOCK>
+ * - recording is active only when <DST_CLOCK> is progressing with rate==1.0
+ * - this opens for LIVE recording (<DST_CLOCK> is fixedRate cursor) or
+ *   iterative recording using a (NumbericVariable), allowing multiple takes, 
+ * 
  * 
  *   RECORDING
  * - recording is done by appending items to the dst layer 
- * - when the cursor state changes (entire timeline reset) 
- * - the part of it which describes the future will overwrite the relevant
+ * - when the cursor state changes (entire cursor.src layer is reset) 
+ * - the part which describes the future will overwrite the relevant
  * - part of the the layer timeline
  * - the delineation between past and future is determined by 
  * - fresh timestamp <TS> from <DST_CLOCK>
@@ -4486,54 +4656,55 @@ function layer_transform(src, options={}) {
  *   when the (ctrl) is moving forward
  * 
  *   INPUT
- * - (ctrl) - clock cursor or clock provider media control 
- *   (ctrl is clock_cursor or ctrl.ctrl is clock_cursor)
- * - (src) - cursor with a itemslayer as src 
- *   (src.src is itemslayer)
- * - (dst) - itemslayer
+ * - (ctrl)
+ *      - numeric cursor (ctrl.fixedRate, or 
+ *      - media control (ctrl.ctrl.fixedRate && ctrl.src.itemsOnly)
+ * - (src) - cursor with layer with items (src.itemsOnly) 
+ * - (dst) - layer of items (dst.itemsOnly && dst.mutable)
  *
- *   WARNING
- * - implementation assumes (dst) layer is not the same as the (src) layer
- * - (src) cursor can not be clock cursor (makes no sense to record a clock
- *   - especially when you can make a new one at any time)
- *  
- * - if (dst) is not provided, an empty layer will be created
- * - if (ctrl) is not provided, LOCAL_CLOCK_PROVIDER will be used
+ *   NOTE
+ * - implementation assumes 
+ *      - (dst) layer is not the same as the (src) layer
+ *      - (src) cursor can not be clock cursor (makes no sense to record a clock
+ *   
  */
 
 
-function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
+function layer_recorder(options={}) {
+    const {ctrl, src, dst} = options;
 
-    // check - ctrl 
-    if (is_clock_provider(ctrl)) {
-        ctrl = clock_cursor(ctrl);
+    // check - ctrl
+    if (!(ctrl instanceof Cursor)) {
+        throw new Error(`ctrl must be a cursor ${ctrl}`);
     }
     if (
-        !is_clock_cursor(ctrl) &&
-        !is_clock_cursor(ctrl.ctrl)
-    ){
-        throw new Error(`ctrl or ctrl.ctrl must be a clock cursor ${ctrl}`);
-    }    
+        !ctrl.fixedRate && !ctrl.ctrl.fixedRate
+    ) {
+        throw new Error(`ctrl or ctrl.ctrl must be fixedRate ${ctrl}`);
+    }
+    if (!ctrl.fixedRate) {
+        if (ctrl.ctrl.fixedRate && !ctrl.itemsOnly) {
+            throw new Error(`given ctrl.ctrl.fixedRate, ctrl must be itemsOnly ${ctrl}`);
+        }
+    }
 
     // check - src
     if (!(src instanceof Cursor)) {
         throw new Error(`src must be a cursor ${src}`);
     }
-    if (is_clock_cursor(src)) {
-        throw new Error(`src can not be a clock cursor ${src}`);
+    if ((src.fixedRate)) {
+        throw new Error(`cursor src can not be fixedRate cursor ${src}`);
     }
-    if (!is_items_layer(src.src)) {
-        throw new Error(`cursor src must be itemslayer ${src.src}`);
+    if (!src.itemsOnly) {
+        throw new Error(`cursor src must be itemsOnly ${src}`);
     }
-
-    // check - dst
-    if (!is_items_layer(dst)) {
-        throw new Error(`dst must be a itemslayer ${dst}`);
+    if (!src.mutable) {
+        throw new Error(`cursor src must be mutable ${src}`);
     }
 
     // check - stateProviders
-    const src_stateProvider = src.src.src;
-    const dst_stateProvider = dst.src;
+    const src_stateProvider = src.src.provider;
+    const dst_stateProvider = dst.provider;
     if (src_stateProvider === dst_stateProvider) {
         throw new Error(`src and dst can not have the same stateProvider`);
     }
@@ -4563,8 +4734,6 @@ function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
      * 
      */
 
-
-
     // internal state
     let is_recording = false;
 
@@ -4584,9 +4753,9 @@ function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
         // figure out if recording starts or stops
         const was_recording = is_recording;
         is_recording = false;
-        if (is_clock_cursor(ctrl)) {
+        if (ctrl.fixedRate) {
             is_recording = true;
-        } else if (is_clock_cursor(ctrl.ctrl)) {
+        } else {
             const ctrl_ts = ctrl.ctrl.value;
             const items = ctrl.src.index.nearby(ctrl_ts).center;
             if (items.length == 1)
@@ -4630,12 +4799,14 @@ function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
     }
 
     function record() {
-        console.log("record");
         const ts = local_clock.now();
         const src_offset = src.query(ts).offset;
         const dst_offset = ctrl.query(ts).value;
         // get current src items
-        let src_items = src_stateProvider.get();
+        // crucial to clone the items before changing and
+        // storing them in the dst layer
+        let src_items = structuredClone(src_stateProvider.get());
+
         // re-encode items in dst timeframe, if needed
         const offset = dst_offset - src_offset;
         if (offset != 0) {
@@ -4652,7 +4823,8 @@ function layer_recorder(ctrl=LOCAL_CLOCK_PROVIDER, src, dst) {
     src_stateProvider.add_callback(on_src_change);
     ctrl.add_callback(on_ctrl_change);
     on_ctrl_change();
-    return {};
+
+    return dst;
 }
 
 
@@ -4794,50 +4966,66 @@ function render_provider(stateProvider, selector, options={}) {
 *********************************************************************/
 
 function layer(options={}) {
-    let {src, insert, value, ...opts} = options;
-    if (src instanceof Layer) {
-        return src;
-    }
-    if (src == undefined) {
-        if (value != undefined) {
-            src = new VariableProvider({value});
-        } else {
-            src = new CollectionProvider({insert});
+    let {src, provider, items=[], value, ...opts} = options;
+    if (src != undefined) {
+        if (src instanceof Layer) {
+            return src;
         }
     }
-    return items_layer({src, ...opts}); 
+    if (provider == undefined) {
+        if (value != undefined) {
+            const items = check_items([{
+                itv: [null, null, true, true],
+                data: value
+            }]);
+            provider = new ObjectProvider({items});
+        } else {
+            items = check_items(items);
+            provider = new CollectionProvider({items});
+        } 
+    }
+    return leaf_layer({provider, ...opts}); 
 }
 
-function recorder (options={}) {
-    let {ctrl=LOCAL_CLOCK_PROVIDER, src, dst} = options;
-    return layer_recorder(ctrl, src, dst);
+function record (options={}) {
+    const dst = layer({mutable:true});
+    let {ctrl, src} = options;
+    if (ctrl == undefined) {
+        ctrl = clock();
+    }
+    return layer_recorder({ctrl, src, dst});
 }
 
 /*********************************************************************
     CURSOR FACTORIES
 *********************************************************************/
 
-function clock (src) {
-    return clock_cursor(src);
+function clock(options={}) {
+    const {clock, vector, ...opts} = options;
+    const provider = clock_provider({clock, vector});
+    return clock_cursor({provider, ...opts});
 }
 
-function variable(options={}) {
-    let {clock, ...opts} = options;
-    const src = layer(opts);
-    return variable_cursor(clock, src);
+function object(options={}) {
+    let {ctrl, src, ...src_opts} = options;
+    if (ctrl == undefined) {
+        ctrl = clock();
+    }
+    if (src == undefined) {
+        src = layer(src_opts);
+    }
+    return object_cursor({ctrl, src});
 }
 
 function playback(options={}) {
-    let {ctrl, ...opts} = options;
-    const src = layer(opts);
-    return playback_cursor(ctrl, src);
+    let {ctrl, src, ...src_opts} = options;
+    if (ctrl == undefined) {
+        ctrl = clock();
+    }
+    if (src == undefined) {
+        src = layer(src_opts);
+    }
+    return playback_cursor({ctrl, src});
 }
 
-function skew (src, offset) {
-    function valueFunc(value) {
-        return value + offset;
-    } 
-    return cursor_transform(src, {valueFunc});
-}
-
-export { CollectionProvider, Cursor, Layer, NearbyIndexBase, VariableProvider, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, playback, recorder, render_cursor, render_provider, skew, timeline_transform, variable };
+export { CollectionProvider, Cursor, Layer, NearbyIndexBase, ObjectProvider, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, object, playback, record, render_cursor, render_provider, timeline_transform };
