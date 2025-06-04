@@ -45,7 +45,7 @@ export class Layer {
         callback.addState(this);
         // define change event
         eventify.addState(this);
-        this.eventifyDefine("change", {init:true});
+        this.eventifyDefine("change", {init:false});
 
         // index
         this.index;
