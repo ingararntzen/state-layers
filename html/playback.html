@@ -29,7 +29,7 @@
 
         import * as sl from './libs/statelayers.es.js';
 
-        const items = [
+        const colors_1 = sl.layer({items: [
             {itv: [0, 1], data: "red"},
             {itv: [1, 2], data: "blue"},
             {itv: [2, 3], data: "green"},
@@ -37,15 +37,31 @@
             {itv: [4, 5], data: "orange"},
             {itv: [5, 6], data: "#4B0082"},
             {itv: [6, 7], data: "violet"},
-        ];
-
-        const colors = sl.layer({items})
-        const offset = sl.object({numeric:true});
-        const color = sl.playback({src:colors, ctrl:offset});
+        ]})
         
+        const colors_2 = sl.layer({items: [
+            {itv: [0, 1], data: "blue"},
+            {itv: [1, 2], data: "green"},
+            {itv: [2, 3], data: "yellow"},
+            {itv: [3, 4], data: "orange"},
+            {itv: [4, 5], data: "#4B0082"},
+            {itv: [5, 6], data: "violet"},
+            {itv: [6, 7], data: "red"},
+        ]})
+        
+        
+        
+        
+        const offset = sl.object({numeric:true});
+        window.to = offset; // for debugging
+        offset.motion({velocity:1});
+        const color_1 = sl.playback({src:colors_1, ctrl:offset});        
+        const color_2 = sl.playback({src:colors_2, ctrl:offset});
+
         // render
         sl.render_cursor(offset, "#offset", {render:renderNumber});
-        sl.render_cursor(color, "#color", {render:renderValue});
+        sl.render_cursor(color_1, "#color-1", {render:renderValue});
+        sl.render_cursor(color_2, "#color-2", {render:renderValue});
 
         // button controls
         document.querySelector("#valueBtn").onclick = () => {
@@ -74,7 +90,10 @@
             ];
             offset.interpolate({tuples, duration:4});
         }
-
+        document.querySelector("#testBtn").onclick = () => {
+            console.log("Test");
+            offset.motion({velocity:0, position:0.5});
+        }
 </script>
 </head>
 <body>
@@ -89,13 +108,18 @@
         <button id="pauseBtn">Pause</button>
         <button id="transBtn">Transition</button>
         <button id="interpolateBtn">Interpolate</button>
+        <button id="testBtn">Test</button>
     </p>
     <p>
         <div class="cursor" id="offset"></div>
     </p>
     <p>
-        <div class="cursor" id="color"></div>
+        <div class="cursor" id="color-1"></div>
     </p>
+    <p>
+        <div class="cursor" id="color-2"></div>
+    </p>
+
 
 </body>
 </html>
