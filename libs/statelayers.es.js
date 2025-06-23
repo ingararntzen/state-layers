@@ -1477,7 +1477,7 @@ class Layer {
         addState$1(this);
         // define change event
         eventifyInstance(this);
-        this.eventifyDefine("change", {init:true});
+        this.eventifyDefine("change", {init:false});
 
         // index
         this.index;
@@ -2103,6 +2103,7 @@ class CollectionProvider {
      * update processing, and returns Promise.
      */
     update (changes) {
+        changes.insert = check_items(changes.insert);
         return Promise.resolve()
         .then(() => {
             let diffs;
@@ -2186,10 +2187,11 @@ class ObjectProvider {
         this._object = items;
     }
 
-    set (obj) {
+    set (items) {
+        items = check_items(items);
         return Promise.resolve()
             .then(() => {
-                this._object = obj;
+                this._object = items;
                 this.notify_callbacks();
             });
     }
@@ -3095,7 +3097,6 @@ function load_segment(itv, item) {
 *********************************************************************/
 
 function leaf_layer(options={}) {
-
     const {
         provider,
         numeric=false, 
@@ -3260,9 +3261,7 @@ class LeafLayerCache {
 */
 function layer_update(layer, changes={}) {
 
-    // check items to be inserted
-    let {insert=[]} = changes;
-    changes.insert = check_items(insert);
+    changes.insert ??= [];
 
     // check number restriction
     // check that static items are restricted to numbers
@@ -4847,6 +4846,41 @@ function timeshift_item (item, offset) {
     return item;
 }
 
+/**
+ * Timing Object Cursor
+ * Create a new Cursor which has a Timing Object as src property.
+ * 
+ * The new Cursor does not have a src (layer) or a ctrl (cursor)
+ * property, since it only depends on the src TimingObject.
+ * 
+ * Also, the new cursor does not need any playback logic on its own
+ * since it is only a wrapper and the timing object provides playback support.
+ */
+function cursor_from_timingobject(src) {
+
+    if (src.constructor.name != "TimingObject") {
+        throw new Error(`src must be a TimingObject ${src}`);
+    }
+
+    const cursor = new Cursor();
+
+    // implement query
+    cursor.query = function query() {
+        const {position, velocity, acceleration, timestamp} = src.query();
+        const dynamic = (velocity != 0 || acceleration != 0);
+        return {value:position, dynamic, offset:timestamp};
+    };
+
+    // numeric
+    Object.defineProperty(cursor, "numeric", {get: () => true});
+    // fixedRate
+    Object.defineProperty(cursor, "fixedRate", {get: () => false});
+
+    // callbacks from timing object
+    src.on("change", () => {cursor.onchange();});
+    return cursor;
+}
+
 /*
     State Provider Viewer
 */
@@ -5028,4 +5062,4 @@ function playback(options={}) {
     return playback_cursor({ctrl, src});
 }
 
-export { CollectionProvider, Cursor, Layer, NearbyIndexBase, ObjectProvider, boolean_layer as boolean, clock, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, object, playback, record, render_cursor, render_provider, timeline_transform };
+export { CollectionProvider, Cursor, Layer, NearbyIndexBase, ObjectProvider, boolean_layer as boolean, clock, cursor_from_timingobject, cursor_transform, layer, layer_from_cursor, layer_transform, local_clock, logical_expr, logical_merge_layer as logical_merge, merge_layer as merge, object, playback, record, render_cursor, render_provider, timeline_transform };
