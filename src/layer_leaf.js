@@ -4,7 +4,7 @@ import { is_collection_provider } from "./provider_collection.js";
 import { is_object_provider} from "./provider_object.js";
 import { NearbyIndex } from "./nearby_index.js";
 import { load_segment } from "./util/segments.js";
-import { toState, is_finite_number, check_items, check_number} from "./util/common.js";
+import { toState, is_finite_number, check_number} from "./util/common.js";
 import { endpoint, interval } from "./util/intervals.js";
 
 
@@ -17,7 +17,6 @@ export function is_leaf_layer(obj) {
 *********************************************************************/
 
 export function leaf_layer(options={}) {
-
     const {
         provider,
         numeric=false, 
@@ -182,9 +181,7 @@ class LeafLayerCache {
 */
 function layer_update(layer, changes={}) {
 
-    // check items to be inserted
-    let {insert=[]} = changes;
-    changes.insert = check_items(insert);
+    changes.insert ??= [];
 
     // check number restriction
     // check that static items are restricted to numbers

@@ -20,7 +20,7 @@ import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
 import { timeline_transform } from "./ops/timeline_transform.js";
 import { cursor_transform, layer_transform } from "./ops/transform.js";
 import { layer_recorder } from "./ops/record.js";
-
+import { cursor_from_timingobject } from "./ops/cursor_from_timingobject.js";
 
 // util
 import { local_clock, render_cursor, check_items } from "./util/common.js";
@@ -115,6 +115,7 @@ export {
     layer_from_cursor,
     layer_transform,
     cursor_transform,
+    cursor_from_timingobject,
     timeline_transform,
     render_provider,
     render_cursor

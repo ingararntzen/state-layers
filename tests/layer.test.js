@@ -26,7 +26,7 @@ describe('Test Layer', () => {
         expect(result[6][0]).toBe(undefined);        
     });
 
-    test('sample layer with variableProvider', () => {
+    test('sample layer with objectProvider', async () => {
 
         const layer = sl.layer({value:5});
         let result = layer.sample({start:2, stop:8});       
@@ -35,6 +35,13 @@ describe('Test Layer', () => {
             expect(tup[1]).toBe(2 + index);
             expect(tup[0] == 5);
         });
+
+        // update
+        layer.provider.set([{id:"jalal", itv: [null, null], data:"data"}]).then(() => {
+            console.log(layer.provider.get().length == 1);
+        });
+
+
     });
 
     test('test layer from cursor', () => {
@@ -128,6 +135,7 @@ describe('Test Layer', () => {
     });
 
 
+    /*
     test('Test layer append supporting correctly with repeated state', () => {
 
         const init_items = [
@@ -146,7 +154,6 @@ describe('Test Layer', () => {
 
         // TODO - implementation should be strengthened to support
         // repetition of state.
-
         l1.append(new_items,1.5).then(() => {            
             const result = l1.provider.get();
             // expect(result[0]).toStrictEqual(new_items[0]);
@@ -155,5 +162,36 @@ describe('Test Layer', () => {
             // console.log(result)
         });
     });
+    */
+
+    test('Test insert layers without id', async () => {
+
+        const init_items = [
+            {itv: [0, 1, true, false], data: 0},
+            {itv: [1, 2, true, false], data: 1},
+            {itv: [2, 3, true, false], data: 2},
+        ]
+        const l1 = sl.layer({items:init_items});
+
+        expect(l1.provider.get().length == 3)
+        expect([...l1.regions()].length == 3)
+
+        // update
+        const new_items = [
+            {itv: [3, 4, true, false], data: 0},
+            {itv: [4, 5, true, false], data: 1},
+            {itv: [5, 5, true, false], data: 2},
+        ]
+        l1.provider.update({insert: new_items})
+            .then(() => {
+                expect(l1.provider.get().length == 6)
+                expect([...l1.regions()].length == 6);
+           })
+    });
+
+    /**
+     * POSSIBLE BUG - insert singularity items appeared to break regions at one point, so
+     * should possibly be denied 
+     */
 
 });

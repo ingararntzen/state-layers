@@ -1,5 +1,5 @@
 import * as callback from "./util/api_callback.js";
-
+import { check_items } from "./util/common.js";
 
 /**
  * collection providers must provide get_all function
@@ -50,6 +50,7 @@ export class CollectionProvider {
      * update processing, and returns Promise.
      */
     update (changes) {
+        changes.insert = check_items(changes.insert);
         return Promise.resolve()
         .then(() => {
             let diffs;
