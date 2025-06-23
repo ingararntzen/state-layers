@@ -1,4 +1,5 @@
 import * as callback from "./util/api_callback.js";
+import { check_items } from "./util/common.js";
 
 /**
  * object providers implement get() and set() methods
@@ -29,10 +30,11 @@ export class ObjectProvider {
         this._object = items;
     }
 
-    set (obj) {
+    set (items) {
+        items = check_items(items);
         return Promise.resolve()
             .then(() => {
-                this._object = obj;
+                this._object = items;
                 this.notify_callbacks();
             });
     }
