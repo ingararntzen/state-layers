@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Document</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .cursor {color: red; font-weight: bold;}
+    </style>
+    <script type="module">
+
+
+        import {TimingObject} from "https://webtiming.github.io/timingsrc/lib/timingsrc-esm-v3.js";
+
+        const to = new TimingObject();
+
+        function getRandomInt(max) {
+          return Math.floor(Math.random() * max);
+        }
+        function renderNumber({value}, elem) {
+            elem.textContent = (typeof value == 'number') ? value.toFixed(2) : "NaN";
+        }
+
+        import * as sl from './libs/statelayers.es.js';
+
+        // variable
+        // const offset = sl.object({numeric:true});
+
+        const offset = sl.cursor_from_timingobject(to);
+        sl.render_cursor(offset, "#offset", {render:renderNumber});
+
+        // button controls
+        document.querySelector("#valueBtn").onclick = () => {
+            to.update({position: getRandomInt(10)})
+        }
+        document.querySelector("#resetBtn").onclick = () => {
+            to.update({position:0});
+        }
+        document.querySelector("#playBtn").onclick = () => {
+            to.update({velocity:1});
+        }
+        document.querySelector("#pauseBtn").onclick = () => {
+            to.update({velocity:0});
+        }
+
+
+</script>
+</head>
+<body>
+    <h1>Hello, TimingObject!</h1>
+    <h3> Value </h3>
+    <p>
+        <div class="cursor" id="offset"></div>
+    </p>
+    <p>
+        <button id="valueBtn">SetValue</button>
+        <button id="resetBtn">Reset</button>
+        <button id="playBtn">Play</button>
+        <button id="pauseBtn">Pause</button>
+    </p>
+</body>
+</html>
