@@ -4862,6 +4862,30 @@ function cursor_from_timingobject(src) {
         throw new Error(`src must be a TimingObject ${src}`);
     }
 
+    // split timing object into clock and vector
+
+    // make a clock cursor
+    const clock = new Cursor();
+    clock.query = function query() {
+        const {timestamp} = src.query();
+        return {value: timestamp, dynamic: true, offset: timestamp}; 
+    };
+    // numeric
+    Object.defineProperty(clock, "numeric", {get: () => {return true}});
+    // fixedRate
+    Object.defineProperty(clock, "fixedRate", {get: () => {return true}});
+
+    // layer for the vector
+    const sp = new ObjectProvider({
+        items: [{
+            itv: [null, null, true, true],
+            data: src.vector
+        }]
+    });
+    const layer = leaf_layer({provider: sp});
+
+
+    // make a timing object cursor
     const cursor = new Cursor();
 
     // implement query
@@ -4872,12 +4896,24 @@ function cursor_from_timingobject(src) {
     };
 
     // numeric
-    Object.defineProperty(cursor, "numeric", {get: () => true});
+    Object.defineProperty(cursor, "numeric", {get: () => {return true}});
     // fixedRate
-    Object.defineProperty(cursor, "fixedRate", {get: () => false});
+    Object.defineProperty(cursor, "fixedRate", {get: () => {return false}});
+    // ctrl
+    Object.defineProperty(cursor, "ctrl", {get: () => {return clock}});
+    // src
+    Object.defineProperty(cursor, "src", {get: () => {return layer}});
+
 
     // callbacks from timing object
-    src.on("change", () => {cursor.onchange();});
+    src.on("change", () => {
+        // update state provider
+        layer.provider.set([{
+            itv: [null, null, true, true],
+            data: src.vector
+        }]);
+        cursor.onchange();
+    });
     return cursor;
 }
 
