@@ -23,11 +23,28 @@
 
         import * as sl from './libs/statelayers.es.js';
 
-        // variable
+        // time control
         // const offset = sl.object({numeric:true});
-
         const offset = sl.cursor_from_timingobject(to);
         sl.render_cursor(offset, "#offset", {render:renderNumber});
+
+        // layer
+        const colors_1 = sl.layer({items: [
+            {itv: [0, 1], data: "red"},
+            {itv: [1, 2], data: "blue"},
+            {itv: [2, 3], data: "green"},
+            {itv: [3, 4], data: "yellow"},
+            {itv: [4, 5], data: "orange"},
+            {itv: [5, 6], data: "#4B0082"},
+            {itv: [6, 7], data: "violet"},
+        ]});
+
+        const color_1 = sl.playback({src:colors_1, ctrl:offset});
+
+        color_1.on("change", () => {
+            console.log("COLOR", color_1.get())
+        });
+
 
         // button controls
         document.querySelector("#valueBtn").onclick = () => {
