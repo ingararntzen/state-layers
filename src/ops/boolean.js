@@ -1,33 +1,33 @@
 import { interval, endpoint} from "../util/intervals.js";
 import { NearbyIndexBase } from "../nearby_base.js";
-import { Layer } from "../layer_base.js"
+import { Track } from "../track_base.js"
 
 /*********************************************************************
-    BOOLEAN LAYER
+    BOOLEAN TRACK
 *********************************************************************/
 
 /* 
-    Boolean Layer is returns values 0/1 - making it a numeric layer
+    Boolean Track is returns values 0/1 - making it a numeric track
 */
 
 
-export function boolean_layer(src) {
+export function boolean_track(src) {
 
-    const layer = new Layer();
-    layer.index = new NearbyIndexBoolean(src.index);
+    const track = new Track();
+    track.index = new NearbyIndexBoolean(src.index);
     
     // subscribe
     src.add_callback((eArg) => {
-        layer.onchange(eArg);
+        track.onchange(eArg);
     });
 
 
     // restrictions
-    Object.defineProperty(layer, "numeric", {get: () => true});
+    Object.defineProperty(track, "numeric", {get: () => true});
 
     // initialise
-    layer.src = src;
-    return layer;
+    track.src = src;
+    return track;
 } 
 
 

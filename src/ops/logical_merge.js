@@ -1,9 +1,9 @@
-import { Layer } from "../layer_base.js";
+import { Track } from "../track_base.js";
 import { NearbyIndexBoolean } from "./boolean.js";
 import { NearbyIndexMerge } from "./merge.js";
 
 
-export function logical_merge_layer(sources, options={}) {
+export function logical_merge_track(sources, options={}) {
 
     const {expr} = options;
     let condition;
@@ -13,27 +13,27 @@ export function logical_merge_layer(sources, options={}) {
         }    
     }
 
-    const layer = new Layer();
+    const track = new Track();
     const index = new NearbyIndexMerge(sources);
-    layer.index = new NearbyIndexBoolean(index, {condition});
+    track.index = new NearbyIndexBoolean(index, {condition});
 
     // subscribe to callbacks from sources
     sources.map((src) => {
-        return src.add_callback(layer.onchange);
+        return src.add_callback(track.onchange);
     });
     
-    layer.sources = sources;
+    track.sources = sources;
 
     // restrictions
-    Object.defineProperty(layer, "numeric", {get: () => true});
+    Object.defineProperty(track, "numeric", {get: () => true});
 
-    return layer;
+    return track;
 }
 
 
 export function logical_expr (src) {
-    if (!(src instanceof Layer)) {
-        throw new Error(`must be layer ${src}`)
+    if (!(src instanceof Track)) {
+        throw new Error(`must be track ${src}`)
     }
     return {
         eval: function (center) {

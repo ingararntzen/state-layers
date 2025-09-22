@@ -1,6 +1,6 @@
 import { endpoint } from "../util/intervals.js";
 import { NearbyIndexBase } from "../nearby_base.js";
-import { Layer } from "../layer_base.js"
+import { Track } from "../track_base.js"
 import * as srcprop from "../util/api_srcprop.js";
 
 
@@ -45,10 +45,10 @@ function reverse(p, {shift=0, scale=1}) {
 
 class NearbyIndexATT extends NearbyIndexBase {
 
-    constructor (layer, options={}) {
+    constructor (track, options={}) {
         super();
-        this._layer = layer;
-        this._cache = layer.createCache();
+        this._track = track;
+        this._cache = track.createCache();
         this._options = options;
         
         // transform cache
@@ -65,7 +65,7 @@ class NearbyIndexATT extends NearbyIndexBase {
     nearby(offset) {
         offset = endpoint.from_input(offset);
         // reverse transform query offset
-        const nearby = this._layer.index.nearby(reverse(offset, this._options));
+        const nearby = this._track.index.nearby(reverse(offset, this._options));
         // transform query result 
         const itv = nearby.itv.slice();
         itv[0] = transform(nearby.itv[0], this._options);
@@ -81,55 +81,52 @@ class NearbyIndexATT extends NearbyIndexBase {
 
 
 /*********************************************************************
-    TIMELINE TRANSFORM LAYER
+    TIMELINE TRANSFORM TRACK
 *********************************************************************/
 
 /**
- * Shifting and scaling the timeline of a layer
+ * Shifting and scaling the timeline of a track
  * 
  * options:
- * - shift: a value of 2 effectively means that layer contents 
+ * - shift: a value of 2 effectively means that track contents 
  *   are shifted to the right on the timeline, by 2 units
- * - scale: a value of 2 means that the layer is stretched
+ * - scale: a value of 2 means that the track is stretched
  *   by a factor of 2
  */
 
 export function timeline_transform (src, options={}) {
 
-    const layer = new Layer();
+    const track = new Track();
 
     // setup src property
-    srcprop.addState(layer);
-    srcprop.addMethods(layer);
-    layer.srcprop_register("src");
+    srcprop.addState(track);
+    srcprop.addMethods(track);
+    track.srcprop_register("src");
         
-    layer.srcprop_check = function(propName, src) {
+    track.srcprop_check = function(propName, src) {
         if (propName == "src") {
-            if (!(src instanceof Layer)) {
-                throw new Error(`"src" must be Layer ${src}`);
+            if (!(src instanceof Track)) {
+                throw new Error(`"src" must be Track ${src}`);
             }
             return src;    
         }
     }
 
-    layer.srcprop_onchange = function(propName, eArg) {
+    track.srcprop_onchange = function(propName, eArg) {
         if (propName == "src") {
             if (eArg == "reset") {
                 this.index = new NearbyIndexATT(this.src, options)
             } 
-            layer.onchange();
+            track.onchange();
         }
     }
 
     // restrictions
-    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+    Object.defineProperty(track, "numeric", {get: () => src.numeric});
 
     // initialise
-    layer.src = src;
+    track.src = src;
 
-
-
-    
-    return layer;
+    return track;
 }
 

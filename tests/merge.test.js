@@ -8,16 +8,16 @@ const OFFSET = 4;
 
 
 function runtest(intervals, expected) {
-    // make layers
-    const layers = intervals.map((intervals) => { 
-        return sl.layer({
+    // make tracks
+    const tracks = intervals.map((intervals) => { 
+        return sl.track({
             items: intervals.map((itv, idx) => {
                 return {id: `${idx}`, itv, type: "static", data: DATA};
             })
         });
     });
 
-    let index = new NearbyIndexMerge(layers);
+    let index = new NearbyIndexMerge(tracks);
     let result = index.nearby(OFFSET);
     expect(expected.itv).toStrictEqual(result.itv);
     expect(expected.left).toStrictEqual(result.left);
@@ -29,7 +29,7 @@ function runtest(intervals, expected) {
 describe('MergeTest', () => {
 
     test('EmptyCenter-EmptyOnSides', () => {
-        const layers = [
+        const tracks = [
             [], 
             []
         ]
@@ -39,11 +39,11 @@ describe('MergeTest', () => {
             left: [null, "["],
             right: [null, "]"],
         };
-        runtest(layers, expected);
+        runtest(tracks, expected);
     });
 
     test('EmptyCenter-NonemptyOnSides', () => {
-        const layers = [
+        const tracks = [
             [[-1, 1, true, false],], 
             [[8, 10, true, false],]
         ]
@@ -53,12 +53,12 @@ describe('MergeTest', () => {
             left: [1, ")"],
             right: [8, "["],
         };
-        runtest(layers, expected);
+        runtest(tracks, expected);
     });
 
     test('SingleCenter-EmptyOnSides', () => {
 
-        const layers = [
+        const tracks = [
             [[1, 8, true, false]]
         ]
         const expected = {
@@ -67,11 +67,11 @@ describe('MergeTest', () => {
             left: [1, ")"],
             right: [8,"["],
         };
-        runtest(layers, expected);
+        runtest(tracks, expected);
     });
     
     test('SingleCenter-NonEmptyOnSides-Gaps', () => {
-        const layers = [
+        const tracks = [
             [[1, 8, true, false],],
             [[-10, 0, true, false]],
             [[10, 20, true, false]]
@@ -82,11 +82,11 @@ describe('MergeTest', () => {
             left: [1, ")"],
             right: [8, "["],
         };
-        runtest(layers, expected);
+        runtest(tracks, expected);
     });
 
     test('MultipleNonequalCenter-EmptyOnSides', () => {
-        const layers = [
+        const tracks = [
             [[1, 8, true, false]],
             [[0, 7, true, false]],
         ]
@@ -96,11 +96,11 @@ describe('MergeTest', () => {
             left: [1, ")"],
             right: [7, "["],
         };
-        runtest(layers, expected);
+        runtest(tracks, expected);
     });
 
     test('MultipleEqualCenter-NonEmptyOnSides-Overlap-1', () => {
-        const layers = [
+        const tracks = [
             [[1, 8, true, false]],
             [[1, 8, true, false]],
             [[-10, 3, true, false]],
@@ -112,12 +112,12 @@ describe('MergeTest', () => {
             left: [3, ")"],
             right: [5, "["],
         };
-        runtest(layers, expected);
+        runtest(tracks, expected);
     });
 
     test('MultipleNonequalCenter-NonemptyOnSides-Overlap-2', () => {
         // center closer to offset
-        const layers = [
+        const tracks = [
             [[1, 8, true, false]],
             [[3, 5, true, false]],
             [[-10, 2, true, false]],
@@ -129,41 +129,41 @@ describe('MergeTest', () => {
             left: [3, ")"],
             right: [5, "["],
         };
-        runtest(layers, expected);
+        runtest(tracks, expected);
     });
 
-    test('TestMergeLayer List', () => {
+    test('TestMergeTrack List', () => {
 
         // Datasource 1
         const items_1 = [
             {type: "static", itv: [1, 5, true, false], value: 0.8},
             {type: "static", itv: [10, 15, true, false], value: 0.6},
         ];
-        const layer_1 = sl.layer({items:items_1});
+        const track_1 = sl.track({items:items_1});
 
         // Datasource 2
         const items_2 = [
             {type: "static", itv: [2.5, 7.5, true, false], value: 0.1},
             {type: "static", itv: [12.5, 17.5, true, false], value: 0.3},
         ];
-        const layer_2 = sl.layer({items:items_2});
+        const track_2 = sl.track({items:items_2});
 
         // Merge
-        let layer = sl.merge([layer_1, layer_2]);
+        let track = sl.merge([track_1, track_2]);
 
         const expected = [
-            [layer_1],
-            [layer_1, layer_2],
-            [layer_2],
-            [layer_1],
-            [layer_1, layer_2],
-            [layer_2]
+            [track_1],
+            [track_1, track_2],
+            [track_2],
+            [track_1],
+            [track_1, track_2],
+            [track_2]
         ];
 
-        let regions = [...layer.index.regions({start:0, end:20, includeEmpty:false})];        
+        let regions = [...track.index.regions({start:0, end:20, includeEmpty:false})];        
         for (let [i, region] of regions.entries()) {
             for (let [j, cache] of region.center.entries()) {
-                expect(cache._layer).toBe(expected[i][j]);
+                expect(cache._track).toBe(expected[i][j]);
             }
         }
     });
@@ -176,14 +176,14 @@ describe('MergeTest', () => {
             {id: "a", type: "static", itv: [1, 5, true, false], data:0.8},
             {id: "b", type: "static", itv: [10, 15, true, false], data:0.6},
         ];
-        const layer_1 = new sl.layer({items:items_1});
+        const track_1 = new sl.track({items:items_1});
 
         // Datasource 2
         const items_2 = [
             {id: "c", type: "static", itv: [2.5, 7.5, true, false], data:0.1},
             {id: "d", type: "static", itv: [12.5, 17.5, true, false], data:0.3},
         ];
-        const layer_2 = sl.layer({items:items_2});
+        const track_2 = sl.track({items:items_2});
 
         // valueFunc
         function valueFunc(info) {
@@ -194,7 +194,7 @@ describe('MergeTest', () => {
         }
 
         // Merge
-        let layer = sl.merge([layer_1, layer_2], {valueFunc});
+        let track = sl.merge([track_1, track_2], {valueFunc});
 
 
         const expected = [
@@ -221,7 +221,7 @@ describe('MergeTest', () => {
             [ 0, 20 ]
         ]
             
-        let tups = layer.sample({start:0, stop:20});
+        let tups = track.sample({start:0, stop:20});
         expect(tups).toStrictEqual(expected);
     });
 

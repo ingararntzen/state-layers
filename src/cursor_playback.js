@@ -1,5 +1,5 @@
 import { Cursor } from "./cursor_base.js";
-import { Layer } from "./layer_base.js";
+import { Track } from "./track_base.js";
 import * as srcprop from "./util/api_srcprop.js";
 import { check_number, set_timeout} from "./util/common.js";
 
@@ -11,7 +11,7 @@ import { check_number, set_timeout} from "./util/common.js";
 /**
  * generic playback cursor
  * 
- * "src" is a layer
+ * "src" is a track
  * "ctrl" is cursor (Number)
  * returns a cursor
  */
@@ -21,7 +21,7 @@ export function playback_cursor(options={}) {
     const {ctrl, src, 
         mutable=false} = options;
 
-    let src_cache; // cache for src layer
+    let src_cache; // cache for src track
     let tid; // timeout
     let pid; // polling
 
@@ -59,8 +59,8 @@ export function playback_cursor(options={}) {
             return obj;
         }
         if (propName == "src") {
-            if (!(obj instanceof Layer)) {
-                throw new Error(`"src" property must be a layer ${obj}`);
+            if (!(obj instanceof Track)) {
+                throw new Error(`"src" property must be a track ${obj}`);
             }
             return obj;
         }
@@ -84,8 +84,8 @@ export function playback_cursor(options={}) {
         // should not happen
         check_number("cursor.ctrl.offset", offset);
         const state = src_cache.query(offset);
-        // if (src) layer is numeric, default value 0 
-        // is assumed in regions where the layer is undefined
+        // if (src) track is numeric, default value 0 
+        // is assumed in regions where the track is undefined
         if (cursor.src.numeric && state.value == undefined) {
             state.value = 0.0;
         }
@@ -109,13 +109,13 @@ export function playback_cursor(options={}) {
      * 
      * Other cursors may change behaviour at a future time.
      * If this future change is caused by a state change - 
-     * either in (src) layer or (ctrl) cursor - events will be 
+     * either in (src) track or (ctrl) cursor - events will be 
      * triggered in response to this. 
      * 
      * However, cursors may also change behaviour at a future time moment
      * in time, without any causing state change. This may happen during 
      * playback, as the (ctrl) cursor leaves the current region 
-     * of the (src) layer and enters into the next region.
+     * of the (src) track and enters into the next region.
      * 
      * This event must be detected, ideally at the right moment, 
      * so that the cursor can generate events, allowing observers to
@@ -127,7 +127,7 @@ export function playback_cursor(options={}) {
      * NOTE consumers of cursors might poll the cursor themselves, thus 
      * causing the event to be detected that way. However, there is no 
      * guarantee that this will happen. For example, in circumstances 
-     * where the (src) layer region is static, consumers will turn
+     * where the (src) track region is static, consumers will turn
      * polling off, and depend on the change event from the cursor, in order 
      * to detect the change in behavior.
      * 
@@ -190,7 +190,7 @@ export function playback_cursor(options={}) {
 
                 However, this can only be predicted if cursor.ctrl
                 implements a deterministic function of time.
-                This can be known only if cursor.ctrl.src is a layer with items.
+                This can be known only if cursor.ctrl.src is a track with items.
                 and a single active item describes either a motion or a transition 
                 (with linear easing).                
             */

@@ -1,5 +1,5 @@
 import * as srcprop from "./util/api_srcprop.js";
-import { Layer } from "./layer_base.js";
+import { Track } from "./track_base.js";
 import { is_collection_provider } from "./provider_collection.js";
 import { is_object_provider} from "./provider_object.js";
 import { NearbyIndex } from "./nearby_index.js";
@@ -8,15 +8,15 @@ import { toState, is_finite_number, check_number} from "./util/common.js";
 import { endpoint, interval } from "./util/intervals.js";
 
 
-export function is_leaf_layer(obj) {
-    return ((obj instanceof Layer) && obj.isLeaf);
+export function is_leaf_track(obj) {
+    return ((obj instanceof Track) && obj.isLeaf);
 }
 
 /*********************************************************************
-    LEAF LAYER
+    LEAF TRACK
 *********************************************************************/
 
-export function leaf_layer(options={}) {
+export function leaf_track(options={}) {
     const {
         provider,
         numeric=false, 
@@ -24,27 +24,27 @@ export function leaf_layer(options={}) {
         mask,
         ...opts} = options;
 
-    const layer = new Layer({
-        CacheClass:LeafLayerCache, 
+    const track = new Track({
+        CacheClass:LeafTrackCache, 
         ...opts,
     });
 
     // restrictions
-    Object.defineProperty(layer, "numeric", {get: () => numeric});
-    Object.defineProperty(layer, "mutable", {get: () => mutable});
-    Object.defineProperty(layer, "itemsOnly", {get: () => true});
+    Object.defineProperty(track, "numeric", {get: () => numeric});
+    Object.defineProperty(track, "mutable", {get: () => mutable});
+    Object.defineProperty(track, "itemsOnly", {get: () => true});
 
-    // numeric mask - replaces undefined for numeric layers
+    // numeric mask - replaces undefined for numeric tracks
     if (mask != undefined) {
         check_number("mask", mask);
     }
-    layer.mask = mask;
+    track.mask = mask;
 
     // setup provider as property
-    srcprop.addState(layer);
-    srcprop.addMethods(layer);
-    layer.srcprop_register("provider");
-    layer.srcprop_check = function (propName, obj) {
+    srcprop.addState(track);
+    srcprop.addMethods(track);
+    track.srcprop_register("provider");
+    track.srcprop_check = function (propName, obj) {
         if (propName == "provider") {
             if (!(is_collection_provider(obj)) && !(is_object_provider(obj))) {
                 throw new Error(`"obj" must collectionProvider or objectProvider ${obj}`);
@@ -52,22 +52,22 @@ export function leaf_layer(options={}) {
             return obj;    
         }
     }
-    layer.srcprop_onchange = function (propName, eArg) {
+    track.srcprop_onchange = function (propName, eArg) {
         if (propName == "provider") {
             if (eArg == "reset") {
-                if (is_collection_provider(layer.provider)) {
-                    layer.index = new NearbyIndex(layer.provider);
-                } else if (is_object_provider(layer.provider)) {
-                    layer.index = new NearbyIndex(layer.provider);
+                if (is_collection_provider(track.provider)) {
+                    track.index = new NearbyIndex(track.provider);
+                } else if (is_object_provider(track.provider)) {
+                    track.index = new NearbyIndex(track.provider);
                 }
             } 
-            if (layer.index != undefined) {
-                if (is_collection_provider(layer.provider)) {
-                    layer.index.refresh(eArg);
-                } else if (is_object_provider(layer.provider)) {
-                    layer.index.refresh();
+            if (track.index != undefined) {
+                if (is_collection_provider(track.provider)) {
+                    track.index.refresh(eArg);
+                } else if (is_object_provider(track.provider)) {
+                    track.index.refresh();
                 }
-                layer.onchange();
+                track.onchange();
             }
         }        
     }
@@ -75,64 +75,64 @@ export function leaf_layer(options={}) {
 
     /**
      * convenience method for getting items valid at offset
-     * only items layer supports this method
+     * only items track supports this method
      */
-    layer.get_items = function get_items(offset) {
-        return [...layer.index.nearby(offset).center];
+    track.get_items = function get_items(offset) {
+        return [...track.index.nearby(offset).center];
     }
 
     /******************************************************************
-     * LAYER UPDATE API
+     * TRACK UPDATE API
      * ***************************************************************/
 
-    if (!layer.readOnly) {
-        layer.update = function update(changes) {
-            return layer_update(layer, changes);
+    if (!track.readOnly) {
+        track.update = function update(changes) {
+            return track_update(track, changes);
         }
-        layer.append = function append(items, offset) {
-            return layer_append(layer, items, offset);
+        track.append = function append(items, offset) {
+            return track_append(track, items, offset);
         }    
     }
  
     // initialise
-    layer.provider = provider;
+    track.provider = provider;
 
-    return layer;
+    return track;
 }
 
 
 /*********************************************************************
-    LEAF LAYER CACHE
+    LEAF TRACK CACHE
 *********************************************************************/
 
 /*
-    LeafLayers have a CollectionProvider or a ObjectProvider as provider 
+    LeafTracks have a CollectionProvider or a ObjectProvider as provider 
     and use a specific cache implementation, as objects in the 
-    index are assumed to be items from the provider, not other layer objects. 
+    index are assumed to be items from the provider, not other track objects. 
     Moreover, queries are not resolved directly on the items in the index, but
     rather from corresponding segment objects, instantiated from items.
 
     Caching here applies to nearby state and segment objects.
 */
 
-class LeafLayerCache {
-    constructor(layer) {
-        // layer
-        this._layer = layer;
+class LeafTrackCache {
+    constructor(track) {
+        // track
+        this._track = track;
         // cached nearby object
         this._nearby = undefined;
         // cached segment
         this._segment = undefined;
         // query options
         this._query_options = {
-            valueFunc: this._layer.valueFunc,
-            stateFunc: this._layer.stateFunc,
-            numeric: this._layer.numeric,
-            mask: this._layer.mask
+            valueFunc: this._track.valueFunc,
+            stateFunc: this._track.stateFunc,
+            numeric: this._track.numeric,
+            mask: this._track.mask
         };
     }
 
-    get src() {return this._layer};
+    get src() {return this._track};
     get segment() {return this._segment};
 
     query(offset) {
@@ -142,7 +142,7 @@ class LeafLayerCache {
         );
         if (need_index_lookup) {
             // cache miss
-            this._nearby = this._layer.index.nearby(offset);
+            this._nearby = this._track.index.nearby(offset);
             let {itv, center} = this._nearby;
             this._segments = center.map((item) => {
                 return load_segment(itv, item);
@@ -166,47 +166,47 @@ class LeafLayerCache {
 
 
 /*********************************************************************
-    LAYER UPDATE
+    TRACK UPDATE
 *********************************************************************/
 
 /**
- * NOTE - layer update is essentially about stateProvider update.
+ * NOTE - track update is essentially about stateProvider update.
  * so these methods could (for the most part) be moved to the provider.
- * However, update_append benefits from using the index of the layer,
+ * However, update_append benefits from using the index of the track,
  * so we keep it here for now. 
  */
 
 /*
-    Items Layer forwards update to stateProvider
+    Leaf Track forwards update to stateProvider
 */
-function layer_update(layer, changes={}) {
+function track_update(track, changes={}) {
 
     changes.insert ??= [];
 
     // check number restriction
     // check that static items are restricted to numbers
     // other item types are restricted to numbers by default
-    if (layer.isNumberOnly) {
+    if (track.isNumberOnly) {
         for (let item of changes.insert) {
             item.type ??= "static";
             if (item.type == "static" && !is_finite_number(item.data)) {
-                throw new Error(`Layer is number only, but item ${item} is not a number`);
+                throw new Error(`track is number only, but item ${item} is not a number`);
             }
         }
     }
 
-    if (is_collection_provider(layer.provider)) {
-        return layer.provider.update(changes);
-    } else if (is_object_provider(layer.provider)) {     
+    if (is_collection_provider(track.provider)) {
+        return track.provider.update(changes);
+    } else if (is_object_provider(track.provider)) {     
         let {
             insert=[],
             remove=[],
             reset=false
         } = changes;
         if (reset) {
-            return layer.provider.set(insert);
+            return track.provider.set(insert);
         } else {
-            const map = new Map((layer.provider.get() || [])
+            const map = new Map((track.provider.get() || [])
                 .map((item) => [item.id, item]));
             // remove
             remove.forEach((id) => map.delete(id));
@@ -214,21 +214,21 @@ function layer_update(layer, changes={}) {
             insert.forEach((item) => map.set(item.id, item));
             // set
             const items = Array.from(map.values());
-            return layer.provider.set(items);
+            return track.provider.set(items);
         }
     }
 }
     
 
 /*********************************************************************
-    LAYER APPEND
+    TRACK APPEND
 *********************************************************************/
 
 /**
- * append items to layer at offset
+ * append items to track at offset
  * 
  * append implies that pre-existing items beyond offset,
- * will either be removed or truncated, so that the layer
+ * will either be removed or truncated, so that the track
  * is empty after offset.
  * 
  * items will only be inserted after offset, so any new
@@ -239,7 +239,7 @@ function layer_update(layer, changes={}) {
  * 
  * 
  */
-function layer_append(layer, items, offset) {
+function track_append(track, items, offset) {
     const ep = endpoint.from_input(offset);
     
     // truncate or remove new items before offset
@@ -259,19 +259,15 @@ function layer_append(layer, items, offset) {
             return item;
         });
     
-    // console.log("insert", insert_items);
-
     // truncate pre-existing items overlapping offset
-    const modify_items = layer.index.nearby(offset).center.map((item) => {
+    const modify_items = track.index.nearby(offset).center.map((item) => {
         const new_item = {...item};
         new_item.itv = [item.itv[0], offset, item.itv[2], false];
         return new_item;
     });
     
-    // console.log("modify", modify_items);
-
     // remove pre-existing future - items covering itv.low > offset
-    const remove = layer.provider.get()
+    const remove = track.provider.get()
         .filter((item) => {
             const lowEp = endpoint.from_interval(item.itv)[0];
             return endpoint.gt(lowEp, ep);
@@ -282,9 +278,9 @@ function layer_append(layer, items, offset) {
 
     // console.log("remove", remove);
 
-    // layer update
+    // track update
     const insert = [...modify_items, ...insert_items];
-    return layer_update(layer, {remove, insert, reset:false})
+    return track_update(track, {remove, insert, reset:false})
 }
 
 

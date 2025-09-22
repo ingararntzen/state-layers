@@ -4,19 +4,19 @@ import { interval } from "./util/intervals.js";
 import { range, toState } from "./util/common.js";
 
 /************************************************
- * LAYER
+ * TRACK
  ************************************************/
 
 /**
- * Layer is abstract base class for Layers
+ * Track is abstract base class for tracks.
  * 
- * Layer interface is defined by (index, CacheClass, options)
+ * Track interface is defined by (index, CacheClass, options)
  * 
  * CacheClass
  * ----------
- * The CacheClass implements the query operation for the layer, using
- * the index for lookups on cache miss. Layer has a private cache. 
- * Additionally, if layer has multiple consumers, they can each 
+ * The CacheClass implements the query operation for the track, using
+ * the index for lookups on cache miss. Track has a private cache. 
+ * Additionally, if track has multiple consumers, they can each 
  * create their own private cache. 
  * 
  * options
@@ -27,16 +27,16 @@ import { range, toState } from "./util/common.js";
  * 
  * index
  * -----
- * The nearby index is supplied by Layer implementations, either by 
+ * The nearby index is supplied by Track implementations, either by 
  * subclassing it, or by assigning the index. 
  */
 
-export class Layer {
+export class Track {
 
     constructor(options={}) {
 
         const {
-            CacheClass=LayerCache, 
+            CacheClass=TrackCache, 
             valueFunc=undefined,
             stateFunc=undefined,
         } = options; 
@@ -77,12 +77,12 @@ export class Layer {
         return this._private_cache;
     }
 
-    // invoked by layer consumer
+    // invoked by track consumer
     query(offset) {
         return this.cache.query(offset);
     }
 
-    // invoked by layer consumer
+    // invoked by track consumer
     createCache () {
         const cache = new this._CacheClass(this);
         this._consumer_caches.push(cache);
@@ -103,20 +103,20 @@ export class Layer {
         }
     }
 
-    // invoked by subclass whenever layer has changed
+    // invoked by subclass whenever track has changed
     onchange() {
         this.clearCaches();
         this.notify_callbacks();
         this.eventifyTrigger("change");    
     }
 
-    // iterator for regions of the layer index
+    // iterator for regions of the track index
     regions (options) {
         return this.index.regions(options);
     }
 
     /*
-        Sample layer values by timeline offset increments
+        Sample track values by timeline offset increments
         return list of tuples [value, offset]
         options
         - start
@@ -161,18 +161,18 @@ export class Layer {
         return samples;
     }
 }
-callback.addMethods(Layer.prototype);
-eventify.addMethods(Layer.prototype);
+callback.addMethods(Track.prototype);
+eventify.addMethods(Track.prototype);
 
 
 /************************************************
- * LAYER CACHE
+ * TRACK CACHE
  ************************************************/
 
 /**
- * Layer Cache is the regular cache type, intended for
- * _derived_ Layers - that is a layers which index references
- * other source layers.
+ * Track Cache is the regular cache type, intended for
+ * derived tracks - that is a track which index references
+ * other source tracks.
  * 
  * A query is resolved by identifying the relevant region in
  * the nearby index (index.nearby(offset)), and then querying 
@@ -187,24 +187,24 @@ eventify.addMethods(Layer.prototype);
  * 
  */
 
-export class LayerCache {
+export class TrackCache {
 
-    constructor(layer) {
-        // cache belongs to layer
-        this._layer = layer;
+    constructor(track) {
+        // cache belongs to track
+        this._track = track;
         // cached nearby state
         this._nearby;
         // cached state
         this._state;
         // query options
         this._query_options = {
-            valueFunc: this._layer.valueFunc,
-            stateFunc: this._layer.stateFunc,
-            numberOnly: this._layer.isNumberOnly,
+            valueFunc: this._track.valueFunc,
+            stateFunc: this._track.stateFunc,
+            numberOnly: this._track.isNumberOnly,
         };
     }
 
-    get layer() {return this._layer};
+    get track() {return this._track};
 
     /**
      * query cache
@@ -224,7 +224,7 @@ export class LayerCache {
         }
         // cache miss
         if (need_index_lookup) {
-            this._nearby = this._layer.index.nearby(offset);
+            this._nearby = this._track.index.nearby(offset);
         }
         // perform queries
         const states = this._nearby.center.map((cache) => {

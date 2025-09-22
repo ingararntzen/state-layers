@@ -1,12 +1,12 @@
 import { Cursor } from "../cursor_base.js";
-import { leaf_layer } from "../layer_leaf.js";
+import { leaf_track } from "../track_leaf.js";
 import { ObjectProvider } from "../provider_object.js";
 
 /**
  * Timing Object Cursor
  * Create a new Cursor which has a Timing Object as src property.
  * 
- * The new Cursor does not have a src (layer) or a ctrl (cursor)
+ * The new Cursor does not have a src (track) or a ctrl (cursor)
  * property, since it only depends on the src TimingObject.
  * 
  * Also, the new cursor does not need any playback logic on its own
@@ -31,14 +31,14 @@ export function cursor_from_timingobject(src) {
     // fixedRate
     Object.defineProperty(clock, "fixedRate", {get: () => {return true}});
 
-    // layer for the vector
+    // track for the vector
     const sp = new ObjectProvider({
         items: [{
             itv: [null, null, true, true],
             data: src.vector
         }]
     });
-    const layer = leaf_layer({provider: sp});
+    const track = leaf_track({provider: sp});
 
 
     // make a timing object cursor
@@ -58,13 +58,13 @@ export function cursor_from_timingobject(src) {
     // ctrl
     Object.defineProperty(cursor, "ctrl", {get: () => {return clock}});
     // src
-    Object.defineProperty(cursor, "src", {get: () => {return layer}});
+    Object.defineProperty(cursor, "src", {get: () => {return track}});
 
 
     // callbacks from timing object
     src.on("change", () => {
         // update state provider
-        layer.provider.set([{
+        track.provider.set([{
             itv: [null, null, true, true],
             data: src.vector
         }])

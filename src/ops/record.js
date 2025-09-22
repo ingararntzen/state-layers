@@ -2,20 +2,20 @@ import { Cursor } from "../cursor_base.js";
 import { local_clock } from "../util/common.js";
 
 /**
- * record cursor into layer
+ * record cursor into track
  * 
  *   MAIN IDEA
- * - record the current value of a cursor (src) into a layer (dst)
+ * - record the current value of a cursor (src) into a track (dst)
  * 
  * - recording is essentially a copy operation from the
- *   stateProvider of a cursor (src) to the stateProvider of the layer (dst).
- * - more generally copy state (items) from cursor to layer. 
- * - recording therefor only applies to cursors that run directly on a layer with items
- * - moreover, the target layer must have items (typically a leaflayer)
+ *   stateProvider of a cursor (src) to the stateProvider of the track (dst).
+ * - more generally copy state (items) from cursor to track. 
+ * - recording therefor only applies to cursors that run directly on a track with items
+ * - moreover, the target track must have items (typically a leaftrack)
  *
  * 
  *   TIMEFRAMES 
- * - the recording to (dst) layer is driven by a clock (ctrl): <DST_CLOCK>
+ * - the recording to (dst) track is driven by a clock (ctrl): <DST_CLOCK>
  * - during recording - current value of the src cursor will be copied, and
  *   converted into the timeline of the <DST_CLOCK>
  * - recording is active only when <DST_CLOCK> is progressing with rate==1.0
@@ -24,14 +24,14 @@ import { local_clock } from "../util/common.js";
  * 
  * 
  *   RECORDING
- * - recording is done by appending items to the dst layer 
- * - when the cursor state changes (entire cursor.src layer is reset) 
+ * - recording is done by appending items to the dst track 
+ * - when the cursor state changes (entire cursor.src track is reset) 
  * - the part which describes the future will overwrite the relevant
- * - part of the the layer timeline
+ * - part of the the track timeline
  * - the delineation between past and future is determined by 
  * - fresh timestamp <TS> from <DST_CLOCK>
  * - if an item overlaps with <TS> it will be truncates so that only the part
- * - that is in the future will be recorded (copied) to the layer.
+ * - that is in the future will be recorded (copied) to the track.
  * - in case (ctrl) is a media control - recording can only happen
  *   when the (ctrl) is moving forward
  * 
@@ -39,18 +39,18 @@ import { local_clock } from "../util/common.js";
  * - (ctrl)
  *      - numeric cursor (ctrl.fixedRate, or 
  *      - media control (ctrl.ctrl.fixedRate && ctrl.src.itemsOnly)
- * - (src) - cursor with layer with items (src.itemsOnly) 
- * - (dst) - layer of items (dst.itemsOnly && dst.mutable)
+ * - (src) - cursor with track with items (src.itemsOnly) 
+ * - (dst) - track of items (dst.itemsOnly && dst.mutable)
  *
  *   NOTE
  * - implementation assumes 
- *      - (dst) layer is not the same as the (src) layer
+ *      - (dst) track is not the same as the (src) track
  *      - (src) cursor can not be clock cursor (makes no sense to record a clock
  *   
  */
 
 
-export function layer_recorder(options={}) {
+export function track_recorder(options={}) {
     const {ctrl, src, dst} = options;
 
     // check - ctrl
@@ -184,7 +184,7 @@ export function layer_recorder(options={}) {
         const dst_offset = ctrl.query(ts).value;
         // get current src items
         // crucial to clone the items before changing and
-        // storing them in the dst layer
+        // storing them in the dst track
         let src_items = structuredClone(src_stateProvider.get());
 
         // re-encode items in dst timeframe, if needed

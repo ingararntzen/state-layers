@@ -5,14 +5,14 @@ import * as sl from "../src/index.js";
 // Add your test cases here
 describe('Test Logical Merge', () => {
 
-    test('Check values of Logical Merge Layer', () => {
+    test('Check values of Logical Merge Track', () => {
 
-        const l1 = sl.layer({items:[
+        const l1 = sl.track({items:[
             {id:"a", itv: [0, 1, true, false], data: 0},
             {id:"b", itv: [1, 5, true, false], data: 1},
         ]});
 
-        const l2 = sl.layer({items:[
+        const l2 = sl.track({items:[
             {id:"c", itv: [3, 4, true, false], data: 3},
             {id:"d", itv: [4, 10, true, false], data: 4},    
         ]});

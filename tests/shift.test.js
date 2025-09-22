@@ -2,13 +2,13 @@
 import * as sl from "../src/index.js";
 
 // Add your test cases here
-describe('SkewLayerTest', () => {
+describe('SkewTrackTest', () => {
 
-    test('check values of skewed layer', () => {
+    test('check values of skewed track', () => {
 
         const OFFSET = 2
 
-        const l1 = sl.layer({items:[
+        const l1 = sl.track({items:[
             {id: "1", itv: [0, 1, true, false], data: 0},
             {id: "2", itv: [1, 2, true, false], data: 1},
             {id: "3", itv: [2, 3, true, false], data: 2},

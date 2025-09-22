@@ -1,6 +1,6 @@
 // classes
 import { NearbyIndexBase } from "./nearby_base.js";
-import { Layer } from "./layer_base.js";
+import { Track } from "./track_base.js";
 import { Cursor } from "./cursor_base.js";
 
 // stateProviders
@@ -9,17 +9,17 @@ import { CollectionProvider } from "./provider_collection.js";
 import { ObjectProvider } from "./provider_object.js";
 
 // factory functions
-import { leaf_layer } from "./layer_leaf.js";
+import { leaf_track } from "./track_leaf.js";
 import { clock_cursor } from "./cursor_clock.js"
 import { object_cursor } from "./cursor_object.js";
 import { playback_cursor } from "./cursor_playback.js";
-import { layer_from_cursor } from "./ops/layer_from_cursor.js";
-import { merge_layer } from "./ops/merge.js";
-import { boolean_layer } from "./ops/boolean.js"
-import { logical_merge_layer, logical_expr} from "./ops/logical_merge.js";
+import { track_from_cursor } from "./ops/track_from_cursor.js";
+import { merge_track } from "./ops/merge.js";
+import { boolean_track } from "./ops/boolean.js"
+import { logical_merge_track, logical_expr} from "./ops/logical_merge.js";
 import { timeline_transform } from "./ops/timeline_transform.js";
-import { cursor_transform, layer_transform } from "./ops/transform.js";
-import { layer_recorder } from "./ops/record.js";
+import { cursor_transform, track_transform } from "./ops/transform.js";
+import { track_recorder } from "./ops/record.js";
 import { cursor_from_timingobject } from "./ops/cursor_from_timingobject.js";
 
 // util
@@ -28,13 +28,13 @@ import { render_provider } from "./util/provider_viewer.js";
 
 
 /*********************************************************************
-    LAYER FACTORIES
+    TRACK FACTORIES
 *********************************************************************/
 
-function layer(options={}) {
+function track(options={}) {
     let {src, provider, items=[], value, ...opts} = options;
     if (src != undefined) {
-        if (src instanceof Layer) {
+        if (src instanceof Track) {
             return src;
         }
     }
@@ -50,16 +50,16 @@ function layer(options={}) {
             provider = new CollectionProvider({items});
         } 
     }
-    return leaf_layer({provider, ...opts}); 
+    return leaf_track({provider, ...opts}); 
 }
 
 function record (options={}) {
-    const dst = layer({mutable:true});
+    const dst = track({mutable:true});
     let {ctrl, src} = options;
     if (ctrl == undefined) {
         ctrl = clock();
     }
-    return layer_recorder({ctrl, src, dst});
+    return track_recorder({ctrl, src, dst});
 }
 
 /*********************************************************************
@@ -78,7 +78,7 @@ function object(options={}) {
         ctrl = clock();
     }
     if (src == undefined) {
-        src = layer(src_opts);
+        src = track(src_opts);
     }
     return object_cursor({ctrl, src});
 }
@@ -89,7 +89,7 @@ function playback(options={}) {
         ctrl = clock();
     }
     if (src == undefined) {
-        src = layer(src_opts);
+        src = track(src_opts);
     }
     return playback_cursor({ctrl, src});
 }
@@ -102,18 +102,18 @@ function playback(options={}) {
 export {
     CollectionProvider, ObjectProvider,
     local_clock,
-    Layer, Cursor, NearbyIndexBase,
-    layer, 
+    Track, Cursor, NearbyIndexBase,
+    track, 
     clock,
     object,
     playback,
     record,
-    merge_layer as merge, 
-    boolean_layer as boolean,
-    logical_merge_layer as logical_merge, 
+    merge_track as merge, 
+    boolean_track as boolean,
+    logical_merge_track as logical_merge, 
     logical_expr,
-    layer_from_cursor,
-    layer_transform,
+    track_from_cursor,
+    track_transform,
     cursor_transform,
     cursor_from_timingobject,
     timeline_transform,

@@ -28,8 +28,8 @@
         const offset = sl.cursor_from_timingobject(to);
         sl.render_cursor(offset, "#offset", {render:renderNumber});
 
-        // layer
-        const colors_1 = sl.layer({items: [
+        // track
+        const colors_1 = sl.track({items: [
             {itv: [0, 1], data: "red"},
             {itv: [1, 2], data: "blue"},
             {itv: [2, 3], data: "green"},

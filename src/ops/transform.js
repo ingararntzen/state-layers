@@ -1,8 +1,6 @@
 import { Cursor } from "../cursor_base.js";
-import { Layer } from "../layer_base.js"
+import { Track } from "../track_base.js"
 import { NearbyIndexSrc } from "../nearby_base.js"
-
-
 
 // TODO - enusure numeric if set to true
 
@@ -22,7 +20,7 @@ function transformState(state, options={}) {
  * Cursor Transform
  * Create a new Cursor which is a transformation of a src Cursor.
  * 
- * The new transformed Cursor does not have a src (layer) and and a ctrl (cursor)
+ * The new transformed Cursor does not have a src (track) and and a ctrl (cursor)
  * property, since it only depends on the src cursor.
  * 
  * Also, the new transformed cursor does not need any playback logic on its own
@@ -62,8 +60,8 @@ export function cursor_transform(src, options={}) {
 
 
 /**
- * Layer Transform
- * Create a new Layer which is a transformation of the src Layer
+ * Track Transform
+ * Create a new Track which is a transformation of the src track
  */
 
 function wrappedValueFunc(valueFunc) {
@@ -78,24 +76,24 @@ function wrappedStateFunc(stateFunc) {
     }
 }
 
-export function layer_transform(src, options={}) {
+export function track_transform(src, options={}) {
 
-    if (!(src instanceof Layer)) {
-        throw new Error(`src must be a Layer ${src}`);
+    if (!(src instanceof Track)) {
+        throw new Error(`src must be a Track ${src}`);
     }
 
     const ops = {};
     ops.valueFunc = wrappedValueFunc(options.valueFunc);
     ops.stateFunc = wrappedStateFunc(options.stateFunc);
 
-    const layer = new Layer(ops);
-    layer.index = new NearbyIndexSrc(src);
-    layer.src = src;
-    layer.src.add_callback((eArg) => {layer.onchange(eArg)});
+    const track = new Track(ops);
+    track.index = new NearbyIndexSrc(src);
+    track.src = src;
+    track.src.add_callback((eArg) => {track.onchange(eArg)});
 
-    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+    Object.defineProperty(track, "numeric", {get: () => src.numeric});
 
-    return layer;
+    return track;
 }
 
 

@@ -19,7 +19,7 @@
 
         // cursors
         const clock = sl.clock();
-        const skew_clock = sl.skew(clock, -2);
+        const skew_clock = sl.cursor_transform(clock, {valueFunc: v => v - 2.0});
 
         sl.render_cursor(clock, "#clock", {delay:100, render:renderNumber});
         sl.render_cursor(skew_clock, "#skew-clock", {delay:100, render:renderNumber});

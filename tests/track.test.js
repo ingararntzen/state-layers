@@ -2,16 +2,16 @@
 import * as sl from "../src/index.js";
 
 // Add your test cases here
-describe('Test Layer', () => {
+describe('Test Track', () => {
 
-    test('sample layer with collectionProvider', () => {
+    test('sample track with collectionProvider', () => {
 
         const items = [
             {itv: [2, 4, true, false], data: 0.5},
             {itv: [6, 8, true, false], data: 1.0},
         ];
-        const layer = sl.layer({items});
-        let result = layer.sample();
+        const track = sl.track({items});
+        let result = track.sample();
         expect(result.length).toBe(8-2+1);
         result.forEach((tup, index) => {
             expect(tup[1]).toBe(2 + index);
@@ -26,10 +26,10 @@ describe('Test Layer', () => {
         expect(result[6][0]).toBe(undefined);        
     });
 
-    test('sample layer with objectProvider', async () => {
+    test('sample track with objectProvider', async () => {
 
-        const layer = sl.layer({value:5});
-        let result = layer.sample({start:2, stop:8});       
+        const track = sl.track({value:5});
+        let result = track.sample({start:2, stop:8});       
         expect(result.length).toBe(8-2+1);
         result.forEach((tup, index) => {
             expect(tup[1]).toBe(2 + index);
@@ -37,19 +37,17 @@ describe('Test Layer', () => {
         });
 
         // update
-        layer.provider.set([{id:"jalal", itv: [null, null], data:"data"}]).then(() => {
-            console.log(layer.provider.get().length == 1);
+        track.provider.set([{id:"jalal", itv: [null, null], data:"data"}]).then(() => {
+            expect(track.provider.get().length == 1);
         });
-
-
     });
 
-    test('test layer from cursor', () => {
+    test('test track from cursor', () => {
 
         const cursor = sl.object({value:5});
-        const layer = sl.layer_from_cursor(cursor);
+        const track = sl.track_from_cursor(cursor);
         
-        let result = layer.sample({start:2, stop:8});       
+        let result = track.sample({start:2, stop:8});       
         expect(result.length).toBe(8-2+1);
         result.forEach((tup, index) => {
             expect(tup[1]).toBe(2 + index);
@@ -62,7 +60,7 @@ describe('Test Layer', () => {
             {itv: [2, 4, true, false], data: 0.5},
             {itv: [6, 8, true, false], data: 1.0},
         ];
-        const l1 = sl.layer({items});
+        const l1 = sl.track({items});
 
         function valueFunc(value) {
             if (typeof value == "number") {
@@ -71,7 +69,7 @@ describe('Test Layer', () => {
             return value;
         }
 
-        const l2 = sl.layer_transform(l1, {valueFunc});
+        const l2 = sl.track_transform(l1, {valueFunc});
         let result1 = l1.sample({start:2, stop:8});        
         let result2 = l2.sample({start:2, stop:8});
         for (let i=0; i<result1.length; i++) {
@@ -88,7 +86,7 @@ describe('Test Layer', () => {
     });
 
 
-    test('Test layer append', () => {
+    test('Test track append', () => {
 
         const init_items = [
             {id: "0", itv: [0, 1, true, false], data: 0},
@@ -100,7 +98,7 @@ describe('Test Layer', () => {
             {id: "6", itv: [6, 7, true, false], data: 6},
             {id: "7", itv: [7, 8, true, false], data: 7},
         ]
-        const l1 = sl.layer({items:init_items});
+        const l1 = sl.track({items:init_items});
 
 
         const new_items = [
@@ -136,14 +134,14 @@ describe('Test Layer', () => {
 
 
     /*
-    test('Test layer append supporting correctly with repeated state', () => {
+    test('Test track append supporting correctly with repeated state', () => {
 
         const init_items = [
             {id: "0", itv: [null, 1, true, false], data: 0},
             {id: "1", itv: [1, 2, true, false], data: 1},
             {id: "2", itv: [2, null, true, false], data: 2},
         ]
-        const l1 = sl.layer({items:init_items});
+        const l1 = sl.track({items:init_items});
 
 
         const new_items = [
@@ -164,14 +162,14 @@ describe('Test Layer', () => {
     });
     */
 
-    test('Test insert layers without id', async () => {
+    test('Test insert track without id', async () => {
 
         const init_items = [
             {itv: [0, 1, true, false], data: 0},
             {itv: [1, 2, true, false], data: 1},
             {itv: [2, 3, true, false], data: 2},
         ]
-        const l1 = sl.layer({items:init_items});
+        const l1 = sl.track({items:init_items});
 
         expect(l1.provider.get().length == 3)
         expect([...l1.regions()].length == 3)

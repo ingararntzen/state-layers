@@ -1,32 +1,32 @@
 import { endpoint} from "../util/intervals.js";
 import { NearbyIndexBase } from "../nearby_base.js";
-import { Layer } from "../layer_base.js"
+import { Track } from "../track_base.js"
 import { Cursor } from "../cursor_base.js";
 
 /**
- * This wraps a cursor so that it can be used as a layer.
+ * This wraps a cursor so that it can be used as a track.
  */
 
-export function layer_from_cursor(src) {
+export function track_from_cursor(src) {
 
     if (!(src instanceof Cursor)) {
         throw new Error(`src must be a Cursor ${src}`);
     }
  
-    const layer = new Layer();
-    layer.index = new CursorIndex(src);
+    const track = new Track();
+    track.index = new CursorIndex(src);
 
     // restrictions
-    Object.defineProperty(layer, "numeric", {get: () => src.numeric});
+    Object.defineProperty(track, "numeric", {get: () => src.numeric});
 
     // subscribe
     src.add_callback((eArg) => {
-        layer.onchange(eArg);
+        track.onchange(eArg);
     });
 
     // initialise
-    layer.src = src;
-    return layer;
+    track.src = src;
+    return track;
 } 
 
 
@@ -37,7 +37,7 @@ export function layer_from_cursor(src) {
  * which is to say that it has the same value for all 
  * timeline offsets.
  * 
- * In order for the default LayerCache to work, an
+ * In order for the default TrackCache to work, an
  * object with a .query(offset) method is needed in 
  * nearby.center. Since cursors support this method
  * (ignoring the offset), we can use the cursor directly.
