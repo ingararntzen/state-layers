@@ -35,6 +35,8 @@ export class Cursor {
         throw new Error("query() not implemented");
     }
     get value () {return this.query().value};
+    get dynamic () {return this.query().dynamic;}
+
     get () {return this.query().value;}
 
     /**
