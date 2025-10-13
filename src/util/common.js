@@ -99,7 +99,7 @@ export function toState(sources, states, offset, options={}) {
     let state;
     if (valueFunc != undefined) {
         let value = valueFunc({sources, states, offset});
-        let dynamic = states.map((v) => v.dymamic).some(e=>e);
+        let dynamic = states.map((v) => v.dynamic).some(e=>e);
         state = {value, dynamic, offset};
     } else if (stateFunc != undefined) {
         state = {...stateFunc({sources, states, offset}), offset};
